@@ -7,7 +7,7 @@ User = get_user_model()
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
-    Accepts the same JSON shape as the react-adminlte4-bootstrap client:
+    Accepts the same JSON shape as the planningwithyou-react client:
     { "username": "<email>", "email": "<email>", "password": "..." }.
     Looks up the user by email (case-insensitive), then by username, so the
     login field can be either value.
