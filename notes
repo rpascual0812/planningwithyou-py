@@ -1,6 +1,9 @@
 cd planningwithyou-py
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 python manage.py migrate
 
 python manage.py runserver
+
+
+can i change the folder name react-adminlte4-bootstrap to planningwithyou-py? Keep all the sessions and update all references to planningwithyou-py?
