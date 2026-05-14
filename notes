@@ -9,6 +9,10 @@ python manage.py runserver
 python manage.py runserver
 # Terminal 2 – Celery worker
 celery -A planningwithyou worker --loglevel=info
+# Terminal 3 - Redis
+sudo docker start local-redis
+# Terminal 4 - Flower
+celery -A planningwithyou flower
 
 # REDIS
 sudo docker run --name local-redis -p 6379:6379 -d redis
