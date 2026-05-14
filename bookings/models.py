@@ -9,6 +9,7 @@ class FormTemplate(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        db_table = 'form_templates'
         ordering = ['name']
 
     def __str__(self):
@@ -41,6 +42,7 @@ class FormTemplateField(models.Model):
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
+        db_table = 'form_template_fields'
         ordering = ['sort_order', 'id']
 
     def __str__(self):
@@ -60,6 +62,7 @@ class FormTemplateFieldOption(models.Model):
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
+        db_table = 'form_template_field_options'
         ordering = ['sort_order', 'id']
 
     def __str__(self):

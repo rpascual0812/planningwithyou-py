@@ -1,0 +1,58 @@
+---
+description: Enforce snake_case database table and column naming for all Django models
+globs: "**/models.py"
+alwaysApply: false
+---
+
+# Django Model Naming Convention
+
+All database tables and columns MUST use snake_case naming.
+
+## Table Names
+
+Every model MUST have an explicit `db_table` in its `Meta` class using plural snake_case:
+
+```python
+# ✅ GOOD
+class FormTemplate(models.Model):
+    class Meta:
+        db_table = 'form_templates'
+
+class FormTemplateField(models.Model):
+    class Meta:
+        db_table = 'form_template_fields'
+
+# ❌ BAD — missing db_table, Django auto-generates "appname_formtemplate"
+class FormTemplate(models.Model):
+    class Meta:
+        ordering = ['name']
+```
+
+## Column Names
+
+All field names MUST be snake_case. Django uses the field name as the column name by default:
+
+```python
+# ✅ GOOD
+first_name = models.CharField(max_length=100)
+is_required = models.BooleanField(default=False)
+created_at = models.DateTimeField(auto_now_add=True)
+
+# ❌ BAD
+firstName = models.CharField(max_length=100)
+isRequired = models.BooleanField(default=False)
+```
+
+## Current Convention Reference
+
+| Model | db_table |
+|-------|----------|
+| Contact | `contacts` |
+| ContactNumber | `contact_numbers` |
+| ContactAddress | `contact_addresses` |
+| Document | `documents` |
+| EmailLog | `email_logs` |
+| FormTemplate | `form_templates` |
+| FormTemplateField | `form_template_fields` |
+| FormTemplateFieldOption | `form_template_field_options` |
+| PasswordResetToken | `password_reset_tokens` |

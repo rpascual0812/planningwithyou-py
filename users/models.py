@@ -17,6 +17,7 @@ class PasswordResetToken(models.Model):
     used = models.BooleanField(default=False)
 
     class Meta:
+        db_table = 'password_reset_tokens'
         ordering = ['-created_at']
 
     def __str__(self):
