@@ -31,6 +31,10 @@ class EmailLogViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=status_filter)
         return qs
 
+    def perform_create(self, serializer):
+        log = serializer.save(status=EmailLog.Status.QUEUED)
+        send_email_task.delay(log.pk)
+
     @action(detail=True, methods=['post'])
     def resend(self, request, pk=None):
         """POST /api/emails/{id}/resend/ — optionally edit fields, then re-queue."""
