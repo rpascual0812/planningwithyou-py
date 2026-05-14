@@ -52,3 +52,30 @@ class EmailLog(models.Model):
         if len(self.to) > 3:
             recipients += f' (+{len(self.to) - 3})'
         return f'{self.subject} → {recipients} [{self.status}]'
+
+
+class EmailTemplate(models.Model):
+    class TemplateType(models.TextChoices):
+        USERS = 'users', 'Users'
+
+    name = models.CharField(max_length=255)
+    title = models.CharField(max_length=255, blank=True, default='')
+    subject = models.CharField(max_length=255, blank=True, default='')
+    body = models.TextField(blank=True, default='')
+    template_type = models.CharField(
+        max_length=32,
+        choices=TemplateType.choices,
+        db_index=True,
+        db_column='type',
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'email_templates'
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.template_type})'

@@ -1,11 +1,12 @@
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import EmailLog
-from .serializers import EmailLogSerializer
+from .models import EmailLog, EmailTemplate
+from .serializers import EmailLogSerializer, EmailTemplateSerializer
 from .tasks import send_email_task
 
 
@@ -47,3 +48,35 @@ class EmailLogViewSet(viewsets.ModelViewSet):
             self.get_serializer(log).data,
             status=status.HTTP_200_OK,
         )
+
+
+class EmailUserTemplateViewSet(viewsets.ModelViewSet):
+    """CRUD for email templates with template_type fixed to ``users``."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = EmailTemplateSerializer
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['id', 'name', 'created_at', 'updated_at']
+    ordering = ['name']
+
+    def get_queryset(self):
+        qs = EmailTemplate.objects.filter(
+            template_type=EmailTemplate.TemplateType.USERS,
+            deleted_at__isnull=True,
+        )
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search)
+                | Q(title__icontains=search)
+                | Q(subject__icontains=search)
+                | Q(body__icontains=search),
+            )
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(template_type=EmailTemplate.TemplateType.USERS)
+
+    def perform_destroy(self, instance):
+        instance.deleted_at = timezone.now()
+        instance.save(update_fields=['deleted_at', 'updated_at'])
