@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework import filters, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -89,6 +90,11 @@ class UserViewSet(viewsets.ModelViewSet):
         user = serializer.save()
         if user.email != old_email:
             _send_reset_email(user)
+
+    @action(detail=False, methods=['get'], url_path='me')
+    def me(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
 
 
 class PasswordResetConfirmView(GenericAPIView):
