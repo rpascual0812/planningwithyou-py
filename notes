@@ -18,3 +18,12 @@ sudo docker exec -it local-redis redis-cli ping
 pip install flower
 celery -A planningwithyou flower
 http://localhost:5555
+
+
+
+
+
+When adding a new company, add defaults:
+
+form template
+document folder
