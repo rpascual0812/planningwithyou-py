@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'emails',
     'documents',
     'contacts',
+    'bookings',
 ]
 
 MIDDLEWARE = [

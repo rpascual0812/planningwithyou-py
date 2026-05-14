@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/', include('emails.urls')),
     path('api/', include('documents.urls')),
     path('api/', include('contacts.urls')),
+    path('api/', include('bookings.urls')),
 ]
 
 if settings.DEBUG:
