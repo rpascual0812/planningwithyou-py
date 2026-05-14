@@ -1,0 +1,58 @@
+from rest_framework import serializers
+
+from .models import Contact, ContactAddress, ContactNumber
+
+
+class ContactNumberSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactNumber
+        fields = ['id', 'number', 'label']
+
+
+class ContactAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactAddress
+        fields = ['id', 'label', 'street', 'city', 'state', 'zip_code', 'country']
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    phone_numbers = ContactNumberSerializer(many=True, required=False, default=[])
+    addresses = ContactAddressSerializer(many=True, required=False, default=[])
+
+    class Meta:
+        model = Contact
+        fields = [
+            'id', 'first_name', 'last_name', 'email', 'company', 'notes',
+            'phone_numbers', 'addresses', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        numbers_data = validated_data.pop('phone_numbers', [])
+        addresses_data = validated_data.pop('addresses', [])
+        contact = Contact.objects.create(**validated_data)
+        for num in numbers_data:
+            ContactNumber.objects.create(contact=contact, **num)
+        for addr in addresses_data:
+            ContactAddress.objects.create(contact=contact, **addr)
+        return contact
+
+    def update(self, instance, validated_data):
+        numbers_data = validated_data.pop('phone_numbers', None)
+        addresses_data = validated_data.pop('addresses', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if numbers_data is not None:
+            instance.phone_numbers.all().delete()
+            for num in numbers_data:
+                ContactNumber.objects.create(contact=instance, **num)
+
+        if addresses_data is not None:
+            instance.addresses.all().delete()
+            for addr in addresses_data:
+                ContactAddress.objects.create(contact=instance, **addr)
+
+        return instance

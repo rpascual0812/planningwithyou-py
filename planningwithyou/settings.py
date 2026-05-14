@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'users',
     'emails',
     'documents',
+    'contacts',
 ]
 
 MIDDLEWARE = [
