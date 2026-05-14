@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from .models import (
     BookingColumn,
+    BookingFieldValue,
     BookingItem,
     FormTemplate,
     FormTemplateField,
@@ -9,11 +10,44 @@ from .models import (
 )
 
 
+class BookingFieldValueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookingFieldValue
+        fields = ['id', 'label', 'field_type', 'is_required', 'price', 'value', 'options', 'sort_order']
+        read_only_fields = ['id']
+
+
 class BookingItemSerializer(serializers.ModelSerializer):
+    field_values = BookingFieldValueSerializer(many=True, required=False, default=[])
+
     class Meta:
         model = BookingItem
-        fields = ['id', 'column', 'title', 'notes', 'sort_order', 'created_at', 'updated_at']
+        fields = [
+            'id', 'column', 'title', 'date_of_event', 'form_template',
+            'field_values', 'notes', 'sort_order', 'created_at', 'updated_at',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def _save_field_values(self, booking, field_values_data):
+        for idx, fv in enumerate(field_values_data):
+            fv.setdefault('sort_order', idx)
+            BookingFieldValue.objects.create(booking=booking, **fv)
+
+    def create(self, validated_data):
+        field_values_data = validated_data.pop('field_values', [])
+        booking = BookingItem.objects.create(**validated_data)
+        self._save_field_values(booking, field_values_data)
+        return booking
+
+    def update(self, instance, validated_data):
+        field_values_data = validated_data.pop('field_values', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if field_values_data is not None:
+            instance.field_values.all().delete()
+            self._save_field_values(instance, field_values_data)
+        return instance
 
 
 class BookingColumnSerializer(serializers.ModelSerializer):
