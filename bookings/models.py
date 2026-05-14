@@ -82,6 +82,7 @@ class FormTemplate(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
     is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

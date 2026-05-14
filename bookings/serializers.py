@@ -85,7 +85,7 @@ class FormTemplateSerializer(serializers.ModelSerializer):
     class Meta:
         model = FormTemplate
         fields = [
-            'id', 'name', 'description', 'is_active',
+            'id', 'name', 'description', 'is_active', 'is_default',
             'fields', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -101,9 +101,14 @@ class FormTemplateSerializer(serializers.ModelSerializer):
                 opt.setdefault('sort_order', opt_idx)
                 FormTemplateFieldOption.objects.create(field=field_obj, **opt)
 
+    def _clear_other_defaults(self, template):
+        if template.is_default:
+            FormTemplate.objects.filter(is_default=True).exclude(pk=template.pk).update(is_default=False)
+
     def create(self, validated_data):
         fields_data = validated_data.pop('fields', [])
         template = FormTemplate.objects.create(**validated_data)
+        self._clear_other_defaults(template)
         self._save_fields(template, fields_data)
         return template
 
@@ -113,6 +118,7 @@ class FormTemplateSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+        self._clear_other_defaults(instance)
 
         if fields_data is not None:
             instance.fields.all().delete()
