@@ -5,7 +5,11 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 
-from .views import EmailTokenObtainPairView, UserViewSet
+from .views import (
+    EmailTokenObtainPairView,
+    PasswordResetConfirmView,
+    UserViewSet,
+)
 
 router = DefaultRouter()
 router.register('users', UserViewSet, basename='user')
@@ -17,6 +21,11 @@ urlpatterns = [
         'token/blacklist/',
         TokenBlacklistView.as_view(),
         name='token_blacklist',
+    ),
+    path(
+        'reset-password/confirm/',
+        PasswordResetConfirmView.as_view(),
+        name='password_reset_confirm',
     ),
     path('', include(router.urls)),
 ]

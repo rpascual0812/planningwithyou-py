@@ -5,3 +5,16 @@ python manage.py migrate
 
 python manage.py runserver
 
+# Terminal 1 – Django
+python manage.py runserver
+# Terminal 2 – Celery worker
+celery -A planningwithyou worker --loglevel=info
+
+# REDIS
+sudo docker run --name local-redis -p 6379:6379 -d redis
+sudo docker exec -it local-redis redis-cli ping
+
+# FLOWER - Celery monitoring for failed tasks
+pip install flower
+celery -A planningwithyou flower
+http://localhost:5555

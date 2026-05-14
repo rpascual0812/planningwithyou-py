@@ -72,14 +72,36 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserCreateSerializer(UserSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
-
-    class Meta(UserSerializer.Meta):
-        fields = UserSerializer.Meta.fields + ['password']
+    """Creates a user with an unusable password. A password-setup email is
+    sent separately by the view after the user is saved."""
 
     def create(self, validated_data):
-        password = validated_data.pop('password')
         user = User(**validated_data)
-        user.set_password(password)
+        user.set_unusable_password()
         user.save()
         return user
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    token = serializers.UUIDField()
+    password = serializers.CharField(min_length=8)
+
+    def validate_token(self, value):
+        from .models import PasswordResetToken
+
+        try:
+            reset = PasswordResetToken.objects.get(token=value)
+        except PasswordResetToken.DoesNotExist:
+            raise serializers.ValidationError('Invalid or expired token.')
+        if not reset.is_valid:
+            raise serializers.ValidationError('Invalid or expired token.')
+        self.context['reset'] = reset
+        return value
+
+    def save(self):
+        reset = self.context['reset']
+        user = reset.user
+        user.set_password(self.validated_data['password'])
+        user.save()
+        reset.used = True
+        reset.save(update_fields=['used'])

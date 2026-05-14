@@ -68,6 +68,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'users',
+    'emails',
+    'documents',
 ]
 
 MIDDLEWARE = [
@@ -152,6 +154,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Cross-origin requests from the Vite dev server (and similar local frontends).
 CORS_ALLOWED_ORIGINS = _csv_env(
     'CORS_ALLOWED_ORIGINS',
@@ -166,6 +171,24 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ),
 }
+
+MAILJET_API_KEY = os.environ.get('MAILJET_API_KEY', '')
+MAILJET_SECRET_KEY = os.environ.get('MAILJET_SECRET_KEY', '')
+MAILJET_SEND_FROM = os.environ.get('MAILJET_SEND_FROM', '')
+MAILJET_SENDER_NAME = os.environ.get('MAILJET_SENDER_NAME', 'Planning With You')
+
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+
+PASSWORD_RESET_TOKEN_LIFETIME_HOURS = int(
+    os.environ.get('PASSWORD_RESET_TOKEN_LIFETIME_HOURS', 24),
+)
+
+# Celery
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(

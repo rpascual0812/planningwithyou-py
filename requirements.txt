@@ -1,9 +1,12 @@
 asgiref==3.11.1
+celery[redis]==5.6.3
 Django==6.0.5
-psycopg[binary]==3.2.13
-python-dotenv==1.2.2
 django-cors-headers==4.9.0
 djangorestframework==3.16.1
 djangorestframework-simplejwt==5.5.1
+mailjet-rest==1.6.0
+psycopg[binary]==3.2.13
+python-dotenv==1.2.2
 PyJWT==2.12.1
+redis==6.4.0
 sqlparse==0.5.5
