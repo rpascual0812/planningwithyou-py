@@ -1,6 +1,32 @@
 from django.contrib import admin
 
-from .models import FormTemplate, FormTemplateField, FormTemplateFieldOption
+from .models import (
+    BookingColumn,
+    BookingItem,
+    FormTemplate,
+    FormTemplateField,
+    FormTemplateFieldOption,
+)
+
+
+class BookingItemInline(admin.TabularInline):
+    model = BookingItem
+    extra = 0
+    ordering = ['sort_order', 'id']
+
+
+@admin.register(BookingColumn)
+class BookingColumnAdmin(admin.ModelAdmin):
+    list_display = ['title', 'color', 'sort_order', 'created_at']
+    ordering = ['sort_order', 'id']
+    inlines = [BookingItemInline]
+
+
+@admin.register(BookingItem)
+class BookingItemAdmin(admin.ModelAdmin):
+    list_display = ['title', 'column', 'sort_order', 'created_at']
+    list_filter = ['column']
+    ordering = ['sort_order', 'id']
 
 
 class FormTemplateFieldOptionInline(admin.TabularInline):

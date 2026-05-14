@@ -1,6 +1,34 @@
 from rest_framework import serializers
 
-from .models import FormTemplate, FormTemplateField, FormTemplateFieldOption
+from .models import (
+    BookingColumn,
+    BookingItem,
+    FormTemplate,
+    FormTemplateField,
+    FormTemplateFieldOption,
+)
+
+
+class BookingItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookingItem
+        fields = ['id', 'column', 'title', 'notes', 'sort_order', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class BookingColumnSerializer(serializers.ModelSerializer):
+    item_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookingColumn
+        fields = [
+            'id', 'title', 'description', 'color',
+            'sort_order', 'item_count', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_item_count(self, obj):
+        return obj.items.count()
 
 
 class FormTemplateFieldOptionSerializer(serializers.ModelSerializer):

@@ -1,6 +1,42 @@
 from django.db import models
 
 
+class BookingColumn(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')
+    color = models.CharField(max_length=20, default='#1f3a5f')
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'booking_columns'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return self.title
+
+
+class BookingItem(models.Model):
+    column = models.ForeignKey(
+        BookingColumn,
+        on_delete=models.CASCADE,
+        related_name='items',
+    )
+    title = models.CharField(max_length=255)
+    notes = models.TextField(blank=True, default='')
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'bookings'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return self.title
+
+
 class FormTemplate(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
