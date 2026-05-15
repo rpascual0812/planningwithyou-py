@@ -1,7 +1,9 @@
 import logging
+import re
 
 from django.conf import settings
 from django.utils import timezone
+from django.utils.html import strip_tags
 from mailjet_rest import Client
 
 from users.models import Account
@@ -9,6 +11,16 @@ from users.models import Account
 from .models import EmailLog
 
 logger = logging.getLogger(__name__)
+
+
+def _html_to_plaintext(html: str) -> str:
+    """Best-effort plain text for the mail transport (not stored on EmailLog)."""
+    if not html or not html.strip():
+        return ''
+    text = strip_tags(html)
+    text = re.sub(r'[ \t]+\n', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 
 def _get_client():
@@ -34,8 +46,8 @@ def send_email(email_log_id: int):
         },
         'To': to_list,
         'Subject': log.subject,
-        'HTMLPart': log.body_html,
-        'TextPart': log.body_text,
+        'HTMLPart': log.body,
+        'TextPart': _html_to_plaintext(log.body),
     }
     if cc_list:
         message['Cc'] = cc_list
@@ -69,8 +81,7 @@ def create_and_queue_email(
     *,
     to: list[str],
     subject: str,
-    body_html: str,
-    body_text: str,
+    body: str,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
     email_from: str = '',
@@ -84,8 +95,7 @@ def create_and_queue_email(
         bcc=bcc or [],
         email_from=email_from or settings.MAILJET_SEND_FROM,
         subject=subject,
-        body_html=body_html,
-        body_text=body_text,
+        body=body,
         attachments=attachments or [],
         status=EmailLog.Status.QUEUED,
         account=account if account is not None else Account.objects.get(pk=1),

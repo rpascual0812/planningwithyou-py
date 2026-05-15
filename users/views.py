@@ -8,7 +8,15 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from planningwithyou.template_placeholders import (
+    DEFAULT_PASSWORD_RESET_BODY_HTML,
+    DEFAULT_PASSWORD_RESET_SUBJECT,
+    EMAIL_TEMPLATE_PASSWORD_RESET,
+    apply_template_placeholders,
+)
+
 from emails.mail import create_and_queue_email
+from emails.models import EmailTemplate
 from emails.tasks import send_email_task
 
 from .models import PasswordResetToken
@@ -35,25 +43,48 @@ def _send_reset_email(user):
     )
     reset_url = f'{settings.FRONTEND_URL}/reset-password/{reset.token}'
     lifetime = settings.PASSWORD_RESET_TOKEN_LIFETIME_HOURS
+    context = {
+        'name': name,
+        'reset_url': reset_url,
+        'lifetime': str(lifetime),
+    }
+
+    tmpl = (
+        EmailTemplate.objects.filter(
+            name=EMAIL_TEMPLATE_PASSWORD_RESET,
+            account_id=user.account_id,
+            template_type=EmailTemplate.TemplateType.USERS,
+            is_active=True,
+            deleted_at__isnull=True,
+        )
+        .order_by('id')
+        .first()
+    )
+    if tmpl and (tmpl.subject.strip() or tmpl.body.strip()):
+        subject = apply_template_placeholders(
+            tmpl.subject.strip() or DEFAULT_PASSWORD_RESET_SUBJECT,
+            context,
+        )
+        body = apply_template_placeholders(tmpl.body, context)
+        if not body.strip():
+            body = apply_template_placeholders(
+                DEFAULT_PASSWORD_RESET_BODY_HTML,
+                context,
+            )
+    else:
+        subject = apply_template_placeholders(
+            DEFAULT_PASSWORD_RESET_SUBJECT,
+            context,
+        )
+        body = apply_template_placeholders(
+            DEFAULT_PASSWORD_RESET_BODY_HTML,
+            context,
+        )
 
     log = create_and_queue_email(
         to=[user.email],
-        subject='Set Your Password – Planning With You',
-        body_html=(
-            f'<h3>Hello {name},</h3>'
-            f'<p>An account has been created for you at Planning With You.</p>'
-            f'<p>Please click the link below to set your password:</p>'
-            f'<p><a href="{reset_url}">{reset_url}</a></p>'
-            f'<p>This link expires in {lifetime} hours.</p>'
-            f'<p>If you did not expect this email, you can safely ignore it.</p>'
-        ),
-        body_text=(
-            f'Hello {name},\n\n'
-            f'An account has been created for you at Planning With You.\n'
-            f'Set your password here: {reset_url}\n\n'
-            f'This link expires in {lifetime} hours.\n'
-            f'If you did not expect this email, you can safely ignore it.'
-        ),
+        subject=subject,
+        body=body,
         account=getattr(user, 'account', None),
     )
     send_email_task.delay(log.pk)

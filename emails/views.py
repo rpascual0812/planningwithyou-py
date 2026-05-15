@@ -28,6 +28,7 @@ class EmailLogViewSet(viewsets.ModelViewSet):
             qs = qs.filter(
                 Q(to__icontains=search)
                 | Q(subject__icontains=search)
+                | Q(body__icontains=search)
                 | Q(email_from__icontains=search)
             )
         status_filter = self.request.query_params.get('status', '').strip()
