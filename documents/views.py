@@ -92,13 +92,19 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
         mime, _ = mimetypes.guess_type(uploaded.name)
         aid = request.user.account_id
+        folder_id = request.data.get('folder')
         folder = None
-        if folder_id:
+        if folder_id not in (None, ''):
             folder = DocumentFolder.objects.filter(
                 pk=folder_id,
                 is_deleted=False,
                 account_id=aid,
             ).first()
+            if folder is None:
+                return Response(
+                    {'folder': ['Folder not found.']},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
         doc = Document.objects.create(
             file=uploaded,
