@@ -2,17 +2,17 @@ from rest_framework import serializers
 
 from .models import (
     BookingColumn,
-    BookingFieldValue,
     BookingItem,
+    BookingLine,
     FormTemplate,
     FormTemplateField,
     FormTemplateFieldOption,
 )
 
 
-class BookingFieldValueSerializer(serializers.ModelSerializer):
+class BookingLineSerializer(serializers.ModelSerializer):
     class Meta:
-        model = BookingFieldValue
+        model = BookingLine
         fields = [
             'id', 'label', 'field_type', 'is_required', 'price', 'value', 'options', 'sort_order',
         ]
@@ -20,7 +20,12 @@ class BookingFieldValueSerializer(serializers.ModelSerializer):
 
 
 class BookingItemSerializer(serializers.ModelSerializer):
-    field_values = BookingFieldValueSerializer(many=True, required=False, default=[])
+    field_values = BookingLineSerializer(
+        source='lines',
+        many=True,
+        required=False,
+        default=[],
+    )
 
     class Meta:
         model = BookingItem
@@ -41,7 +46,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
     def _save_field_values(self, booking, field_values_data):
         for idx, fv in enumerate(field_values_data):
             fv.setdefault('sort_order', idx)
-            BookingFieldValue.objects.create(
+            BookingLine.objects.create(
                 booking=booking,
                 account_id=booking.account_id,
                 **fv,
@@ -81,7 +86,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         instance.account_id = instance.column.account_id
         instance.save()
         if field_values_data is not None:
-            instance.field_values.all().delete()
+            instance.lines.all().delete()
             self._save_field_values(instance, field_values_data)
         return instance
 

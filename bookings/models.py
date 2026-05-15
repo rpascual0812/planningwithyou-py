@@ -57,7 +57,9 @@ class BookingItem(models.Model):
         return self.title
 
 
-class BookingFieldValue(models.Model):
+class BookingLine(models.Model):
+    """Per-booking custom field row; stored in the ``booking_items`` table."""
+
     account = models.ForeignKey(
         'users.Account',
         on_delete=models.CASCADE,
@@ -78,7 +80,7 @@ class BookingFieldValue(models.Model):
     booking = models.ForeignKey(
         BookingItem,
         on_delete=models.CASCADE,
-        related_name='field_values',
+        related_name='lines',
     )
     label = models.CharField(max_length=255)
     field_type = models.CharField(max_length=20, choices=FIELD_TYPES, default='text')
@@ -89,7 +91,7 @@ class BookingFieldValue(models.Model):
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        db_table = 'booking_field_values'
+        db_table = 'booking_items'
         ordering = ['sort_order', 'id']
 
     def __str__(self):
