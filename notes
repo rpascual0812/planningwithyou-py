@@ -3,8 +3,6 @@ python3 -m venv venv
 source venv/bin/activate
 python manage.py migrate
 
-python manage.py runserver
-
 # Terminal 1 – Django
 python manage.py runserver
 # Terminal 2 – Celery worker

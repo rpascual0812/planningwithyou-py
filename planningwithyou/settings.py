@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     'documents',
     'contacts',
     'bookings',
+    'suppliers',
 ]
 
 MIDDLEWARE = [

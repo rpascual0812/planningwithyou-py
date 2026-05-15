@@ -6,12 +6,14 @@ from rest_framework_simplejwt.views import (
 )
 
 from .views import (
+    AccountViewSet,
     EmailTokenObtainPairView,
     PasswordResetConfirmView,
     UserViewSet,
 )
 
 router = DefaultRouter()
+router.register('accounts', AccountViewSet, basename='account')
 router.register('users', UserViewSet, basename='user')
 
 urlpatterns = [

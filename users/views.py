@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
@@ -19,8 +20,9 @@ from emails.mail import create_and_queue_email
 from emails.models import EmailTemplate
 from emails.tasks import send_email_task
 
-from .models import PasswordResetToken
+from .models import Account, PasswordResetToken
 from .serializers import (
+    AccountSerializer,
     EmailTokenObtainPairSerializer,
     PasswordResetConfirmSerializer,
     UserCreateSerializer,
@@ -88,6 +90,32 @@ def _send_reset_email(user):
         account=getattr(user, 'account', None),
     )
     send_email_task.delay(log.pk)
+
+
+class AccountViewSet(viewsets.ModelViewSet):
+    """Accounts (tenant organizations), filterable by supplier type."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = AccountSerializer
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['id', 'name', 'status', 'created_at', 'updated_at']
+    ordering = ['name']
+
+    def get_queryset(self):
+        qs = Account.objects.select_related('supplier_type')
+        supplier_type = self.request.query_params.get('supplier_type', '').strip()
+        if supplier_type:
+            qs = qs.filter(supplier_type_id=supplier_type)
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search) | Q(status__icontains=search),
+            )
+        return qs
+
+    def perform_destroy(self, instance):
+        instance.deleted_at = timezone.now()
+        instance.save(update_fields=['deleted_at', 'updated_at'])
 
 
 class UserViewSet(viewsets.ModelViewSet):

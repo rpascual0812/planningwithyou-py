@@ -25,6 +25,18 @@ class Account(models.Model):
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=64, default='active')
     is_active = models.BooleanField(default=True)
+    discount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+    )
+    price_adjustment = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+    )
+    supplier_type = models.ForeignKey(
+        'suppliers.SupplierType',
+        on_delete=models.PROTECT,
+        db_column='supplier_type_id',
+        related_name='accounts',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)

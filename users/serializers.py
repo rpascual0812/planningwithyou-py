@@ -2,7 +2,32 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from .models import Account
+
 User = get_user_model()
+
+
+class AccountSerializer(serializers.ModelSerializer):
+    supplier_type_name = serializers.CharField(
+        source='supplier_type.name',
+        read_only=True,
+    )
+
+    class Meta:
+        model = Account
+        fields = [
+            'id',
+            'name',
+            'status',
+            'is_active',
+            'discount',
+            'price_adjustment',
+            'supplier_type',
+            'supplier_type_name',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'supplier_type_name']
 
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
