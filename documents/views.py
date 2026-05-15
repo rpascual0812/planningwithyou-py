@@ -6,22 +6,28 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from planningwithyou.permissions import HasAccount
+
 from .models import Document, DocumentFolder
 from .serializers import DocumentFolderSerializer, DocumentSerializer
 
 
 class DocumentFolderViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = DocumentFolderSerializer
 
     def get_queryset(self):
-        qs = DocumentFolder.objects.all()
+        aid = self.request.user.account_id
+        qs = DocumentFolder.objects.filter(account_id=aid)
         deleted = self.request.query_params.get('deleted', '').lower()
         if deleted == 'true':
             qs = qs.filter(is_deleted=True)
         else:
             qs = qs.filter(is_deleted=False)
         return qs
+
+    def perform_create(self, serializer):
+        serializer.save(account_id=self.request.user.account_id)
 
     def perform_destroy(self, instance):
         now = timezone.now()
@@ -34,7 +40,16 @@ class DocumentFolderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
-        folder = DocumentFolder.objects.get(pk=pk, is_deleted=True)
+        folder = DocumentFolder.objects.filter(
+            pk=pk,
+            is_deleted=True,
+            account_id=request.user.account_id,
+        ).first()
+        if folder is None:
+            return Response(
+                {'detail': 'Not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         folder.is_deleted = False
         folder.deleted_at = None
         folder.save(update_fields=['is_deleted', 'deleted_at'])
@@ -45,12 +60,13 @@ class DocumentFolderViewSet(viewsets.ModelViewSet):
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = DocumentSerializer
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_queryset(self):
-        qs = Document.objects.select_related('folder').all()
+        aid = self.request.user.account_id
+        qs = Document.objects.select_related('folder').filter(account_id=aid)
         deleted = self.request.query_params.get('deleted', '').lower()
         if deleted == 'true':
             qs = qs.filter(is_deleted=True)
@@ -75,13 +91,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
             )
 
         mime, _ = mimetypes.guess_type(uploaded.name)
-        folder_id = request.data.get('folder')
+        aid = request.user.account_id
         folder = None
         if folder_id:
-            try:
-                folder = DocumentFolder.objects.get(pk=folder_id, is_deleted=False)
-            except DocumentFolder.DoesNotExist:
-                pass
+            folder = DocumentFolder.objects.filter(
+                pk=folder_id,
+                is_deleted=False,
+                account_id=aid,
+            ).first()
 
         doc = Document.objects.create(
             file=uploaded,
@@ -90,6 +107,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             size=uploaded.size,
             folder=folder,
             uploaded_by=request.user,
+            account_id=aid,
         )
         serializer = self.get_serializer(doc)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -101,7 +119,16 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
-        doc = Document.objects.get(pk=pk, is_deleted=True)
+        doc = Document.objects.filter(
+            pk=pk,
+            is_deleted=True,
+            account_id=request.user.account_id,
+        ).first()
+        if doc is None:
+            return Response(
+                {'detail': 'Not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         doc.is_deleted = False
         doc.deleted_at = None
         doc.save(update_fields=['is_deleted', 'deleted_at'])
@@ -109,8 +136,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='empty-trash')
     def empty_trash(self, request):
-        count, _ = Document.objects.filter(is_deleted=True).delete()
-        folder_count, _ = DocumentFolder.objects.filter(is_deleted=True).delete()
+        aid = request.user.account_id
+        count, _ = Document.objects.filter(is_deleted=True, account_id=aid).delete()
+        folder_count, _ = DocumentFolder.objects.filter(is_deleted=True, account_id=aid).delete()
         return Response({'deleted_documents': count, 'deleted_folders': folder_count})
 
     @action(detail=True, methods=['post'])
@@ -122,9 +150,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 {'folder': ['Folder ID is required.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        try:
-            folder = DocumentFolder.objects.get(pk=folder_id, is_deleted=False)
-        except DocumentFolder.DoesNotExist:
+        folder = DocumentFolder.objects.filter(
+            pk=folder_id,
+            is_deleted=False,
+            account_id=request.user.account_id,
+        ).first()
+        if folder is None:
             return Response(
                 {'folder': ['Folder not found.']},
                 status=status.HTTP_404_NOT_FOUND,

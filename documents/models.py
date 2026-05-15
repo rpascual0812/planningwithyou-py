@@ -5,6 +5,14 @@ from django.db import models
 
 
 class DocumentFolder(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=255)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -24,6 +32,14 @@ def document_upload_path(instance, filename):
 
 
 class Document(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     file = models.FileField(upload_to=document_upload_path)
     original_name = models.CharField(max_length=255)
     mime_type = models.CharField(max_length=100, blank=True, default='')

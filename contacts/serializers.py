@@ -30,11 +30,21 @@ class ContactSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         numbers_data = validated_data.pop('phone_numbers', [])
         addresses_data = validated_data.pop('addresses', [])
+        request = self.context['request']
+        validated_data['account_id'] = request.user.account_id
         contact = Contact.objects.create(**validated_data)
         for num in numbers_data:
-            ContactNumber.objects.create(contact=contact, **num)
+            ContactNumber.objects.create(
+                contact=contact,
+                account_id=contact.account_id,
+                **num,
+            )
         for addr in addresses_data:
-            ContactAddress.objects.create(contact=contact, **addr)
+            ContactAddress.objects.create(
+                contact=contact,
+                account_id=contact.account_id,
+                **addr,
+            )
         return contact
 
     def update(self, instance, validated_data):
@@ -48,11 +58,19 @@ class ContactSerializer(serializers.ModelSerializer):
         if numbers_data is not None:
             instance.phone_numbers.all().delete()
             for num in numbers_data:
-                ContactNumber.objects.create(contact=instance, **num)
+                ContactNumber.objects.create(
+                    contact=instance,
+                    account_id=instance.account_id,
+                    **num,
+                )
 
         if addresses_data is not None:
             instance.addresses.all().delete()
             for addr in addresses_data:
-                ContactAddress.objects.create(contact=instance, **addr)
+                ContactAddress.objects.create(
+                    contact=instance,
+                    account_id=instance.account_id,
+                    **addr,
+                )
 
         return instance

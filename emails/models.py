@@ -2,6 +2,14 @@ from django.db import models
 
 
 class EmailLog(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='account_id',
+        related_name='+',
+    )
     class Status(models.TextChoices):
         QUEUED = 'queued', 'Queued'
         SENT = 'sent', 'Sent'
@@ -55,6 +63,14 @@ class EmailLog(models.Model):
 
 
 class EmailTemplate(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     class TemplateType(models.TextChoices):
         USERS = 'users', 'Users'
 

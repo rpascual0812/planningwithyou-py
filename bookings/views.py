@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from planningwithyou.permissions import HasAccount
+
 from .models import BookingColumn, BookingItem, FormTemplate
 from .serializers import (
     BookingColumnSerializer,
@@ -12,15 +14,22 @@ from .serializers import (
 
 
 class BookingColumnViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = BookingColumnSerializer
-    queryset = BookingColumn.objects.all()
+
+    def get_queryset(self):
+        return BookingColumn.objects.filter(account_id=self.request.user.account_id)
 
     def perform_create(self, serializer):
-        max_order = BookingColumn.objects.order_by('-sort_order').values_list(
-            'sort_order', flat=True,
-        ).first() or 0
-        serializer.save(sort_order=max_order + 1)
+        aid = self.request.user.account_id
+        max_order = (
+            BookingColumn.objects.filter(account_id=aid)
+            .order_by('-sort_order')
+            .values_list('sort_order', flat=True)
+            .first()
+            or 0
+        )
+        serializer.save(account_id=aid, sort_order=max_order + 1)
 
     @action(detail=False, methods=['post'])
     def reorder(self, request):
@@ -30,17 +39,19 @@ class BookingColumnViewSet(viewsets.ModelViewSet):
                 {'order': ['Expected a list of column IDs.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        aid = request.user.account_id
         for idx, col_id in enumerate(ids):
-            BookingColumn.objects.filter(pk=col_id).update(sort_order=idx)
+            BookingColumn.objects.filter(pk=col_id, account_id=aid).update(sort_order=idx)
         return Response({'status': 'ok'})
 
 
 class BookingItemViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = BookingItemSerializer
 
     def get_queryset(self):
-        qs = BookingItem.objects.all()
+        aid = self.request.user.account_id
+        qs = BookingItem.objects.filter(account_id=aid)
         column_id = self.request.query_params.get('column')
         if column_id:
             qs = qs.filter(column_id=column_id)
@@ -48,9 +59,13 @@ class BookingItemViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         column = serializer.validated_data['column']
-        max_order = column.items.order_by('-sort_order').values_list(
-            'sort_order', flat=True,
-        ).first() or 0
+        max_order = (
+            column.items.filter(account_id=self.request.user.account_id)
+            .order_by('-sort_order')
+            .values_list('sort_order', flat=True)
+            .first()
+            or 0
+        )
         serializer.save(sort_order=max_order + 1)
 
     @action(detail=True, methods=['post'])
@@ -63,16 +78,19 @@ class BookingItemViewSet(viewsets.ModelViewSet):
                 {'column': ['Column ID is required.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        try:
-            column = BookingColumn.objects.get(pk=column_id)
-        except BookingColumn.DoesNotExist:
+        column = BookingColumn.objects.filter(
+            pk=column_id,
+            account_id=request.user.account_id,
+        ).first()
+        if column is None:
             return Response(
                 {'column': ['Column not found.']},
                 status=status.HTTP_404_NOT_FOUND,
             )
         item.column = column
+        item.account_id = column.account_id
         item.sort_order = sort_order
-        item.save(update_fields=['column', 'sort_order'])
+        item.save(update_fields=['column', 'account_id', 'sort_order'])
         return Response(self.get_serializer(item).data)
 
     @action(detail=False, methods=['post'])
@@ -84,21 +102,37 @@ class BookingItemViewSet(viewsets.ModelViewSet):
                 {'items': ['Expected a list of {id, column, sort_order}.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        base_qs = self.get_queryset()
         for entry in updates:
             item_id = entry.get('id')
             if item_id is None:
                 continue
+            if not base_qs.filter(pk=item_id).exists():
+                continue
             fields = {}
             if 'column' in entry:
-                fields['column_id'] = entry['column']
+                col_id = entry['column']
+                if not BookingColumn.objects.filter(
+                    pk=col_id,
+                    account_id=request.user.account_id,
+                ).exists():
+                    continue
+                fields['column_id'] = col_id
+                fields['account_id'] = request.user.account_id
             if 'sort_order' in entry:
                 fields['sort_order'] = entry['sort_order']
             if fields:
-                BookingItem.objects.filter(pk=item_id).update(**fields)
+                BookingItem.objects.filter(pk=item_id, account_id=request.user.account_id).update(
+                    **fields,
+                )
         return Response({'status': 'ok'})
 
 
 class FormTemplateViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = FormTemplateSerializer
-    queryset = FormTemplate.objects.prefetch_related('fields__options').all()
+
+    def get_queryset(self):
+        return FormTemplate.objects.filter(
+            account_id=self.request.user.account_id,
+        ).prefetch_related('fields__options')

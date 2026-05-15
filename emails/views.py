@@ -5,6 +5,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from planningwithyou.permissions import HasAccount
+
 from .models import EmailLog, EmailTemplate
 from .serializers import EmailLogSerializer, EmailTemplateSerializer
 from .tasks import send_email_task
@@ -12,14 +14,15 @@ from .tasks import send_email_task
 
 class EmailLogViewSet(viewsets.ModelViewSet):
     """CRUD + resend for email logs."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = EmailLogSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'status', 'created_at', 'sent_at']
     ordering = ['-created_at']
 
     def get_queryset(self):
-        qs = EmailLog.objects.all()
+        aid = self.request.user.account_id
+        qs = EmailLog.objects.filter(account_id=aid)
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
@@ -33,7 +36,10 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        log = serializer.save(status=EmailLog.Status.QUEUED)
+        log = serializer.save(
+            status=EmailLog.Status.QUEUED,
+            account_id=self.request.user.account_id,
+        )
         send_email_task.delay(log.pk)
 
     @action(detail=True, methods=['post'])
@@ -53,16 +59,18 @@ class EmailLogViewSet(viewsets.ModelViewSet):
 class EmailUserTemplateViewSet(viewsets.ModelViewSet):
     """CRUD for email templates with template_type fixed to ``users``."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = EmailTemplateSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'name', 'created_at', 'updated_at']
     ordering = ['name']
 
     def get_queryset(self):
+        aid = self.request.user.account_id
         qs = EmailTemplate.objects.filter(
             template_type=EmailTemplate.TemplateType.USERS,
             deleted_at__isnull=True,
+            account_id=aid,
         )
         search = self.request.query_params.get('search', '').strip()
         if search:
@@ -75,7 +83,10 @@ class EmailUserTemplateViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(template_type=EmailTemplate.TemplateType.USERS)
+        serializer.save(
+            template_type=EmailTemplate.TemplateType.USERS,
+            account_id=self.request.user.account_id,
+        )
 
     def perform_destroy(self, instance):
         instance.deleted_at = timezone.now()

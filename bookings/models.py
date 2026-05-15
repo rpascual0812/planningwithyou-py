@@ -2,6 +2,14 @@ from django.db import models
 
 
 class BookingColumn(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
     color = models.CharField(max_length=20, default='#1f3a5f')
@@ -18,6 +26,14 @@ class BookingColumn(models.Model):
 
 
 class BookingItem(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     column = models.ForeignKey(
         BookingColumn,
         on_delete=models.CASCADE,
@@ -46,6 +62,14 @@ class BookingItem(models.Model):
 
 
 class BookingFieldValue(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     FIELD_TYPES = [
         ('text', 'Text'),
         ('textarea', 'Text Area'),
@@ -79,6 +103,14 @@ class BookingFieldValue(models.Model):
 
 
 class FormTemplate(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
     is_active = models.BooleanField(default=True)
@@ -95,6 +127,14 @@ class FormTemplate(models.Model):
 
 
 class FormTemplateField(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     FIELD_TYPES = [
         ('text', 'Text'),
         ('textarea', 'Text Area'),
@@ -128,6 +168,14 @@ class FormTemplateField(models.Model):
 
 
 class FormTemplateFieldOption(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     field = models.ForeignKey(
         FormTemplateField,
         on_delete=models.CASCADE,

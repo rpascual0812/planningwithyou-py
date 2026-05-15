@@ -54,6 +54,7 @@ def _send_reset_email(user):
             f'This link expires in {lifetime} hours.\n'
             f'If you did not expect this email, you can safely ignore it.'
         ),
+        account=getattr(user, 'account', None),
     )
     send_email_task.delay(log.pk)
 
@@ -93,7 +94,18 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='me')
     def me(self, request):
-        serializer = UserSerializer(request.user)
+        # Always load from the `users` table (not a stale JWT user instance).
+        user = (
+            User.objects.filter(pk=request.user.pk)
+            .select_related('account')
+            .first()
+        )
+        if user is None:
+            return Response(
+                {'detail': 'User not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = UserSerializer(user)
         return Response(serializer.data)
 
 

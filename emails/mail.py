@@ -73,9 +73,10 @@ def create_and_queue_email(
     bcc: list[str] | None = None,
     email_from: str = '',
     attachments: list[str] | None = None,
+    account=None,
 ) -> EmailLog:
     """Create an EmailLog record and return it (caller dispatches the task)."""
-    return EmailLog.objects.create(
+    kwargs = dict(
         to=to,
         cc=cc or [],
         bcc=bcc or [],
@@ -86,3 +87,6 @@ def create_and_queue_email(
         attachments=attachments or [],
         status=EmailLog.Status.QUEUED,
     )
+    if account is not None:
+        kwargs['account'] = account
+    return EmailLog.objects.create(**kwargs)

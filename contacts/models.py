@@ -2,6 +2,14 @@ from django.db import models
 
 
 class Contact(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100, blank=True, default='')
     email = models.EmailField(blank=True, default='')
@@ -20,6 +28,14 @@ class Contact(models.Model):
 
 
 class ContactNumber(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     class Label(models.TextChoices):
         MOBILE = 'mobile', 'Mobile'
         HOME = 'home', 'Home'
@@ -46,6 +62,14 @@ class ContactNumber(models.Model):
 
 
 class ContactAddress(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     class Label(models.TextChoices):
         HOME = 'home', 'Home'
         WORK = 'work', 'Work'

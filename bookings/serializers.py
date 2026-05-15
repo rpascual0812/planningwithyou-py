@@ -13,7 +13,9 @@ from .models import (
 class BookingFieldValueSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookingFieldValue
-        fields = ['id', 'label', 'field_type', 'is_required', 'price', 'value', 'options', 'sort_order']
+        fields = [
+            'id', 'label', 'field_type', 'is_required', 'price', 'value', 'options', 'sort_order',
+        ]
         read_only_fields = ['id']
 
 
@@ -28,14 +30,47 @@ class BookingItemSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        aid = getattr(request.user, 'account_id', None) if request and request.user.is_authenticated else None
+        if aid is not None:
+            self.fields['column'].queryset = BookingColumn.objects.filter(account_id=aid)
+            self.fields['form_template'].queryset = FormTemplate.objects.filter(account_id=aid)
+
     def _save_field_values(self, booking, field_values_data):
         for idx, fv in enumerate(field_values_data):
             fv.setdefault('sort_order', idx)
-            BookingFieldValue.objects.create(booking=booking, **fv)
+            BookingFieldValue.objects.create(
+                booking=booking,
+                account_id=booking.account_id,
+                **fv,
+            )
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        aid = getattr(request.user, 'account_id', None) if request and request.user.is_authenticated else None
+        if aid is None:
+            return attrs
+        column = attrs.get('column') or (self.instance.column if self.instance else None)
+        if column is not None and column.account_id != aid:
+            raise serializers.ValidationError({'column': ['Invalid column for this account.']})
+        ft = attrs.get('form_template', serializers.empty)
+        if ft is serializers.empty:
+            ft = self.instance.form_template if self.instance else None
+        if ft is not None and column is not None and ft.account_id != column.account_id:
+            raise serializers.ValidationError(
+                {'form_template': ['Template must belong to the same account as the column.']},
+            )
+        return attrs
 
     def create(self, validated_data):
         field_values_data = validated_data.pop('field_values', [])
-        booking = BookingItem.objects.create(**validated_data)
+        column = validated_data['column']
+        booking = BookingItem.objects.create(
+            **validated_data,
+            account_id=column.account_id,
+        )
         self._save_field_values(booking, field_values_data)
         return booking
 
@@ -43,6 +78,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         field_values_data = validated_data.pop('field_values', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        instance.account_id = instance.column.account_id
         instance.save()
         if field_values_data is not None:
             instance.field_values.all().delete()
@@ -95,18 +131,29 @@ class FormTemplateSerializer(serializers.ModelSerializer):
             options_data = field_data.pop('options', [])
             field_data.setdefault('sort_order', idx)
             field_obj = FormTemplateField.objects.create(
-                template=template, **field_data,
+                template=template,
+                account_id=template.account_id,
+                **field_data,
             )
             for opt_idx, opt in enumerate(options_data):
                 opt.setdefault('sort_order', opt_idx)
-                FormTemplateFieldOption.objects.create(field=field_obj, **opt)
+                FormTemplateFieldOption.objects.create(
+                    field=field_obj,
+                    account_id=template.account_id,
+                    **opt,
+                )
 
     def _clear_other_defaults(self, template):
         if template.is_default:
-            FormTemplate.objects.filter(is_default=True).exclude(pk=template.pk).update(is_default=False)
+            FormTemplate.objects.filter(
+                is_default=True,
+                account_id=template.account_id,
+            ).exclude(pk=template.pk).update(is_default=False)
 
     def create(self, validated_data):
         fields_data = validated_data.pop('fields', [])
+        request = self.context['request']
+        validated_data['account_id'] = request.user.account_id
         template = FormTemplate.objects.create(**validated_data)
         self._clear_other_defaults(template)
         self._save_fields(template, fields_data)
