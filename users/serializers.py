@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from .models import Account
+
 User = get_user_model()
 
 
@@ -29,7 +31,7 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
         if user is None:
             user = User.objects.filter(username__iexact=email).first()
 
-        if user is None or not user.is_active:
+        if user is None or not user.is_active or user.deleted_at is not None:
             raise serializers.ValidationError(
                 {'detail': self.error_messages['no_active_account']},
             )
@@ -46,13 +48,35 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    account = serializers.PrimaryKeyRelatedField(
+        queryset=Account.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'first_name', 'last_name',
-            'is_active', 'is_staff', 'date_joined',
+            'id',
+            'account',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'is_active',
+            'is_admin',
+            'last_login',
+            'created_at',
+            'updated_at',
+            'deleted_at',
         ]
-        read_only_fields = ['id', 'date_joined']
+        read_only_fields = [
+            'id',
+            'last_login',
+            'created_at',
+            'updated_at',
+            'deleted_at',
+        ]
 
     def validate_email(self, value):
         qs = User.objects.filter(email__iexact=value)

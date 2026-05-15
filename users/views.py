@@ -61,7 +61,7 @@ def _send_reset_email(user):
 class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['id', 'username', 'email', 'date_joined']
+    ordering_fields = ['id', 'username', 'email', 'created_at']
     ordering = ['id']
 
     def get_serializer_class(self):

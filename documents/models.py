@@ -1,5 +1,6 @@
 import os
 
+from django.conf import settings
 from django.db import models
 
 
@@ -35,7 +36,7 @@ class Document(models.Model):
         blank=True,
     )
     uploaded_by = models.ForeignKey(
-        'auth.User',
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
