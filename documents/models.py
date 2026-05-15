@@ -10,8 +10,6 @@ class DocumentFolder(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     name = models.CharField(max_length=255)
     is_deleted = models.BooleanField(default=False)
@@ -37,8 +35,6 @@ class Document(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     file = models.FileField(upload_to=document_upload_path)
     original_name = models.CharField(max_length=255)

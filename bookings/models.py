@@ -7,8 +7,6 @@ class BookingColumn(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
@@ -31,8 +29,6 @@ class BookingItem(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     column = models.ForeignKey(
         BookingColumn,
@@ -67,8 +63,6 @@ class BookingFieldValue(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     FIELD_TYPES = [
         ('text', 'Text'),
@@ -108,8 +102,6 @@ class FormTemplate(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
@@ -132,8 +124,6 @@ class FormTemplateField(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     FIELD_TYPES = [
         ('text', 'Text'),
@@ -173,8 +163,6 @@ class FormTemplateFieldOption(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     field = models.ForeignKey(
         FormTemplateField,

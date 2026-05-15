@@ -2,8 +2,6 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Account
-
 User = get_user_model()
 
 
@@ -48,12 +46,6 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    account = serializers.PrimaryKeyRelatedField(
-        queryset=Account.objects.all(),
-        allow_null=True,
-        required=False,
-    )
-
     class Meta:
         model = User
         fields = [
@@ -72,6 +64,7 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id',
+            'account',
             'last_login',
             'created_at',
             'updated_at',
@@ -94,12 +87,23 @@ class UserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('A user with this username already exists.')
         return value
 
+    def update(self, instance, validated_data):
+        instance = super().update(instance, validated_data)
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            aid = request.user.account_id or 1
+            instance.account_id = aid
+            instance.save(update_fields=['account_id'])
+        return instance
+
 
 class UserCreateSerializer(UserSerializer):
     """Creates a user with an unusable password. A password-setup email is
     sent separately by the view after the user is saved."""
 
     def create(self, validated_data):
+        request = self.context['request']
+        validated_data['account_id'] = request.user.account_id or 1
         user = User(**validated_data)
         user.set_unusable_password()
         user.save()

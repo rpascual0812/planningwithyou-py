@@ -7,8 +7,6 @@ class Contact(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100, blank=True, default='')
@@ -33,8 +31,6 @@ class ContactNumber(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     class Label(models.TextChoices):
         MOBILE = 'mobile', 'Mobile'
@@ -67,8 +63,6 @@ class ContactAddress(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     class Label(models.TextChoices):
         HOME = 'home', 'Home'

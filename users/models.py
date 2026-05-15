@@ -75,8 +75,6 @@ class User(AbstractBaseUser):
         Account,
         on_delete=models.PROTECT,
         related_name='users',
-        null=True,
-        blank=True,
         db_column='account_id',
     )
     username = models.CharField(max_length=150, unique=True, db_index=True)

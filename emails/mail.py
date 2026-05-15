@@ -4,6 +4,8 @@ from django.conf import settings
 from django.utils import timezone
 from mailjet_rest import Client
 
+from users.models import Account
+
 from .models import EmailLog
 
 logger = logging.getLogger(__name__)
@@ -86,7 +88,6 @@ def create_and_queue_email(
         body_text=body_text,
         attachments=attachments or [],
         status=EmailLog.Status.QUEUED,
+        account=account if account is not None else Account.objects.get(pk=1),
     )
-    if account is not None:
-        kwargs['account'] = account
     return EmailLog.objects.create(**kwargs)

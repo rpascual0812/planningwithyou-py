@@ -4,9 +4,7 @@ from django.db import models
 class EmailLog(models.Model):
     account = models.ForeignKey(
         'users.Account',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
     )
@@ -68,8 +66,6 @@ class EmailTemplate(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
-        null=True,
-        blank=True,
     )
     class TemplateType(models.TextChoices):
         USERS = 'users', 'Users'
