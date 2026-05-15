@@ -21,7 +21,7 @@ pip install flower
 celery -A planningwithyou flower
 http://localhost:5555
 
-
+in the Add/Edit template, add a field type supplier. When converted to a form, it should be a dropdown of all accounts that has been 
 
 
 

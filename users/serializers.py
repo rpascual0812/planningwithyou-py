@@ -3,6 +3,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import Account
+from .supplier_price import parse_price_value, set_supplier_account_price
 
 User = get_user_model()
 
@@ -11,6 +12,12 @@ class AccountSerializer(serializers.ModelSerializer):
     supplier_type_name = serializers.CharField(
         source='supplier_type.name',
         read_only=True,
+    )
+    price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+        required=False,
     )
 
     class Meta:
@@ -22,12 +29,31 @@ class AccountSerializer(serializers.ModelSerializer):
             'is_active',
             'discount',
             'price_adjustment',
+            'price',
             'supplier_type',
             'supplier_type_name',
             'created_at',
             'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'supplier_type_name']
+
+    def create(self, validated_data):
+        validated_data.pop('price', None)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        price = validated_data.pop('price', serializers.empty)
+        instance = super().update(instance, validated_data)
+        if price is not serializers.empty:
+            request = self.context.get('request')
+            tenant_account_id = getattr(request.user, 'account_id', None) if request else None
+            if tenant_account_id:
+                set_supplier_account_price(
+                    instance.id,
+                    tenant_account_id,
+                    parse_price_value(price),
+                )
+        return instance
 
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):

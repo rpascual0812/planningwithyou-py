@@ -76,6 +76,7 @@ class BookingLine(models.Model):
         ('checkbox', 'Checkbox'),
         ('email', 'Email'),
         ('phone', 'Phone'),
+        ('supplier', 'Supplier'),
     ]
 
     booking = models.ForeignKey(
@@ -138,6 +139,7 @@ class FormTemplateField(models.Model):
         ('checkbox', 'Checkbox'),
         ('email', 'Email'),
         ('phone', 'Phone'),
+        ('supplier', 'Supplier'),
     ]
 
     template = models.ForeignKey(

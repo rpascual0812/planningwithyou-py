@@ -21,6 +21,7 @@ from emails.models import EmailTemplate
 from emails.tasks import send_email_task
 
 from .models import Account, PasswordResetToken
+from .supplier_price import supplier_accounts_with_price_queryset
 from .serializers import (
     AccountSerializer,
     EmailTokenObtainPairSerializer,
@@ -106,6 +107,9 @@ class AccountViewSet(viewsets.ModelViewSet):
         supplier_type = self.request.query_params.get('supplier_type', '').strip()
         if supplier_type:
             qs = qs.filter(supplier_type_id=supplier_type)
+            tenant_account_id = getattr(self.request.user, 'account_id', None)
+            if tenant_account_id:
+                qs = supplier_accounts_with_price_queryset(qs, tenant_account_id)
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
