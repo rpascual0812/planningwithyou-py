@@ -43,6 +43,12 @@ class BookingItemSerializer(serializers.ModelSerializer):
             self.fields['column'].queryset = BookingColumn.objects.filter(account_id=aid)
             self.fields['form_template'].queryset = FormTemplate.objects.filter(account_id=aid)
 
+    def _pop_field_values(self, validated_data):
+        """Nested lines use ``source='lines'``, so validated_data key is ``lines``."""
+        if 'lines' in validated_data:
+            return validated_data.pop('lines')
+        return validated_data.pop('field_values', None)
+
     def _save_field_values(self, booking, field_values_data):
         for idx, fv in enumerate(field_values_data):
             fv.setdefault('sort_order', idx)
@@ -70,7 +76,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        field_values_data = validated_data.pop('field_values', [])
+        field_values_data = self._pop_field_values(validated_data) or []
         column = validated_data['column']
         booking = BookingItem.objects.create(
             **validated_data,
@@ -80,7 +86,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         return booking
 
     def update(self, instance, validated_data):
-        field_values_data = validated_data.pop('field_values', None)
+        field_values_data = self._pop_field_values(validated_data)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.account_id = instance.column.account_id
