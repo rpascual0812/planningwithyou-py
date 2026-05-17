@@ -6,11 +6,11 @@ python manage.py migrate
 # Terminal 1 – Django
 python manage.py runserver
 # Terminal 2 – Celery worker
-celery -A planningwithyou worker --loglevel=info
+celery -A placelery -A planningwithyou flowernningwithyou worker --loglevel=info
 # Terminal 3 - Redis
 sudo docker start local-redis
 # Terminal 4 - Flower
-celery -A planningwithyou flower
+
 
 # REDIS
 sudo docker run --name local-redis -p 6379:6379 -d redis
@@ -21,18 +21,17 @@ pip install flower
 celery -A planningwithyou flower
 http://localhost:5555
 
-in the Add/Edit template, add a field type supplier. When converted to a form, it should be a dropdown of all accounts that has been 
 
+When adding a new account, add defaults:
 
+config
+  - account,booking_view:list
 
 When adding a new company, add defaults:
 
 form template
 document folder
 default booking board columns
-
-
-account_subscriptions(id, uuid, account_id, subscription_id, reference_id, start_date, end_date, base_price, total_per_users, total_price, discount_code, created_at, updated_at, deleted_at)
 
 
 Pro Plan - Add the ff:
