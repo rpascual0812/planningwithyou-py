@@ -103,7 +103,7 @@ class AccountViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
-        qs = Account.objects.select_related('supplier_type')
+        qs = Account.objects.select_related('supplier_type', 'country')
         supplier_type = self.request.query_params.get('supplier_type', '').strip()
         if supplier_type:
             qs = qs.filter(supplier_type_id=supplier_type)
@@ -120,6 +120,27 @@ class AccountViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at', 'updated_at'])
+
+    @action(detail=False, methods=['get'], url_path='current')
+    def current(self, request):
+        account_id = getattr(request.user, 'account_id', None)
+        if not account_id:
+            return Response(
+                {'detail': 'No account associated with this user.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        account = (
+            Account.objects.select_related('country', 'supplier_type')
+            .filter(pk=account_id, deleted_at__isnull=True)
+            .first()
+        )
+        if account is None:
+            return Response(
+                {'detail': 'Account not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = AccountSerializer(account)
+        return Response(serializer.data)
 
 
 class UserViewSet(viewsets.ModelViewSet):

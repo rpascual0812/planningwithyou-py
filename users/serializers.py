@@ -9,6 +9,18 @@ User = get_user_model()
 
 
 class AccountSerializer(serializers.ModelSerializer):
+    country_name = serializers.CharField(source='country.name', read_only=True)
+    country_iso_code = serializers.CharField(source='country.iso_code', read_only=True)
+    country_iso2_code = serializers.CharField(source='country.iso2_code', read_only=True)
+    country_currency = serializers.CharField(source='country.currency', read_only=True)
+    country_currency_symbol = serializers.CharField(
+        source='country.currency_symbol',
+        read_only=True,
+    )
+    country_currency_code = serializers.CharField(
+        source='country.currency_code',
+        read_only=True,
+    )
     supplier_type_name = serializers.CharField(
         source='supplier_type.name',
         read_only=True,
@@ -27,6 +39,13 @@ class AccountSerializer(serializers.ModelSerializer):
             'name',
             'status',
             'is_active',
+            'country',
+            'country_name',
+            'country_iso_code',
+            'country_iso2_code',
+            'country_currency',
+            'country_currency_symbol',
+            'country_currency_code',
             'discount',
             'price_adjustment',
             'price',
@@ -35,7 +54,18 @@ class AccountSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'supplier_type_name']
+        read_only_fields = [
+            'id',
+            'created_at',
+            'updated_at',
+            'country_name',
+            'country_iso_code',
+            'country_iso2_code',
+            'country_currency',
+            'country_currency_symbol',
+            'country_currency_code',
+            'supplier_type_name',
+        ]
 
     def create(self, validated_data):
         validated_data.pop('price', None)

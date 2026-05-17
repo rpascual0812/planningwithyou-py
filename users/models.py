@@ -31,6 +31,12 @@ class Account(models.Model):
     price_adjustment = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
     )
+    country = models.ForeignKey(
+        'countries.Country',
+        on_delete=models.PROTECT,
+        db_column='country_id',
+        related_name='accounts',
+    )
     supplier_type = models.ForeignKey(
         'suppliers.SupplierType',
         on_delete=models.PROTECT,

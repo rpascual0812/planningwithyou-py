@@ -30,3 +30,29 @@ When adding a new company, add defaults:
 form template
 document folder
 default booking board columns
+
+
+account_subscriptions(id, uuid, account_id, subscription_id, reference_id, start_date, end_date, base_price, total_per_users, total_price, discount_code, created_at, updated_at, deleted_at)
+
+
+Pro Plan - Add the ff:
+
+Calendar
+  - Calendar Integration
+
+Bookings
+  - Board
+  - Cards
+  - Supplier Dropdown
+
+
+Users
+  - Add more users
+
+File Manager
+
+Reports
+
+Settings
+  - Suppliers
+  - Roles and Permissions

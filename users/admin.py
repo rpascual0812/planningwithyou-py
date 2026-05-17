@@ -33,9 +33,9 @@ class UserAdminForm(forms.ModelForm):
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'name', 'status', 'is_active', 'supplier_type', 'created_at', 'deleted_at',
+        'id', 'name', 'status', 'is_active', 'country', 'supplier_type', 'created_at', 'deleted_at',
     )
-    list_filter = ('is_active', 'supplier_type', 'status')
+    list_filter = ('is_active', 'country', 'supplier_type', 'status')
     search_fields = ('name',)
     readonly_fields = ('created_at', 'updated_at')
 
