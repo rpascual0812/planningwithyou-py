@@ -32,15 +32,24 @@ from .pricing import (
     resolve_booking_line_price,
 )
 
-GREEN = colors.HexColor('#6dad3a')
-GREY = colors.HexColor('#666666')
-LIGHT_GREY = colors.HexColor('#dddddd')
+# Premium palette — navy structure, muted sage accent, soft surfaces
+NAVY = colors.HexColor('#1a2b3c')
+NAVY_MID = colors.HexColor('#2c4154')
+ACCENT = colors.HexColor('#4a7c59')
+ACCENT_LIGHT = colors.HexColor('#e8f0eb')
+SURFACE = colors.HexColor('#f8f9fb')
+SURFACE_ALT = colors.HexColor('#f1f3f6')
+BORDER = colors.HexColor('#dde2e8')
+TEXT = colors.HexColor('#1f2937')
+TEXT_MUTED = colors.HexColor('#6b7280')
+WHITE = colors.white
+
 PAGE_SIZE = A4
 PAGE_W, PAGE_H = PAGE_SIZE
-MARGIN_L = 18 * mm
-MARGIN_R = 18 * mm
-MARGIN_T = 16 * mm
-MARGIN_B = 18 * mm
+MARGIN_L = 20 * mm
+MARGIN_R = 20 * mm
+MARGIN_T = 14 * mm
+MARGIN_B = 16 * mm
 CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R
 
 PDF_FONT_DIR = Path(__file__).resolve().parent / 'fonts'
@@ -277,6 +286,49 @@ def _sales_rep_from_booking(booking, metadata: dict[str, str]) -> tuple[str, str
     return metadata.get('sales_rep') or '—', metadata.get('sales_rep_email') or ''
 
 
+def _format_contact_address_lines(address) -> list[str]:
+    """Split address into stacked lines so it stays within the client column."""
+    lines: list[str] = []
+    street = (address.street or '').strip()
+    if street:
+        lines.append(street)
+    locality = ', '.join(
+        p.strip()
+        for p in (address.city, address.state, address.zip_code)
+        if p and str(p).strip()
+    )
+    if locality:
+        lines.append(locality)
+    country = (address.country or '').strip()
+    if country:
+        lines.append(country)
+    return lines
+
+
+def _wrap_text_lines(
+    text: str,
+    font_name: str,
+    font_size: float,
+    max_width: float,
+) -> list[str]:
+    words = text.split()
+    if not words:
+        return []
+    wrapped: list[str] = []
+    current: list[str] = []
+    for word in words:
+        trial = ' '.join(current + [word])
+        if pdfmetrics.stringWidth(trial, font_name, font_size) <= max_width:
+            current.append(word)
+        else:
+            if current:
+                wrapped.append(' '.join(current))
+            current = [word]
+    if current:
+        wrapped.append(' '.join(current))
+    return wrapped
+
+
 def _metadata_from_lines(
     lines: list[BookingLine],
     supplier_names: dict[int, str],
@@ -318,15 +370,40 @@ class BookingQuotePDF:
         self.page_num = 1
         self.total_pages: int | None = None
 
-    def _draw_page_footer(self):
+    def _body_font(self, bold: bool = False) -> str:
+        if _ensure_pdf_unicode_fonts():
+            return PDF_FONT_BOLD if bold else PDF_FONT
+        return 'Helvetica-Bold' if bold else 'Helvetica'
+
+    def _label_font(self) -> str:
+        return 'Helvetica-Bold'
+
+    def _draw_hrule(self, y: float, color=BORDER, width: float = 0.5):
         assert self.c is not None
-        self.c.setFont('Helvetica', 8)
-        self.c.setFillColor(GREY)
+        self.c.setStrokeColor(color)
+        self.c.setLineWidth(width)
+        self.c.line(MARGIN_L, y, PAGE_W - MARGIN_R, y)
+
+    def _draw_page_chrome(self):
+        """Top accent bar and footer on every page."""
+        assert self.c is not None
+        self.c.setFillColor(NAVY)
+        self.c.rect(0, PAGE_H - 4 * mm, PAGE_W, 4 * mm, stroke=0, fill=1)
+
+        footer_y = 11 * mm
+        self._draw_hrule(footer_y + 5 * mm, BORDER, 0.35)
+        self.c.setFont(self._body_font(), 7.5)
+        self.c.setFillColor(TEXT_MUTED)
+        ref = f'Quote #{self.booking.unique_id}'
         if self.total_pages:
-            label = f'Page {self.page_num}/{self.total_pages}'
+            page_label = f'Page {self.page_num} of {self.total_pages}'
         else:
-            label = f'Page {self.page_num}'
-        self.c.drawString(MARGIN_L, 10 * mm, label)
+            page_label = f'Page {self.page_num}'
+        self.c.drawString(MARGIN_L, footer_y, ref)
+        self.c.drawRightString(PAGE_W - MARGIN_R, footer_y, page_label)
+
+    def _draw_page_footer(self):
+        self._draw_page_chrome()
 
     def _new_page(self):
         assert self.c is not None
@@ -334,11 +411,12 @@ class BookingQuotePDF:
             self._draw_page_footer()
         self.c.showPage()
         self.page_num += 1
-        self.y = PAGE_H - MARGIN_T
+        self.y = PAGE_H - MARGIN_T - 4 * mm
 
     def _ensure_space(self, needed: float):
-        if self.y - needed < MARGIN_B + 8 * mm:
+        if self.y - needed < MARGIN_B + 12 * mm:
             self._new_page()
+            self._draw_page_chrome()
 
     def _count_pages(self) -> int:
         from io import BytesIO
@@ -347,6 +425,7 @@ class BookingQuotePDF:
         self.total_pages = None
         self.y = PAGE_H - MARGIN_T
         self.c = canvas.Canvas(BytesIO(), pagesize=PAGE_SIZE)
+        self._draw_page_chrome()
         self._draw_header()
         self._draw_sections()
         self._draw_summary()
@@ -380,16 +459,7 @@ class BookingQuotePDF:
             if address is None:
                 address = contact.addresses.first()
             if address:
-                parts = [
-                    address.street,
-                    address.city,
-                    address.state,
-                    address.zip_code,
-                    address.country,
-                ]
-                line = ', '.join(p.strip() for p in parts if p and p.strip())
-                if line:
-                    texts.append(line)
+                texts.extend(_format_contact_address_lines(address))
             return texts or ['—']
 
         client_lines = client_detail_lines(self.lines)
@@ -400,20 +470,116 @@ class BookingQuotePDF:
                 texts.append(val)
         return texts or ['—']
 
+    def _draw_column_label(
+        self,
+        x: float,
+        y: float,
+        label: str,
+        *,
+        spacing_after: float = 0,
+    ) -> float:
+        assert self.c is not None
+        self.c.setFont(self._label_font(), 7)
+        self.c.setFillColor(ACCENT)
+        self.c.drawString(x, y, label.upper())
+        return y - spacing_after
+
+    def _draw_column_lines(
+        self,
+        x: float,
+        y: float,
+        lines: list[str],
+        width: int = 52,
+        *,
+        max_width_pt: float | None = None,
+    ) -> float:
+        assert self.c is not None
+        for i, text in enumerate(lines):
+            if not text:
+                y -= 4
+                continue
+            font = self._body_font(bold=(i == 0))
+            size = 9 if i == 0 else 8
+            self.c.setFont(font, size)
+            self.c.setFillColor(TEXT if i == 0 else TEXT_MUTED)
+            if max_width_pt is not None:
+                display_lines = _wrap_text_lines(text, font, size, max_width_pt)
+            else:
+                display_lines = [text[:width]]
+            line_step = 10.5 if i == 0 else 10
+            for j, display in enumerate(display_lines):
+                self.c.drawString(x, y, display)
+                if j < len(display_lines) - 1:
+                    y -= line_step
+            y -= line_step
+        return y
+
+    def _company_detail_lines(self, account) -> list[str]:
+        lines = [account.name]
+        country = getattr(account, 'country', None)
+        if country is not None and getattr(country, 'name', ''):
+            lines.append(country.name)
+        if account.contact_person.strip():
+            lines.append(account.contact_person.strip())
+        if account.contact_email.strip():
+            lines.append(account.contact_email.strip())
+        if account.contact_mobile_number.strip():
+            lines.append(account.contact_mobile_number.strip())
+        return lines
+
     def _draw_header(self):
         assert self.c is not None
-        col_w = CONTENT_W / 3
-        top = PAGE_H - MARGIN_T
-        left_x = MARGIN_L
-        mid_x = MARGIN_L + col_w
-        right_x = MARGIN_L + 2 * col_w
-
-        # Account logo (right column top)
-        logo_h = 14 * mm
-        logo_w = 38 * mm
-        logo_x = PAGE_W - MARGIN_R - logo_w
-        logo_y = top - logo_h
         account = self.booking.account
+        top = PAGE_H - MARGIN_T - 4 * mm
+
+        # Title row
+        self.c.setFont(self._label_font(), 18)
+        self.c.setFillColor(NAVY)
+        title = (self.booking.title or 'Booking Quote').strip()[:60]
+        self.c.drawString(MARGIN_L, top - 6 * mm, title)
+
+        quote_date = timezone.localtime(
+            self.booking.updated_at or timezone.now(),
+        ).strftime('%d %b %Y')
+        self.c.setFont(self._body_font(), 8)
+        self.c.setFillColor(TEXT_MUTED)
+        self.c.drawRightString(PAGE_W - MARGIN_R, top - 4 * mm, quote_date)
+        self.c.setFont(self._label_font(), 8)
+        self.c.setFillColor(NAVY_MID)
+        self.c.drawRightString(
+            PAGE_W - MARGIN_R,
+            top - 12 * mm,
+            f'#{self.booking.unique_id}',
+        )
+
+        band_top = top - 20 * mm
+        band_h = 58 * mm
+        self.c.setFillColor(SURFACE)
+        self.c.setStrokeColor(BORDER)
+        self.c.setLineWidth(0.5)
+        self.c.roundRect(
+            MARGIN_L,
+            band_top - band_h,
+            CONTENT_W,
+            band_h,
+            3 * mm,
+            stroke=1,
+            fill=1,
+        )
+
+        col_w = CONTENT_W / 3
+        pad = 5 * mm
+        left_x = MARGIN_L + pad
+        mid_x = MARGIN_L + col_w + pad
+        right_x = MARGIN_L + 2 * col_w + pad
+        col_inner_w = 48
+        col_text_w = col_w - 2 * pad
+
+        # Logo (top-right inside band)
+        logo_h = 16 * mm
+        logo_w = 42 * mm
+        logo_x = PAGE_W - MARGIN_R - pad - logo_w
+        logo_y = band_top - pad - logo_h
         logo_bytes = _load_account_logo_bytes(account)
         if logo_bytes:
             try:
@@ -429,102 +595,103 @@ class BookingQuotePDF:
             except Exception:
                 logo_bytes = None
         if not logo_bytes:
-            self.c.setStrokeColor(LIGHT_GREY)
-            self.c.setFillColor(colors.HexColor('#f5f5f5'))
-            self.c.rect(logo_x, logo_y, logo_w, logo_h, stroke=1, fill=1)
-            self.c.setFont('Helvetica-Oblique', 7)
-            self.c.setFillColor(GREY)
+            self.c.setFillColor(SURFACE_ALT)
+            self.c.setStrokeColor(BORDER)
+            self.c.roundRect(
+                logo_x, logo_y, logo_w, logo_h, 2 * mm, stroke=1, fill=1,
+            )
+            self.c.setFont('Helvetica-Oblique', 6.5)
+            self.c.setFillColor(TEXT_MUTED)
             self.c.drawCentredString(
                 logo_x + logo_w / 2,
                 logo_y + logo_h / 2 - 2,
-                'your logo here',
+                'Logo',
             )
 
-        y_left = top
-        y_mid = top
-        y_right = logo_y - 4 * mm
+        content_top = band_top - pad
+        y_left = content_top
+        y_mid = content_top
+        y_right = logo_y - 3 * mm
 
-        # Client details (left)
-        self.c.setFont('Helvetica-Bold', 9)
-        self.c.setFillColor(GREEN)
-        self.c.drawString(left_x, y_left, 'Client Details')
-        y_left -= 12
-        client_texts = self._client_detail_texts()
-        self.c.setFont('Helvetica', 8.5)
-        self.c.setFillColor(colors.black)
-        for text in client_texts:
-            self.c.drawString(left_x, y_left, text[:55])
-            y_left -= 11
+        y_left = self._draw_column_label(left_x, y_left, 'Client', spacing_after=9)
+        y_left = self._draw_column_lines(
+            left_x,
+            y_left,
+            self._client_detail_texts(),
+            width=col_inner_w,
+            max_width_pt=col_text_w,
+        )
 
-        # Quote meta (center)
-        quote_date = timezone.localtime(
-            self.booking.updated_at or timezone.now(),
-        ).strftime('%d/%m/%Y')
-        meta_rows = [
-            quote_date,
-            f'#{self.booking.unique_id}',
-        ]
+        meta_lines = []
         if self.metadata['po']:
-            meta_rows.append(f'PO {self.metadata["po"]}')
+            meta_lines.append(f'PO {self.metadata["po"]}')
         if self.metadata['sidemark']:
-            meta_rows.append(f'Sidemark {self.metadata["sidemark"]}')
-        self.c.setFont('Helvetica', 8.5)
-        self.c.setFillColor(colors.black)
-        for row in meta_rows:
-            self.c.drawString(mid_x, y_mid, row)
-            y_mid -= 11
-        y_mid -= 2
-        self.c.setFont('Helvetica-Bold', 9)
-        self.c.setFillColor(GREEN)
-        self.c.drawString(mid_x, y_mid, 'Sales Representative')
-        y_mid -= 12
+            meta_lines.append(f'Sidemark {self.metadata["sidemark"]}')
         rep_name, rep_email = _sales_rep_from_booking(self.booking, self.metadata)
-        self.c.setFont('Helvetica', 8.5)
-        self.c.setFillColor(colors.black)
-        self.c.drawString(mid_x, y_mid, rep_name)
-        y_mid -= 11
+        y_mid = self._draw_column_label(
+            mid_x, y_mid, 'Quote details', spacing_after=9,
+        )
+        y_mid = self._draw_column_lines(
+            mid_x, y_mid, meta_lines, width=col_inner_w, max_width_pt=col_text_w,
+        )
+        if meta_lines:
+            y_mid -= 3 * mm
+        y_mid = self._draw_column_label(
+            mid_x,
+            y_mid,
+            'Sales representative',
+            spacing_after=4 * mm,
+        )
+        rep_lines = [rep_name]
         if rep_email:
-            self.c.drawString(mid_x, y_mid, rep_email)
-            y_mid -= 11
+            rep_lines.append(rep_email)
+        y_mid = self._draw_column_lines(
+            mid_x, y_mid, rep_lines, width=col_inner_w, max_width_pt=col_text_w,
+        )
 
-        # Company details (right, below logo)
-        self.c.setFont('Helvetica-Bold', 9)
-        self.c.setFillColor(GREEN)
-        self.c.drawString(right_x, y_right, 'Company Details')
-        y_right -= 12
-        company_lines = [account.name]
-        country = getattr(account, 'country', None)
-        if country is not None:
-            company_lines.append(getattr(country, 'name', '') or '')
-        company_lines.extend(['', '', ''])  # address / phone placeholders
-        self.c.setFont('Helvetica', 8.5)
-        self.c.setFillColor(colors.black)
-        for text in company_lines:
-            if text:
-                self.c.drawString(right_x, y_right, text[:50])
-            y_right -= 11
+        y_right = self._draw_column_label(right_x, y_right, 'From', spacing_after=9)
+        y_right = self._draw_column_lines(
+            right_x,
+            y_right,
+            self._company_detail_lines(account),
+            width=col_inner_w,
+            max_width_pt=col_text_w,
+        )
 
-        header_bottom = min(y_left, y_mid, y_right) - 6 * mm
-        self.y = header_bottom
+        # Column dividers
+        div_x1 = MARGIN_L + col_w
+        div_x2 = MARGIN_L + 2 * col_w
+        div_y0 = band_top - band_h + 4 * mm
+        div_y1 = band_top - 4 * mm
+        self.c.setStrokeColor(BORDER)
+        self.c.setLineWidth(0.35)
+        self.c.line(div_x1, div_y0, div_x1, div_y1)
+        self.c.line(div_x2, div_y0, div_x2, div_y1)
+
+        self.y = band_top - band_h - 8 * mm
+        self._draw_hrule(self.y)
+        self.y -= 10 * mm
 
     def _draw_group_rule(self, group_name: str, subtotal: Decimal):
         assert self.c is not None
-        self._ensure_space(20)
-        rule_y = self.y
-        self.c.setStrokeColor(GREEN)
-        self.c.setLineWidth(1.2)
-        self.c.line(MARGIN_L, rule_y, PAGE_W - MARGIN_R, rule_y)
-        self.y -= 10
-        self.c.setFont('Helvetica-Bold', 9)
-        self.c.setFillColor(GREEN)
-        self.c.drawString(MARGIN_L, self.y, group_name)
-        self.c.drawRightString(PAGE_W - MARGIN_R, self.y, 'Total Amount')
-        self.y -= 14
-
-    def _money_font(self, bold: bool = False) -> str:
-        if _ensure_pdf_unicode_fonts():
-            return PDF_FONT_BOLD if bold else PDF_FONT
-        return 'Helvetica-Bold' if bold else 'Helvetica'
+        self._ensure_space(22)
+        bar_h = 9 * mm
+        bar_y = self.y - bar_h
+        self.c.setFillColor(NAVY)
+        self.c.roundRect(
+            MARGIN_L, bar_y, CONTENT_W, bar_h, 2 * mm, stroke=0, fill=1,
+        )
+        self.c.setFont(self._label_font(), 9)
+        self.c.setFillColor(WHITE)
+        self.c.drawString(MARGIN_L + 4 * mm, bar_y + 2.8 * mm, group_name[:55])
+        self.c.setFont(self._body_font(), 7.5)
+        self.c.setFillColor(colors.HexColor('#b8c5d0'))
+        self.c.drawRightString(
+            PAGE_W - MARGIN_R - 4 * mm,
+            bar_y + 3.2 * mm,
+            'SECTION TOTAL',
+        )
+        self.y = bar_y - 6 * mm
 
     def _format_amount(self, amount: Decimal | None) -> str:
         return _format_money(
@@ -535,21 +702,36 @@ class BookingQuotePDF:
 
     def _draw_product_block(self, block: ProductBlock):
         assert self.c is not None
-        self._ensure_space(16 + 11 * max(len(block.specs), 1))
-        self.c.setFont('Helvetica-Bold', 9.5)
-        self.c.setFillColor(colors.black)
-        self.c.drawString(MARGIN_L, self.y, block.title[:70])
+        spec_count = max(len(block.specs), 0)
+        card_h = 11 * mm + spec_count * 10 + (4 * mm if spec_count else 0)
+        self._ensure_space(card_h + 4 * mm)
+
+        card_y = self.y - card_h
+        self.c.setFillColor(WHITE)
+        self.c.setStrokeColor(BORDER)
+        self.c.setLineWidth(0.5)
+        self.c.roundRect(
+            MARGIN_L, card_y, CONTENT_W, card_h, 2.5 * mm, stroke=1, fill=1,
+        )
+
+        text_y = self.y - 8 * mm
+        self.c.setFont(self._body_font(bold=True), 9.5)
+        self.c.setFillColor(TEXT)
+        self.c.drawString(MARGIN_L + 4 * mm, text_y, block.title[:68])
+
         price_text = self._format_amount(block.price)
-        self.c.setFont(self._money_font(bold=True), 9.5)
-        self.c.drawRightString(PAGE_W - MARGIN_R, self.y, price_text)
-        self.y -= 12
-        self.c.setFont('Helvetica', 8.5)
-        self.c.setFillColor(colors.black)
+        self.c.setFont(self._body_font(bold=True), 9.5)
+        self.c.setFillColor(NAVY)
+        self.c.drawRightString(PAGE_W - MARGIN_R - 4 * mm, text_y, price_text)
+
+        spec_y = text_y - 11
+        self.c.setFont(self._body_font(), 8)
+        self.c.setFillColor(TEXT_MUTED)
         for spec in block.specs:
-            self._ensure_space(11)
-            self.c.drawString(MARGIN_L + 4 * mm, self.y, f'• {spec[:95]}')
-            self.y -= 11
-        self.y -= 4
+            self.c.drawString(MARGIN_L + 6 * mm, spec_y, f'—  {spec[:92]}')
+            spec_y -= 10
+
+        self.y = card_y - 5 * mm
 
     def _draw_sections(self):
         for section in self.sections:
@@ -570,45 +752,104 @@ class BookingQuotePDF:
         for row in self.extra_summary_rows:
             rows.append((row.label, row.amount, False))
         rows.append(('Total', total, True))
-        rows.append(('Deposit Due', deposit, False))
-        rows.append(('Balance Due', balance, False))
+        rows.append(('Deposit due', deposit, False))
+        rows.append(('Balance due', balance, False))
 
-        table_h = 14 * len(rows) + 8
-        self._ensure_space(table_h + 10)
-        table_w = 72 * mm
+        row_h = 13 * mm
+        header_h = 8 * mm
+        table_w = 78 * mm
+        table_h = header_h + row_h * len(rows)
+        self._ensure_space(table_h + 14 * mm)
+
         table_x = PAGE_W - MARGIN_R - table_w
-        row_h = 14
         y_top = self.y
 
-        self.c.setStrokeColor(LIGHT_GREY)
+        # Summary card shadow band
+        self.c.setFillColor(SURFACE_ALT)
+        self.c.roundRect(
+            table_x - 2 * mm,
+            y_top - table_h - 2 * mm,
+            table_w + 4 * mm,
+            table_h + 4 * mm,
+            3 * mm,
+            stroke=0,
+            fill=1,
+        )
+        self.c.setFillColor(WHITE)
+        self.c.setStrokeColor(BORDER)
         self.c.setLineWidth(0.5)
-        for i, (label, amount, bold) in enumerate(rows):
-            y = y_top - i * row_h
-            self.c.line(table_x, y, table_x + table_w, y)
-            self.c.setFont(
-                'Helvetica-Bold' if bold else 'Helvetica',
-                9,
-            )
-            self.c.setFillColor(colors.black)
-            self.c.drawString(table_x + 4, y - 10, label)
-            self.c.setFont(self._money_font(bold=bold), 9)
+        self.c.roundRect(
+            table_x, y_top - table_h, table_w, table_h, 3 * mm, stroke=1, fill=1,
+        )
+
+        self.c.setFillColor(NAVY_MID)
+        self.c.roundRect(
+            table_x,
+            y_top - header_h,
+            table_w,
+            header_h,
+            3 * mm,
+            stroke=0,
+            fill=1,
+        )
+        self.c.setFont(self._label_font(), 8)
+        self.c.setFillColor(WHITE)
+        self.c.drawString(table_x + 5 * mm, y_top - header_h + 2.5 * mm, 'SUMMARY')
+
+        for i, (label, amount, is_total) in enumerate(rows):
+            row_top = y_top - header_h - i * row_h
+            row_bottom = row_top - row_h
+            if is_total:
+                self.c.setFillColor(NAVY)
+                self.c.rect(
+                    table_x + 0.5,
+                    row_bottom + 0.5,
+                    table_w - 1,
+                    row_h - 1,
+                    stroke=0,
+                    fill=1,
+                )
+                label_color = WHITE
+                amount_color = WHITE
+                label_font = self._label_font()
+                amount_font = self._body_font(bold=True)
+            else:
+                if i % 2 == 0:
+                    self.c.setFillColor(SURFACE)
+                    self.c.rect(
+                        table_x + 0.5,
+                        row_bottom + 0.5,
+                        table_w - 1,
+                        row_h - 1,
+                        stroke=0,
+                        fill=1,
+                    )
+                label_color = TEXT
+                amount_color = NAVY if i == len(rows) - 1 else TEXT
+                label_font = self._body_font()
+                amount_font = self._body_font(bold=(i >= len(rows) - 2))
+
+            self.c.setFont(label_font, 9 if is_total else 8.5)
+            self.c.setFillColor(label_color)
+            self.c.drawString(table_x + 5 * mm, row_bottom + 4 * mm, label)
+
+            self.c.setFont(amount_font, 9.5 if is_total else 9)
+            self.c.setFillColor(amount_color)
             self.c.drawRightString(
-                table_x + table_w - 4,
-                y - 10,
+                table_x + table_w - 5 * mm,
+                row_bottom + 4 * mm,
                 self._format_amount(amount),
             )
 
-        self.c.line(table_x, y_top - len(rows) * row_h, table_x + table_w, y_top - len(rows) * row_h)
-        self.c.line(table_x, y_top, table_x, y_top - len(rows) * row_h)
-        self.c.line(table_x + table_w, y_top, table_x + table_w, y_top - len(rows) * row_h)
-        self.y = y_top - len(rows) * row_h - 8
+        self.y = y_top - table_h - 10 * mm
 
     def render(self) -> bytes:
         buffer = BytesIO()
         self.total_pages = self._count_pages()
         self.page_num = 1
-        self.y = PAGE_H - MARGIN_T
+        self.y = PAGE_H - MARGIN_T - 4 * mm
         self.c = canvas.Canvas(buffer, pagesize=PAGE_SIZE)
+        self._draw_page_chrome()
         self._draw_header()
         self._draw_sections()
         self._draw_summary()
