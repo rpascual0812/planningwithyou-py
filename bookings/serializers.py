@@ -1,7 +1,10 @@
+import json
+
 from rest_framework import serializers
 
 from .models import (
     BookingColumn,
+    BookingGroup,
     BookingItem,
     BookingLine,
     FormTemplate,
@@ -9,14 +12,76 @@ from .models import (
     FormTemplateFieldOption,
 )
 
+DEFAULT_BOOKING_GROUP_NAME = 'Suppliers'
+
+
+def _normalize_supplier_line(field_value: dict) -> None:
+    """Move tier price from JSON value to the line price column."""
+    if field_value.get('field_type') != 'supplier':
+        return
+    raw = field_value.get('value') or ''
+    if not str(raw).strip():
+        return
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(data, dict):
+        return
+    json_price = data.pop('price', None)
+    if field_value.get('price') in (None, '') and json_price not in (None, ''):
+        field_value['price'] = json_price
+    tier_id = data.get('tier_id')
+    supplier_id = data.get('supplier_id')
+    if tier_id is None and supplier_id is None:
+        field_value['value'] = ''
+    else:
+        field_value['value'] = json.dumps(
+            {'tier_id': tier_id, 'supplier_id': supplier_id},
+        )
+
+
+class BookingGroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookingGroup
+        fields = ['id', 'name']
+        read_only_fields = ['id']
+
 
 class BookingLineSerializer(serializers.ModelSerializer):
+    booking_group_id = serializers.IntegerField(read_only=True)
+    group_name = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
     class Meta:
         model = BookingLine
         fields = [
-            'id', 'label', 'field_type', 'is_required', 'price', 'value', 'options', 'sort_order',
+            'id',
+            'label',
+            'booking_group_id',
+            'group_name',
+            'field_type',
+            'is_required',
+            'price',
+            'value',
+            'options',
+            'sort_order',
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'booking_group_id']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['group_name'] = (
+            instance.booking_group.name
+            if instance.booking_group_id
+            else DEFAULT_BOOKING_GROUP_NAME
+        )
+        if instance.booking_group_id:
+            data['booking_group_id'] = instance.booking_group_id
+        if instance.field_type == 'supplier' and data.get('value'):
+            payload = dict(data)
+            _normalize_supplier_line(payload)
+            data['value'] = payload['value']
+        return data
 
 
 class BookingItemSerializer(serializers.ModelSerializer):
@@ -26,12 +91,13 @@ class BookingItemSerializer(serializers.ModelSerializer):
         required=False,
         default=[],
     )
+    groups = BookingGroupSerializer(many=True, required=False)
 
     class Meta:
         model = BookingItem
         fields = [
             'id', 'column', 'title', 'date_of_event', 'form_template',
-            'field_values', 'notes', 'sort_order', 'created_at', 'updated_at',
+            'groups', 'field_values', 'notes', 'sort_order', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -49,12 +115,37 @@ class BookingItemSerializer(serializers.ModelSerializer):
             return validated_data.pop('lines')
         return validated_data.pop('field_values', None)
 
+    def _pop_groups(self, validated_data):
+        if 'groups' in validated_data:
+            return validated_data.pop('groups')
+        return None
+
+    def _save_groups(self, booking, groups_data):
+        for entry in groups_data:
+            raw_name = entry.get('name') if isinstance(entry, dict) else entry
+            name = (raw_name or '').strip() or DEFAULT_BOOKING_GROUP_NAME
+            BookingGroup.objects.get_or_create(booking=booking, name=name)
+
+    def _resolve_booking_group(self, booking, fv):
+        fv.pop('booking_group', None)
+        fv.pop('booking_group_id', None)
+        group_name = (fv.pop('group_name', None) or '').strip() or DEFAULT_BOOKING_GROUP_NAME
+
+        group, _created = BookingGroup.objects.get_or_create(
+            booking=booking,
+            name=group_name,
+        )
+        return group
+
     def _save_field_values(self, booking, field_values_data):
         for idx, fv in enumerate(field_values_data):
             fv.setdefault('sort_order', idx)
+            _normalize_supplier_line(fv)
+            booking_group = self._resolve_booking_group(booking, fv)
             BookingLine.objects.create(
                 booking=booking,
                 account_id=booking.account_id,
+                booking_group=booking_group,
                 **fv,
             )
 
@@ -77,23 +168,32 @@ class BookingItemSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         field_values_data = self._pop_field_values(validated_data) or []
+        groups_data = self._pop_groups(validated_data) or []
         column = validated_data['column']
         booking = BookingItem.objects.create(
             **validated_data,
             account_id=column.account_id,
         )
+        self._save_groups(booking, groups_data)
         self._save_field_values(booking, field_values_data)
         return booking
 
     def update(self, instance, validated_data):
         field_values_data = self._pop_field_values(validated_data)
+        groups_data = self._pop_groups(validated_data)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.account_id = instance.column.account_id
         instance.save()
         if field_values_data is not None:
             instance.lines.all().delete()
+            instance.groups.all().delete()
+            if groups_data is not None:
+                self._save_groups(instance, groups_data)
             self._save_field_values(instance, field_values_data)
+        elif groups_data is not None:
+            instance.groups.all().delete()
+            self._save_groups(instance, groups_data)
         return instance
 
 

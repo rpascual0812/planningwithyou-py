@@ -57,6 +57,29 @@ class BookingItem(models.Model):
         return self.title
 
 
+class BookingGroup(models.Model):
+    booking = models.ForeignKey(
+        BookingItem,
+        on_delete=models.CASCADE,
+        related_name='groups',
+        db_column='booking_id',
+    )
+    name = models.TextField()
+
+    class Meta:
+        db_table = 'booking_groups'
+        ordering = ['id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['booking', 'name'],
+                name='booking_groups_booking_name_uniq',
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
 class BookingLine(models.Model):
     """Per-booking custom field row; stored in the ``booking_items`` table."""
 
@@ -85,6 +108,12 @@ class BookingLine(models.Model):
         related_name='lines',
     )
     label = models.CharField(max_length=255)
+    booking_group = models.ForeignKey(
+        BookingGroup,
+        on_delete=models.CASCADE,
+        related_name='lines',
+        db_column='booking_group_id',
+    )
     field_type = models.CharField(max_length=20, choices=FIELD_TYPES, default='text')
     is_required = models.BooleanField(default=False)
     price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

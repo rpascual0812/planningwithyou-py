@@ -5,7 +5,9 @@ from rest_framework.response import Response
 
 from planningwithyou.permissions import HasAccount
 
-from .models import BookingColumn, BookingItem, FormTemplate
+from django.shortcuts import get_object_or_404
+
+from .models import BookingColumn, BookingGroup, BookingItem, FormTemplate
 from .serializers import (
     BookingColumnSerializer,
     BookingItemSerializer,
@@ -51,7 +53,10 @@ class BookingItemViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         aid = self.request.user.account_id
-        qs = BookingItem.objects.filter(account_id=aid)
+        qs = BookingItem.objects.filter(account_id=aid).prefetch_related(
+            'groups',
+            'lines__booking_group',
+        )
         column_id = self.request.query_params.get('column')
         if column_id:
             qs = qs.filter(column_id=column_id)
@@ -92,6 +97,13 @@ class BookingItemViewSet(viewsets.ModelViewSet):
         item.sort_order = sort_order
         item.save(update_fields=['column', 'account_id', 'sort_order'])
         return Response(self.get_serializer(item).data)
+
+    @action(detail=True, methods=['delete'], url_path=r'groups/(?P<group_id>[0-9]+)')
+    def delete_group(self, request, pk=None, group_id=None):
+        item = self.get_object()
+        group = get_object_or_404(BookingGroup, pk=group_id, booking=item)
+        group.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['post'])
     def reorder(self, request):
