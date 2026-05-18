@@ -49,6 +49,7 @@ class ContactNumber(models.Model):
         choices=Label.choices,
         default=Label.MOBILE,
     )
+    is_default = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'contact_numbers'
@@ -84,6 +85,7 @@ class ContactAddress(models.Model):
     state = models.CharField(max_length=100, blank=True, default='')
     zip_code = models.CharField(max_length=20, blank=True, default='')
     country = models.CharField(max_length=100, blank=True, default='')
+    is_default = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'contact_addresses'

@@ -1,7 +1,7 @@
 from django.db import models
 
 
-class BookingColumn(models.Model):
+class BookingStatus(models.Model):
     account = models.ForeignKey(
         'users.Account',
         on_delete=models.CASCADE,
@@ -16,7 +16,7 @@ class BookingColumn(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'booking_columns'
+        db_table = 'statuses'
         ordering = ['sort_order', 'id']
 
     def __str__(self):
@@ -30,14 +30,25 @@ class BookingItem(models.Model):
         db_column='account_id',
         related_name='+',
     )
-    column = models.ForeignKey(
-        BookingColumn,
+    status = models.ForeignKey(
+        BookingStatus,
         on_delete=models.CASCADE,
         related_name='items',
+        db_column='status_id',
     )
+    contact = models.ForeignKey(
+        'contacts.Contact',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bookings',
+        db_column='contact_id',
+    )
+    unique_id = models.CharField(max_length=7)
     title = models.CharField(max_length=255)
     date_of_event = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True, default='')
+    pdf = models.TextField(blank=True, default='')
     sort_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -45,9 +56,40 @@ class BookingItem(models.Model):
     class Meta:
         db_table = 'bookings'
         ordering = ['sort_order', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account', 'unique_id'],
+                name='bookings_account_unique_id_uniq',
+            ),
+        ]
 
     def __str__(self):
-        return self.title
+        return self.unique_id or self.title
+
+
+class BookingUniqueIdSequence(models.Model):
+    """Per-account, per-year counter for ``BookingItem.unique_id`` (YY-####)."""
+
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+    )
+    year = models.PositiveSmallIntegerField()
+    last_sequence = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'booking_unique_id_sequences'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account', 'year'],
+                name='booking_unique_id_seq_account_year_uniq',
+            ),
+        ]
+
+    def __str__(self):
+        return f'account={self.account_id} year={self.year} seq={self.last_sequence}'
 
 
 class BookingGroup(models.Model):

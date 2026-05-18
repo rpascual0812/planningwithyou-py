@@ -30,6 +30,11 @@ class EmailLog(models.Model):
     email_from = models.EmailField(
         help_text='Sender email address used for this message.',
     )
+    reply_to = models.EmailField(
+        blank=True,
+        default='',
+        help_text='Optional reply-to address (single recipient).',
+    )
     subject = models.CharField(max_length=255)
     body = models.TextField(blank=True, default='')
     attachments = models.JSONField(

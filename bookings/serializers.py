@@ -1,16 +1,22 @@
 import json
 
+from django.db import transaction
 from rest_framework import serializers
 
+from .tasks import generate_booking_pdf_task
+
+from contacts.models import Contact
+
 from .models import (
-    BookingColumn,
     BookingGroup,
     BookingItem,
     BookingLine,
+    BookingStatus,
     FormTemplate,
     FormTemplateField,
     FormTemplateFieldOption,
 )
+from .unique_id import allocate_booking_unique_id
 
 DEFAULT_BOOKING_GROUP_NAME = 'Suppliers'
 
@@ -96,17 +102,25 @@ class BookingItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookingItem
         fields = [
-            'id', 'column', 'title', 'date_of_event',
-            'groups', 'field_values', 'notes', 'sort_order', 'created_at', 'updated_at',
+            'id', 'unique_id', 'status', 'contact', 'title', 'date_of_event',
+            'groups', 'field_values', 'notes', 'sort_order',
+            'pdf', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'unique_id', 'pdf', 'created_at', 'updated_at']
+
+    def _enqueue_pdf_generation(self, booking):
+        booking_id = booking.pk
+        transaction.on_commit(
+            lambda: generate_booking_pdf_task.delay(booking_id),
+        )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         aid = getattr(request.user, 'account_id', None) if request and request.user.is_authenticated else None
         if aid is not None:
-            self.fields['column'].queryset = BookingColumn.objects.filter(account_id=aid)
+            self.fields['status'].queryset = BookingStatus.objects.filter(account_id=aid)
+            self.fields['contact'].queryset = Contact.objects.filter(account_id=aid)
 
     def _pop_field_values(self, validated_data):
         """Nested lines use ``source='lines'``, so validated_data key is ``lines``."""
@@ -153,21 +167,32 @@ class BookingItemSerializer(serializers.ModelSerializer):
         aid = getattr(request.user, 'account_id', None) if request and request.user.is_authenticated else None
         if aid is None:
             return attrs
-        column = attrs.get('column') or (self.instance.column if self.instance else None)
-        if column is not None and column.account_id != aid:
-            raise serializers.ValidationError({'column': ['Invalid column for this account.']})
+        booking_status = attrs.get('status') or (
+            self.instance.status if self.instance else None
+        )
+        if booking_status is not None and booking_status.account_id != aid:
+            raise serializers.ValidationError({'status': ['Invalid status for this account.']})
+        contact = attrs.get('contact')
+        if contact is None and self.instance is not None:
+            contact = self.instance.contact
+        if contact is not None and contact.account_id != aid:
+            raise serializers.ValidationError({'contact': ['Invalid contact for this account.']})
         return attrs
 
     def create(self, validated_data):
+        validated_data.pop('unique_id', None)
         field_values_data = self._pop_field_values(validated_data) or []
         groups_data = self._pop_groups(validated_data) or []
-        column = validated_data['column']
+        booking_status = validated_data['status']
+        account_id = booking_status.account_id
+        validated_data['unique_id'] = allocate_booking_unique_id(account_id)
         booking = BookingItem.objects.create(
             **validated_data,
-            account_id=column.account_id,
+            account_id=account_id,
         )
         self._save_groups(booking, groups_data)
         self._save_field_values(booking, field_values_data)
+        self._enqueue_pdf_generation(booking)
         return booking
 
     def update(self, instance, validated_data):
@@ -175,7 +200,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         groups_data = self._pop_groups(validated_data)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        instance.account_id = instance.column.account_id
+        instance.account_id = instance.status.account_id
         instance.save()
         if field_values_data is not None:
             instance.lines.all().delete()
@@ -186,14 +211,15 @@ class BookingItemSerializer(serializers.ModelSerializer):
         elif groups_data is not None:
             instance.groups.all().delete()
             self._save_groups(instance, groups_data)
+        self._enqueue_pdf_generation(instance)
         return instance
 
 
-class BookingColumnSerializer(serializers.ModelSerializer):
+class BookingStatusSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
 
     class Meta:
-        model = BookingColumn
+        model = BookingStatus
         fields = [
             'id', 'title', 'description', 'color',
             'sort_order', 'item_count', 'created_at', 'updated_at',

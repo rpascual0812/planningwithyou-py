@@ -1,8 +1,9 @@
 from django.contrib import admin
 
 from .models import (
-    BookingColumn,
     BookingItem,
+    BookingStatus,
+    BookingUniqueIdSequence,
     FormTemplate,
     FormTemplateField,
     FormTemplateFieldOption,
@@ -15,17 +16,24 @@ class BookingItemInline(admin.TabularInline):
     ordering = ['sort_order', 'id']
 
 
-@admin.register(BookingColumn)
-class BookingColumnAdmin(admin.ModelAdmin):
+@admin.register(BookingStatus)
+class BookingStatusAdmin(admin.ModelAdmin):
     list_display = ['title', 'color', 'sort_order', 'created_at']
     ordering = ['sort_order', 'id']
     inlines = [BookingItemInline]
 
 
+@admin.register(BookingUniqueIdSequence)
+class BookingUniqueIdSequenceAdmin(admin.ModelAdmin):
+    list_display = ['account_id', 'year', 'last_sequence']
+    list_filter = ['year']
+
+
 @admin.register(BookingItem)
 class BookingItemAdmin(admin.ModelAdmin):
-    list_display = ['title', 'column', 'sort_order', 'created_at']
-    list_filter = ['column']
+    list_display = ['unique_id', 'title', 'status', 'sort_order', 'created_at']
+    search_fields = ['unique_id', 'title']
+    list_filter = ['status']
     ordering = ['sort_order', 'id']
 
 

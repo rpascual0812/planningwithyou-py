@@ -53,6 +53,8 @@ def send_email(email_log_id: int):
         message['Cc'] = cc_list
     if bcc_list:
         message['Bcc'] = bcc_list
+    if log.reply_to:
+        message['ReplyTo'] = {'Email': log.reply_to}
 
     try:
         result = _get_client().send.create(data={'Messages': [message]})
@@ -85,6 +87,7 @@ def create_and_queue_email(
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
     email_from: str = '',
+    reply_to: str = '',
     attachments: list[str] | None = None,
     account=None,
 ) -> EmailLog:
@@ -94,6 +97,7 @@ def create_and_queue_email(
         cc=cc or [],
         bcc=bcc or [],
         email_from=email_from or settings.MAILJET_SEND_FROM,
+        reply_to=reply_to or '',
         subject=subject,
         body=body,
         attachments=attachments or [],

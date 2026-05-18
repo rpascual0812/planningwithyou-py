@@ -1,10 +1,10 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import BookingColumnViewSet, BookingItemViewSet, FormTemplateViewSet
+from .views import BookingItemViewSet, BookingStatusViewSet, FormTemplateViewSet
 
 router = DefaultRouter()
-router.register('booking-columns', BookingColumnViewSet, basename='booking-column')
+router.register('statuses', BookingStatusViewSet, basename='booking-status')
 router.register('booking-items', BookingItemViewSet, basename='booking-item')
 router.register('form-templates', FormTemplateViewSet, basename='form-template')
 

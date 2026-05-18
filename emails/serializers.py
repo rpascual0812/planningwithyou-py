@@ -7,7 +7,7 @@ class EmailLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailLog
         fields = [
-            'id', 'to', 'cc', 'bcc', 'email_from', 'subject',
+            'id', 'to', 'cc', 'bcc', 'email_from', 'reply_to', 'subject',
             'body', 'attachments',
             'status', 'error', 'attempts', 'created_at', 'sent_at',
         ]

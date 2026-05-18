@@ -9,4 +9,5 @@ psycopg[binary]==3.2.13
 python-dotenv==1.2.2
 PyJWT==2.12.1
 redis==6.4.0
+reportlab==4.4.1
 sqlparse==0.5.5
