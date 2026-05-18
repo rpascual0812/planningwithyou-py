@@ -26,8 +26,14 @@ from .serializers import (
     AccountSerializer,
     EmailTokenObtainPairSerializer,
     PasswordResetConfirmSerializer,
+    SupplierAccountTierPricingSerializer,
     UserCreateSerializer,
     UserSerializer,
+)
+from .supplier_price import (
+    build_supplier_tiers_by_account,
+    get_supplier_account_tier_pricing,
+    save_supplier_account_tier_pricing,
 )
 
 User = get_user_model()
@@ -117,6 +123,20 @@ class AccountViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        supplier_type = self.request.query_params.get('supplier_type', '').strip()
+        if self.action == 'list' and supplier_type:
+            tenant_account_id = getattr(self.request.user, 'account_id', None)
+            if tenant_account_id:
+                qs = self.filter_queryset(self.get_queryset())
+                supplier_ids = list(qs.values_list('id', flat=True))
+                context['tier_pricing_by_supplier'] = build_supplier_tiers_by_account(
+                    supplier_ids,
+                    tenant_account_id,
+                )
+        return context
+
     def perform_destroy(self, instance):
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at', 'updated_at'])
@@ -141,6 +161,53 @@ class AccountViewSet(viewsets.ModelViewSet):
             )
         serializer = AccountSerializer(account)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get', 'patch'], url_path='tier-pricing')
+    def tier_pricing(self, request, pk=None):
+        account = self.get_object()
+        tenant_account_id = getattr(request.user, 'account_id', None)
+        if not tenant_account_id:
+            return Response(
+                {'detail': 'No account associated with this user.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if request.method == 'GET':
+            return Response(
+                {
+                    'name': account.name,
+                    'tiers': get_supplier_account_tier_pricing(
+                        account.id,
+                        tenant_account_id,
+                    ),
+                },
+            )
+
+        serializer = SupplierAccountTierPricingSerializer(
+            data=request.data,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if 'name' in data:
+            name = data['name'].strip() or account.name
+            if name != account.name:
+                account.name = name
+                account.save(update_fields=['name', 'updated_at'])
+        save_supplier_account_tier_pricing(
+            account.id,
+            tenant_account_id,
+            data['tiers'],
+        )
+        return Response(
+            {
+                'name': account.name,
+                'tiers': get_supplier_account_tier_pricing(
+                    account.id,
+                    tenant_account_id,
+                ),
+            },
+        )
 
 
 class UserViewSet(viewsets.ModelViewSet):

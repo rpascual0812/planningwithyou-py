@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import filters, status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -34,8 +35,8 @@ class SupplierTypeViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 
-class TierViewSet(viewsets.ReadOnlyModelViewSet):
-    """List active, non-deleted tiers for supplier form fields."""
+class TierViewSet(viewsets.ModelViewSet):
+    """CRUD for account tiers (soft-delete on destroy)."""
 
     permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = TierSerializer
@@ -44,11 +45,24 @@ class TierViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
-        return Tier.objects.filter(
+        qs = Tier.objects.filter(
             account_id=self.request.user.account_id,
-            is_active=True,
             deleted_at__isnull=True,
         )
+        active_only = self.request.query_params.get('active_only', '').lower()
+        if active_only in ('1', 'true', 'yes'):
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(
+            account_id=self.request.user.account_id,
+            created_by=self.request.user,
+        )
+
+    def perform_destroy(self, instance):
+        instance.deleted_at = timezone.now()
+        instance.save(update_fields=['deleted_at'])
 
 
 class SupplierOptionListView(APIView):

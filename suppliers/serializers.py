@@ -14,7 +14,7 @@ class TierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tier
         fields = ['id', 'name', 'is_active', 'created_at']
-        read_only_fields = fields
+        read_only_fields = ['id', 'created_at']
 
 
 class SupplierOptionSerializer(serializers.Serializer):
@@ -24,10 +24,16 @@ class SupplierOptionSerializer(serializers.Serializer):
         max_digits=10, decimal_places=2, allow_null=True,
     )
     discount_type = serializers.CharField()
-    price_adjustment = serializers.DecimalField(
+    mark_up = serializers.DecimalField(
         max_digits=10, decimal_places=2, allow_null=True,
     )
-    price_adjustment_type = serializers.CharField()
+    mark_up_type = serializers.CharField()
+    price_override = serializers.DecimalField(
+        max_digits=10, decimal_places=2, allow_null=True,
+    )
+    tax = serializers.DecimalField(
+        max_digits=10, decimal_places=2, allow_null=True,
+    )
     price = serializers.DecimalField(
         max_digits=10, decimal_places=2, allow_null=True,
     )
@@ -78,10 +84,16 @@ class SupplierTierOptionSerializer(serializers.Serializer):
         max_digits=10, decimal_places=2, allow_null=True,
     )
     discount_type = serializers.CharField()
-    price_adjustment = serializers.DecimalField(
+    mark_up = serializers.DecimalField(
         max_digits=10, decimal_places=2, allow_null=True,
     )
-    price_adjustment_type = serializers.CharField()
+    mark_up_type = serializers.CharField()
+    price_override = serializers.DecimalField(
+        max_digits=10, decimal_places=2, allow_null=True,
+    )
+    tax = serializers.DecimalField(
+        max_digits=10, decimal_places=2, allow_null=True,
+    )
     price = serializers.DecimalField(
         max_digits=10, decimal_places=2, allow_null=True,
     )

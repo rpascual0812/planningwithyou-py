@@ -135,13 +135,19 @@ class SupplierSettingTier(models.Model):
         choices=AdjustmentType.choices,
         default=AdjustmentType.PERCENT,
     )
-    price_adjustment = models.DecimalField(
+    mark_up = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
     )
-    price_adjustment_type = models.CharField(
+    mark_up_type = models.CharField(
         max_length=20,
         choices=AdjustmentType.choices,
         default=AdjustmentType.PERCENT,
+    )
+    price_override = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+    )
+    tax = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
     )
     price = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,

@@ -46,11 +46,13 @@ class SupplierSettingTierAdmin(admin.ModelAdmin):
         'tier',
         'discount',
         'discount_type',
-        'price_adjustment',
-        'price_adjustment_type',
+        'mark_up',
+        'mark_up_type',
+        'price_override',
+        'tax',
         'price',
         'updated_at',
     )
-    list_filter = ('discount_type', 'price_adjustment_type')
+    list_filter = ('discount_type', 'mark_up_type')
     readonly_fields = ('created_at', 'updated_at')
     raw_id_fields = ('supplier_setting', 'tier')
