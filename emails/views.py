@@ -63,19 +63,20 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         )
 
 
-class EmailUserTemplateViewSet(viewsets.ModelViewSet):
-    """CRUD for email templates with template_type fixed to ``users``."""
+class EmailTypedTemplateViewSet(viewsets.ModelViewSet):
+    """CRUD for email templates scoped to a single ``template_type``."""
 
     permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = EmailTemplateSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'name', 'created_at', 'updated_at']
     ordering = ['name']
+    template_type: str = ''
 
     def get_queryset(self):
         aid = self.request.user.account_id
         qs = EmailTemplate.objects.filter(
-            template_type=EmailTemplate.TemplateType.USERS,
+            template_type=self.template_type,
             deleted_at__isnull=True,
             account_id=aid,
         )
@@ -91,10 +92,22 @@ class EmailUserTemplateViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(
-            template_type=EmailTemplate.TemplateType.USERS,
+            template_type=self.template_type,
             account_id=self.request.user.account_id,
         )
 
     def perform_destroy(self, instance):
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at', 'updated_at'])
+
+
+class EmailUserTemplateViewSet(EmailTypedTemplateViewSet):
+    """CRUD for email templates with template_type fixed to ``users``."""
+
+    template_type = EmailTemplate.TemplateType.USERS
+
+
+class EmailBookingTemplateViewSet(EmailTypedTemplateViewSet):
+    """CRUD for email templates with template_type fixed to ``bookings``."""
+
+    template_type = EmailTemplate.TemplateType.BOOKINGS
