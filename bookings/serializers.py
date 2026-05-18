@@ -96,7 +96,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookingItem
         fields = [
-            'id', 'column', 'title', 'date_of_event', 'form_template',
+            'id', 'column', 'title', 'date_of_event',
             'groups', 'field_values', 'notes', 'sort_order', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -107,7 +107,6 @@ class BookingItemSerializer(serializers.ModelSerializer):
         aid = getattr(request.user, 'account_id', None) if request and request.user.is_authenticated else None
         if aid is not None:
             self.fields['column'].queryset = BookingColumn.objects.filter(account_id=aid)
-            self.fields['form_template'].queryset = FormTemplate.objects.filter(account_id=aid)
 
     def _pop_field_values(self, validated_data):
         """Nested lines use ``source='lines'``, so validated_data key is ``lines``."""
@@ -157,13 +156,6 @@ class BookingItemSerializer(serializers.ModelSerializer):
         column = attrs.get('column') or (self.instance.column if self.instance else None)
         if column is not None and column.account_id != aid:
             raise serializers.ValidationError({'column': ['Invalid column for this account.']})
-        ft = attrs.get('form_template', serializers.empty)
-        if ft is serializers.empty:
-            ft = self.instance.form_template if self.instance else None
-        if ft is not None and column is not None and ft.account_id != column.account_id:
-            raise serializers.ValidationError(
-                {'form_template': ['Template must belong to the same account as the column.']},
-            )
         return attrs
 
     def create(self, validated_data):

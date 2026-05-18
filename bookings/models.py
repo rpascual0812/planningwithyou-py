@@ -37,13 +37,6 @@ class BookingItem(models.Model):
     )
     title = models.CharField(max_length=255)
     date_of_event = models.DateTimeField(null=True, blank=True)
-    form_template = models.ForeignKey(
-        'FormTemplate',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='bookings',
-    )
     notes = models.TextField(blank=True, default='')
     sort_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
