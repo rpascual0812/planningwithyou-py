@@ -3,6 +3,8 @@ import json
 from django.db import transaction
 from rest_framework import serializers
 
+from planningwithyou.file_storage import absolute_file_url, booking_pdf_file_url
+
 from .tasks import generate_booking_pdf_task
 
 from contacts.models import Contact
@@ -98,15 +100,30 @@ class BookingItemSerializer(serializers.ModelSerializer):
         default=[],
     )
     groups = BookingGroupSerializer(many=True, required=False)
+    pdf_url = serializers.SerializerMethodField()
 
     class Meta:
         model = BookingItem
         fields = [
             'id', 'unique_id', 'status', 'contact', 'title', 'date_of_event',
             'groups', 'field_values', 'notes', 'sort_order',
-            'pdf', 'created_at', 'updated_at',
+            'pdf_url', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'unique_id', 'pdf', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'unique_id', 'pdf_url', 'created_at', 'updated_at',
+        ]
+
+    def get_pdf_url(self, obj):
+        pdf = (obj.pdf or '').strip()
+        if not pdf:
+            return ''
+        if pdf.startswith(('http://', 'https://')):
+            return pdf
+        if pdf.startswith('/'):
+            request = self.context.get('request')
+            return absolute_file_url(request, pdf)
+        request = self.context.get('request')
+        return booking_pdf_file_url(obj.pk, request=request)
 
     def _enqueue_pdf_generation(self, booking):
         booking_id = booking.pk

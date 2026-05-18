@@ -2,9 +2,11 @@ import os
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal
+from io import BytesIO
 from pathlib import Path
 
-from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -13,6 +15,8 @@ from reportlab.pdfgen import canvas
 
 from suppliers.models import Tier
 from users.models import Account
+
+from planningwithyou.file_storage import booking_pdf_storage_key
 
 from .models import BookingItem, BookingLine
 from .pricing import (
@@ -56,20 +60,22 @@ class SummaryRow:
     amount: Decimal
 
 
-def delete_booking_pdf_file(path: str) -> None:
-    if not path:
+def delete_booking_pdf_file(stored: str) -> None:
+    """Remove a booking PDF from storage (or legacy absolute path on disk)."""
+    if not stored:
         return
     try:
-        Path(path).unlink(missing_ok=True)
+        legacy = Path(stored)
+        if legacy.is_absolute() and legacy.is_file():
+            legacy.unlink(missing_ok=True)
+            return
     except OSError:
         pass
-
-
-def booking_pdf_path(booking: BookingItem) -> Path:
-    directory = Path(settings.MEDIA_ROOT) / 'booking_pdfs' / str(booking.account_id)
-    directory.mkdir(parents=True, exist_ok=True)
-    safe_id = (booking.unique_id or str(booking.pk)).replace('/', '-')
-    return (directory / f'{safe_id}.pdf').resolve()
+    try:
+        if default_storage.exists(stored):
+            default_storage.delete(stored)
+    except OSError:
+        pass
 
 
 def _format_money_inc_gst(amount: Decimal | None) -> str:
@@ -514,27 +520,32 @@ class BookingQuotePDF:
         self.c.line(table_x + table_w, y_top, table_x + table_w, y_top - len(rows) * row_h)
         self.y = y_top - len(rows) * row_h - 8
 
-    def render(self, output_path: Path) -> None:
+    def render(self) -> bytes:
+        buffer = BytesIO()
         self.total_pages = self._count_pages()
         self.page_num = 1
         self.y = PAGE_H - MARGIN_T
-        self.c = canvas.Canvas(str(output_path), pagesize=PAGE_SIZE)
+        self.c = canvas.Canvas(buffer, pagesize=PAGE_SIZE)
         self._draw_header()
         self._draw_sections()
         self._draw_summary()
         self._draw_page_footer()
         self.c.save()
+        return buffer.getvalue()
 
 
-def build_booking_pdf(booking: BookingItem) -> str:
-    """Write the booking quote PDF and return its absolute filesystem path."""
+def build_booking_pdf(booking: BookingItem) -> None:
+    """Build the quote PDF and store it on default storage (S3/local)."""
     lines = list(
         booking.lines.select_related('booking_group').order_by(
             'booking_group__id', 'sort_order', 'id',
         ),
     )
-    output_path = booking_pdf_path(booking)
-    if booking.pdf:
-        delete_booking_pdf_file(booking.pdf)
-    BookingQuotePDF(booking, lines).render(output_path)
-    return str(output_path)
+    storage_key = booking_pdf_storage_key(booking)
+    if default_storage.exists(storage_key):
+        default_storage.delete(storage_key)
+    legacy = (booking.pdf or '').strip()
+    if legacy and not legacy.startswith(('http://', 'https://', '/')):
+        delete_booking_pdf_file(legacy)
+    pdf_bytes = BookingQuotePDF(booking, lines).render()
+    default_storage.save(storage_key, ContentFile(pdf_bytes))

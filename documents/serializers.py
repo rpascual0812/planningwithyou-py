@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from planningwithyou.file_storage import document_file_url
+
 from .models import Document, DocumentFolder
 
 
@@ -45,7 +47,7 @@ class DocumentSerializer(serializers.ModelSerializer):
             )
 
     def get_url(self, obj):
+        if not obj.file:
+            return ''
         request = self.context.get('request')
-        if request and obj.file:
-            return request.build_absolute_uri(obj.file.url)
-        return obj.file.url if obj.file else ''
+        return document_file_url(obj.pk, request=request)

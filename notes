@@ -62,3 +62,4 @@ Settings
   - Roles and Permissions
 
 
+update the route so that every files uploaded to s3 are publicly available through django route on any tab without authentication.

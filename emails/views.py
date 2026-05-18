@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import filters, status, viewsets
@@ -40,6 +41,7 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         log = serializer.save(
             status=EmailLog.Status.QUEUED,
             account_id=self.request.user.account_id,
+            email_from=settings.MAILJET_SEND_FROM,
         )
         send_email_task.delay(log.pk)
 
@@ -49,7 +51,11 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         log = self.get_object()
         serializer = self.get_serializer(log, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save(status=EmailLog.Status.QUEUED, error='')
+        serializer.save(
+            status=EmailLog.Status.QUEUED,
+            error='',
+            email_from=settings.MAILJET_SEND_FROM,
+        )
         send_email_task.delay(log.pk)
         return Response(
             self.get_serializer(log).data,

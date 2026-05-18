@@ -48,7 +48,11 @@ class BookingItem(models.Model):
     title = models.CharField(max_length=255)
     date_of_event = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True, default='')
-    pdf = models.TextField(blank=True, default='')
+    pdf = models.TextField(
+        blank=True,
+        default='',
+        help_text='Absolute API URL for the secured booking PDF download route.',
+    )
     sort_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

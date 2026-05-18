@@ -1,4 +1,5 @@
 import os
+import uuid
 
 from django.conf import settings
 from django.db import models
@@ -26,7 +27,9 @@ class DocumentFolder(models.Model):
 
 
 def document_upload_path(instance, filename):
-    return f'documents/{filename}'
+    ext = os.path.splitext(filename)[1].lower()
+    account_id = getattr(instance, 'account_id', None) or 'unknown'
+    return f'documents/{account_id}/{uuid.uuid4().hex}{ext}'
 
 
 class Document(models.Model):

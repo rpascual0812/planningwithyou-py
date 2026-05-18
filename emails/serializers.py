@@ -1,9 +1,47 @@
 from rest_framework import serializers
 
+from .attachment_refs import (
+    attachment_public_url,
+    normalize_attachment_item,
+)
+from .mail import body_has_content
 from .models import EmailLog, EmailTemplate
 
 
 class EmailLogSerializer(serializers.ModelSerializer):
+    def validate_body(self, value):
+        if not body_has_content(value):
+            raise serializers.ValidationError('Message body is required.')
+        return value
+
+    def validate_attachments(self, value):
+        if value in (None, ''):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError('Attachments must be a list.')
+        normalized = []
+        errors = []
+        for item in value:
+            if item in (None, ''):
+                continue
+            try:
+                normalized.append(normalize_attachment_item(item))
+            except ValueError as exc:
+                errors.append(str(exc))
+        if errors:
+            raise serializers.ValidationError(errors)
+        return normalized
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        data['attachments'] = [
+            attachment_public_url(item, request=request)
+            for item in (instance.attachments or [])
+            if item not in (None, '')
+        ]
+        return data
+
     class Meta:
         model = EmailLog
         fields = [
@@ -11,7 +49,10 @@ class EmailLogSerializer(serializers.ModelSerializer):
             'body', 'attachments',
             'status', 'error', 'attempts', 'created_at', 'sent_at',
         ]
-        read_only_fields = ['id', 'status', 'error', 'attempts', 'created_at', 'sent_at']
+        read_only_fields = [
+            'id', 'email_from', 'status', 'error', 'attempts',
+            'created_at', 'sent_at',
+        ]
 
 
 class EmailTemplateSerializer(serializers.ModelSerializer):

@@ -1,8 +1,10 @@
 from celery import shared_task
 from django.db import transaction
 
+from planningwithyou.file_storage import booking_pdf_api_url
+
 from .models import BookingItem
-from .pdf_build import build_booking_pdf, delete_booking_pdf_file
+from .pdf_build import build_booking_pdf
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
@@ -19,11 +21,8 @@ def generate_booking_pdf_task(self, booking_id: int):
         )
         with transaction.atomic():
             locked = BookingItem.objects.select_for_update().get(pk=booking_id)
-            old_path = locked.pdf
-            file_path = build_booking_pdf(locked)
-            if old_path and old_path != file_path:
-                delete_booking_pdf_file(old_path)
-            locked.pdf = file_path
+            build_booking_pdf(locked)
+            locked.pdf = booking_pdf_api_url(locked.pk)
             locked.save(update_fields=['pdf', 'updated_at'])
     except BookingItem.DoesNotExist:
         return

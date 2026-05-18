@@ -8,6 +8,7 @@ from mailjet_rest import Client
 
 from users.models import Account
 
+from .attachments import build_mailjet_attachments
 from .models import EmailLog
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,31 @@ def _html_to_plaintext(html: str) -> str:
     text = strip_tags(html)
     text = re.sub(r'[ \t]+\n', '\n', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'\u00a0', ' ', text)
     return text.strip()
+
+
+def body_has_content(html: str) -> bool:
+    """True when HTML body has visible text (not just empty TinyMCE markup)."""
+    return bool(_html_to_plaintext(html))
+
+
+def _prepare_message_parts(body: str) -> tuple[str, str]:
+    """
+    Return (HTMLPart, TextPart) for Mailjet.
+
+    Mailjet rejects messages when HTMLPart, TextPart, and TemplateID are all
+    missing/empty. Ensure at least one non-empty part is always sent.
+    """
+    html = (body or '').strip()
+    text = _html_to_plaintext(html)
+    if text:
+        if not html:
+            html = f'<p>{text}</p>'
+        return html, text
+    if html:
+        return html, ' '
+    return '<p> </p>', ' '
 
 
 def _get_client():
@@ -28,6 +53,24 @@ def _get_client():
         auth=(settings.MAILJET_API_KEY, settings.MAILJET_SECRET_KEY),
         version='v3.1',
     )
+
+
+def _raise_on_mailjet_errors(result) -> None:
+    """Mailjet may return HTTP 200 with per-message errors."""
+    try:
+        payload = result.json()
+    except Exception:
+        return
+    messages = payload.get('Messages') or []
+    errors = []
+    for msg in messages:
+        if msg.get('Status') == 'error':
+            parts = msg.get('Errors') or []
+            errors.extend(
+                err.get('ErrorMessage', str(err)) for err in parts if err
+            )
+    if errors:
+        raise RuntimeError('; '.join(errors))
 
 
 def send_email(email_log_id: int):
@@ -46,9 +89,10 @@ def send_email(email_log_id: int):
         },
         'To': to_list,
         'Subject': log.subject,
-        'HTMLPart': log.body,
-        'TextPart': _html_to_plaintext(log.body),
     }
+    html_part, text_part = _prepare_message_parts(log.body)
+    message['HTMLPart'] = html_part
+    message['TextPart'] = text_part
     if cc_list:
         message['Cc'] = cc_list
     if bcc_list:
@@ -56,18 +100,39 @@ def send_email(email_log_id: int):
     if log.reply_to:
         message['ReplyTo'] = {'Email': log.reply_to}
 
+    attachment_items = [item for item in (log.attachments or []) if item not in (None, '')]
+    if attachment_items:
+        mailjet_attachments, attachment_errors = build_mailjet_attachments(
+            attachment_items,
+            account_id=log.account_id,
+        )
+        if len(mailjet_attachments) != len(attachment_items):
+            failed = '; '.join(attachment_errors) or 'unknown error'
+            raise RuntimeError(
+                f'Could not load {len(attachment_items) - len(mailjet_attachments)} '
+                f'of {len(attachment_items)} attachment(s): {failed}',
+            )
+        message['Attachments'] = mailjet_attachments
+        logger.info(
+            'Email log %s: attaching %s file(s) to Mailjet message',
+            log.pk,
+            len(mailjet_attachments),
+        )
+
     try:
         result = _get_client().send.create(data={'Messages': [message]})
         logger.info(
-            'Mailjet send status=%s to=%s (log=%s)',
+            'Mailjet send status=%s to=%s (log=%s, attachments=%s)',
             result.status_code,
             log.to,
             log.pk,
+            len(message.get('Attachments', [])),
         )
         if result.status_code >= 400:
             raise RuntimeError(
                 f'Mailjet returned {result.status_code}: {result.json()}'
             )
+        _raise_on_mailjet_errors(result)
         log.status = EmailLog.Status.SENT
         log.error = ''
         log.sent_at = timezone.now()
@@ -88,7 +153,7 @@ def create_and_queue_email(
     bcc: list[str] | None = None,
     email_from: str = '',
     reply_to: str = '',
-    attachments: list[str] | None = None,
+    attachments: list | None = None,
     account=None,
 ) -> EmailLog:
     """Create an EmailLog record and return it (caller dispatches the task)."""

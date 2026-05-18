@@ -165,6 +165,50 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# File uploads (documents) — AWS S3 when configured, else local media/
+USE_S3_STORAGE = _env_bool(
+    'USE_S3_STORAGE',
+    default=bool(os.environ.get('AWS_STORAGE_BUCKET_NAME', '').strip()),
+)
+
+STORAGES = {
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
+
+if USE_S3_STORAGE:
+    AWS_ACCESS_KEY_ID = _require_env('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = _require_env('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = _require_env('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = (os.environ.get('AWS_S3_REGION_NAME') or 'us-east-1').strip()
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    AWS_S3_OBJECT_PARAMETERS = {
+        'CacheControl': 'max-age=86400',
+    }
+    AWS_QUERYSTRING_AUTH = _env_bool('AWS_S3_QUERYSTRING_AUTH', default=False)
+
+    _s3_endpoint = os.environ.get('AWS_S3_ENDPOINT_URL', '').strip()
+    if _s3_endpoint:
+        AWS_S3_ENDPOINT_URL = _s3_endpoint
+
+    _s3_custom_domain = os.environ.get('AWS_S3_CUSTOM_DOMAIN', '').strip()
+    if _s3_custom_domain:
+        AWS_S3_CUSTOM_DOMAIN = _s3_custom_domain
+
+    STORAGES['default'] = {
+        'BACKEND': 'storages.backends.s3.S3Storage',
+    }
+else:
+    STORAGES['default'] = {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        'OPTIONS': {
+            'location': MEDIA_ROOT,
+            'base_url': MEDIA_URL,
+        },
+    }
+
 # Cross-origin requests from the Vite dev server (and similar local frontends).
 CORS_ALLOWED_ORIGINS = _csv_env(
     'CORS_ALLOWED_ORIGINS',
@@ -186,6 +230,7 @@ MAILJET_SEND_FROM = os.environ.get('MAILJET_SEND_FROM', '')
 MAILJET_SENDER_NAME = os.environ.get('MAILJET_SENDER_NAME', 'Planning With You')
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+API_PUBLIC_BASE_URL = os.environ.get('API_PUBLIC_BASE_URL', 'http://localhost:8000')
 
 PASSWORD_RESET_TOKEN_LIFETIME_HOURS = int(
     os.environ.get('PASSWORD_RESET_TOKEN_LIFETIME_HOURS', 24),
