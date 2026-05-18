@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -54,6 +55,14 @@ class BookingItem(models.Model):
         help_text='Absolute API URL for the secured booking PDF download route.',
     )
     sort_order = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bookings_created',
+        db_column='created_by',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -1,7 +1,7 @@
-import os
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 
@@ -11,12 +11,18 @@ from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from suppliers.models import Tier
 from users.models import Account
 
-from planningwithyou.file_storage import booking_pdf_storage_key
+from planningwithyou.file_storage import (
+    booking_pdf_storage_key,
+    read_account_logo_file,
+)
 
 from .models import BookingItem, BookingLine
 from .pricing import (
@@ -37,8 +43,9 @@ MARGIN_T = 16 * mm
 MARGIN_B = 18 * mm
 CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R
 
-GST_RATE = Decimal('0.10')  # GST included in line prices (AU)
-
+PDF_FONT_DIR = Path(__file__).resolve().parent / 'fonts'
+PDF_FONT = 'PdfDejaVu'
+PDF_FONT_BOLD = 'PdfDejaVu-Bold'
 
 @dataclass
 class ProductBlock:
@@ -78,16 +85,46 @@ def delete_booking_pdf_file(stored: str) -> None:
         pass
 
 
-def _format_money_inc_gst(amount: Decimal | None) -> str:
-    if amount is None:
-        return ''
-    return f'$ {amount:,.2f} Inc GST'
+@lru_cache(maxsize=1)
+def _ensure_pdf_unicode_fonts() -> bool:
+    """Register bundled DejaVu fonts so currency symbols like ₱ render in PDFs."""
+    if PDF_FONT in pdfmetrics.getRegisteredFontNames():
+        return True
+    regular = PDF_FONT_DIR / 'DejaVuSans.ttf'
+    bold = PDF_FONT_DIR / 'DejaVuSans-Bold.ttf'
+    if not regular.is_file() or not bold.is_file():
+        return False
+    pdfmetrics.registerFont(TTFont(PDF_FONT, str(regular)))
+    pdfmetrics.registerFont(TTFont(PDF_FONT_BOLD, str(bold)))
+    return True
 
 
-def _format_money(amount: Decimal | None) -> str:
+def _currency_for_account(account) -> tuple[str, str]:
+    """Return ``(currency_symbol, currency_code)`` from ``account.country``."""
+    country = getattr(account, 'country', None)
+    if country is None:
+        return '$', 'USD'
+    symbol = (getattr(country, 'currency_symbol', None) or '').strip() or '$'
+    code = (getattr(country, 'currency_code', None) or '').strip() or 'USD'
+    return symbol, code
+
+
+def _currency_symbol_for_account(account) -> str:
+    return _currency_for_account(account)[0]
+
+
+def _format_money(
+    amount: Decimal | None,
+    currency_symbol: str = '$',
+    currency_code: str = 'USD',
+) -> str:
     if amount is None:
         return ''
-    return f'$ {amount:,.2f}'
+    sym = (currency_symbol or '$').strip() or '$'
+    if sym.isascii() or _ensure_pdf_unicode_fonts():
+        return f'{sym} {amount:,.2f}'
+    code = (currency_code or '').strip() or 'USD'
+    return f'{code} {amount:,.2f}'
 
 
 def _format_line_value(
@@ -219,6 +256,27 @@ def _organize_sections(
     return sections, summary_rows
 
 
+def _load_account_logo_bytes(account) -> bytes | None:
+    """Load account logo bytes from storage (S3/local), not the proxy URL."""
+    try:
+        data, _, _ = read_account_logo_file(account.pk)
+        return data
+    except (FileNotFoundError, ValueError, OSError):
+        return None
+
+
+def _format_user_display_name(user) -> str:
+    name = f'{user.first_name} {user.last_name}'.strip()
+    return name or user.username or user.email or '—'
+
+
+def _sales_rep_from_booking(booking, metadata: dict[str, str]) -> tuple[str, str]:
+    user = getattr(booking, 'created_by', None)
+    if user is not None:
+        return _format_user_display_name(user), (user.email or '').strip()
+    return metadata.get('sales_rep') or '—', metadata.get('sales_rep_email') or ''
+
+
 def _metadata_from_lines(
     lines: list[BookingLine],
     supplier_names: dict[int, str],
@@ -251,6 +309,10 @@ class BookingQuotePDF:
         self.metadata = _metadata_from_lines(
             lines, self.supplier_names, self.tier_names,
         )
+        self.currency_symbol, self.currency_code = _currency_for_account(
+            booking.account,
+        )
+        _ensure_pdf_unicode_fonts()
         self.y = PAGE_H - MARGIN_T
         self.c: canvas.Canvas | None = None
         self.page_num = 1
@@ -346,23 +408,17 @@ class BookingQuotePDF:
         mid_x = MARGIN_L + col_w
         right_x = MARGIN_L + 2 * col_w
 
-        # Logo placeholder (right column top)
+        # Account logo (right column top)
         logo_h = 14 * mm
         logo_w = 38 * mm
         logo_x = PAGE_W - MARGIN_R - logo_w
         logo_y = top - logo_h
-        self.c.setStrokeColor(LIGHT_GREY)
-        self.c.setFillColor(colors.HexColor('#f5f5f5'))
-        self.c.rect(logo_x, logo_y, logo_w, logo_h, stroke=1, fill=1)
-        self.c.setFont('Helvetica-Oblique', 7)
-        self.c.setFillColor(GREY)
-        self.c.drawCentredString(logo_x + logo_w / 2, logo_y + logo_h / 2 - 2, 'your logo here')
-
-        logo_path = os.environ.get('BOOKING_PDF_LOGO_PATH', '')
-        if logo_path and Path(logo_path).is_file():
+        account = self.booking.account
+        logo_bytes = _load_account_logo_bytes(account)
+        if logo_bytes:
             try:
                 self.c.drawImage(
-                    logo_path,
+                    ImageReader(BytesIO(logo_bytes)),
                     logo_x,
                     logo_y,
                     width=logo_w,
@@ -371,7 +427,18 @@ class BookingQuotePDF:
                     mask='auto',
                 )
             except Exception:
-                pass
+                logo_bytes = None
+        if not logo_bytes:
+            self.c.setStrokeColor(LIGHT_GREY)
+            self.c.setFillColor(colors.HexColor('#f5f5f5'))
+            self.c.rect(logo_x, logo_y, logo_w, logo_h, stroke=1, fill=1)
+            self.c.setFont('Helvetica-Oblique', 7)
+            self.c.setFillColor(GREY)
+            self.c.drawCentredString(
+                logo_x + logo_w / 2,
+                logo_y + logo_h / 2 - 2,
+                'your logo here',
+            )
 
         y_left = top
         y_mid = top
@@ -411,8 +478,7 @@ class BookingQuotePDF:
         self.c.setFillColor(GREEN)
         self.c.drawString(mid_x, y_mid, 'Sales Representative')
         y_mid -= 12
-        rep_name = self.metadata['sales_rep'] or '—'
-        rep_email = self.metadata['sales_rep_email'] or ''
+        rep_name, rep_email = _sales_rep_from_booking(self.booking, self.metadata)
         self.c.setFont('Helvetica', 8.5)
         self.c.setFillColor(colors.black)
         self.c.drawString(mid_x, y_mid, rep_name)
@@ -422,7 +488,6 @@ class BookingQuotePDF:
             y_mid -= 11
 
         # Company details (right, below logo)
-        account = self.booking.account
         self.c.setFont('Helvetica-Bold', 9)
         self.c.setFillColor(GREEN)
         self.c.drawString(right_x, y_right, 'Company Details')
@@ -456,13 +521,26 @@ class BookingQuotePDF:
         self.c.drawRightString(PAGE_W - MARGIN_R, self.y, 'Total Amount')
         self.y -= 14
 
+    def _money_font(self, bold: bool = False) -> str:
+        if _ensure_pdf_unicode_fonts():
+            return PDF_FONT_BOLD if bold else PDF_FONT
+        return 'Helvetica-Bold' if bold else 'Helvetica'
+
+    def _format_amount(self, amount: Decimal | None) -> str:
+        return _format_money(
+            amount,
+            self.currency_symbol,
+            self.currency_code,
+        )
+
     def _draw_product_block(self, block: ProductBlock):
         assert self.c is not None
         self._ensure_space(16 + 11 * max(len(block.specs), 1))
         self.c.setFont('Helvetica-Bold', 9.5)
         self.c.setFillColor(colors.black)
         self.c.drawString(MARGIN_L, self.y, block.title[:70])
-        price_text = _format_money_inc_gst(block.price)
+        price_text = self._format_amount(block.price)
+        self.c.setFont(self._money_font(bold=True), 9.5)
         self.c.drawRightString(PAGE_W - MARGIN_R, self.y, price_text)
         self.y -= 12
         self.c.setFont('Helvetica', 8.5)
@@ -485,7 +563,6 @@ class BookingQuotePDF:
     def _draw_summary(self):
         assert self.c is not None
         total = self._grand_total()
-        gst = (total / (1 + GST_RATE) * GST_RATE).quantize(Decimal('0.01'))
         deposit = (total / 2).quantize(Decimal('0.01'))
         balance = total - deposit
 
@@ -493,7 +570,6 @@ class BookingQuotePDF:
         for row in self.extra_summary_rows:
             rows.append((row.label, row.amount, False))
         rows.append(('Total', total, True))
-        rows.append(('GST Included', gst, False))
         rows.append(('Deposit Due', deposit, False))
         rows.append(('Balance Due', balance, False))
 
@@ -509,11 +585,18 @@ class BookingQuotePDF:
         for i, (label, amount, bold) in enumerate(rows):
             y = y_top - i * row_h
             self.c.line(table_x, y, table_x + table_w, y)
-            font = 'Helvetica-Bold' if bold else 'Helvetica'
-            self.c.setFont(font, 9)
+            self.c.setFont(
+                'Helvetica-Bold' if bold else 'Helvetica',
+                9,
+            )
             self.c.setFillColor(colors.black)
             self.c.drawString(table_x + 4, y - 10, label)
-            self.c.drawRightString(table_x + table_w - 4, y - 10, _format_money(amount))
+            self.c.setFont(self._money_font(bold=bold), 9)
+            self.c.drawRightString(
+                table_x + table_w - 4,
+                y - 10,
+                self._format_amount(amount),
+            )
 
         self.c.line(table_x, y_top - len(rows) * row_h, table_x + table_w, y_top - len(rows) * row_h)
         self.c.line(table_x, y_top, table_x, y_top - len(rows) * row_h)

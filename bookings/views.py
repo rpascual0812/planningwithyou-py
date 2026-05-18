@@ -70,7 +70,10 @@ class BookingItemViewSet(viewsets.ModelViewSet):
             .first()
             or 0
         )
-        serializer.save(sort_order=max_order + 1)
+        serializer.save(
+            sort_order=max_order + 1,
+            created_by=self.request.user,
+        )
 
     @action(detail=True, methods=['post'])
     def move(self, request, pk=None):

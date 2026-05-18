@@ -1,9 +1,15 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
 
 from bookings.models import BookingGroup, BookingItem, BookingLine, BookingStatus
+from bookings.pdf_build import (
+    _currency_for_account,
+    _ensure_pdf_unicode_fonts,
+    _format_money,
+)
 from bookings.pricing import resolve_booking_line_price
 from bookings.unique_id import allocate_booking_unique_id, format_booking_unique_id
 from countries.models import Country
@@ -106,3 +112,40 @@ class BookingLinePricingTests(TestCase):
             options=[{'label': 'Gold', 'price': '99.50'}],
         )
         self.assertEqual(resolve_booking_line_price(line), Decimal('99.50'))
+
+
+class BookingPdfCurrencyTests(TestCase):
+    def setUp(self):
+        self.philippines = Country.objects.create(
+            name='Philippines',
+            iso_code='PHL',
+            iso2_code='PH',
+            currency='Philippine peso',
+            currency_symbol='₱',
+            currency_code='PHP',
+        )
+        supplier_type = SupplierType.objects.create(name='General')
+        self.account = Account.objects.create(
+            name='PH Account',
+            country=self.philippines,
+            supplier_type=supplier_type,
+        )
+
+    def test_currency_for_philippines_account(self):
+        symbol, code = _currency_for_account(self.account)
+        self.assertEqual(symbol, '₱')
+        self.assertEqual(code, 'PHP')
+
+    def test_format_money_uses_peso_when_unicode_font_available(self):
+        self.assertTrue(_ensure_pdf_unicode_fonts())
+        self.assertEqual(
+            _format_money(Decimal('100.00'), '₱', 'PHP'),
+            '₱ 100.00',
+        )
+
+    def test_format_money_falls_back_to_code_without_unicode_font(self):
+        with patch('bookings.pdf_build._ensure_pdf_unicode_fonts', return_value=False):
+            self.assertEqual(
+                _format_money(Decimal('100.00'), '₱', 'PHP'),
+                'PHP 100.00',
+            )

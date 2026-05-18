@@ -12,7 +12,11 @@ def generate_booking_pdf_task(self, booking_id: int):
     try:
         booking = (
             BookingItem.objects.select_related(
-                'status', 'account', 'account__country', 'contact',
+                'status',
+                'account',
+                'account__country',
+                'contact',
+                'created_by',
             ).prefetch_related(
                 'contact__phone_numbers', 'contact__addresses',
             )
@@ -21,7 +25,7 @@ def generate_booking_pdf_task(self, booking_id: int):
         )
         with transaction.atomic():
             locked = BookingItem.objects.select_for_update().get(pk=booking_id)
-            build_booking_pdf(locked)
+            build_booking_pdf(booking)
             locked.pdf = booking_pdf_api_url(locked.pk)
             locked.save(update_fields=['pdf', 'updated_at'])
     except BookingItem.DoesNotExist:

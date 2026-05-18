@@ -7,6 +7,7 @@ python manage.py migrate
 python manage.py runserver
 # Terminal 2 – Celery worker
 celery -A placelery -A planningwithyou flowernningwithyou worker --loglevel=info
+celery -A planningwithyou worker -l info
 # Terminal 3 - Redis
 sudo docker start local-redis
 # Terminal 4 - Flower
@@ -62,4 +63,3 @@ Settings
   - Roles and Permissions
 
 
-update the route so that every files uploaded to s3 are publicly available through django route on any tab without authentication.

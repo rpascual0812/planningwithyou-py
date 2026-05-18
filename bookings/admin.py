@@ -31,7 +31,7 @@ class BookingUniqueIdSequenceAdmin(admin.ModelAdmin):
 
 @admin.register(BookingItem)
 class BookingItemAdmin(admin.ModelAdmin):
-    list_display = ['unique_id', 'title', 'status', 'sort_order', 'created_at']
+    list_display = ['unique_id', 'title', 'status', 'created_by', 'sort_order', 'created_at']
     search_fields = ['unique_id', 'title']
     list_filter = ['status']
     ordering = ['sort_order', 'id']

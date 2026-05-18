@@ -106,11 +106,11 @@ class BookingItemSerializer(serializers.ModelSerializer):
         model = BookingItem
         fields = [
             'id', 'unique_id', 'status', 'contact', 'title', 'date_of_event',
-            'groups', 'field_values', 'notes', 'sort_order',
+            'groups', 'field_values', 'notes', 'sort_order', 'created_by',
             'pdf_url', 'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'unique_id', 'pdf_url', 'created_at', 'updated_at',
+            'id', 'unique_id', 'created_by', 'pdf_url', 'created_at', 'updated_at',
         ]
 
     def get_pdf_url(self, obj):
