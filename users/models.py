@@ -25,12 +25,16 @@ class Account(models.Model):
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=64, default='active')
     is_active = models.BooleanField(default=True)
-    discount = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True,
+    logo = models.CharField(
+        max_length=512,
+        blank=True,
+        default='',
+        help_text='Secured API URL for the account logo download route.',
     )
-    price_adjustment = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True,
-    )
+    contact_person = models.CharField(max_length=255, blank=True, default='')
+    contact_email = models.EmailField(blank=True, default='')
+    contact_mobile_number = models.CharField(max_length=32, blank=True, default='')
+    timezone = models.CharField(max_length=63, blank=True, default='')
     country = models.ForeignKey(
         'countries.Country',
         on_delete=models.PROTECT,

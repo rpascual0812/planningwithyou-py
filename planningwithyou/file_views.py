@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from planningwithyou.file_storage import (
+    read_account_logo_file,
     read_booking_pdf_file,
     read_document_file,
 )
@@ -67,6 +68,27 @@ class BookingPdfFileView(APIView):
                 booking_id,
                 account_id=request.user.account_id,
             )
+        except FileNotFoundError as exc:
+            raise Http404(str(exc)) from exc
+        except ValueError as exc:
+            return HttpResponse(str(exc), status=413)
+
+        return _file_response(
+            data,
+            filename,
+            content_type,
+            as_attachment=_as_attachment(request),
+        )
+
+
+class AccountLogoFileView(APIView):
+    """Serve an account logo by account id (hides underlying S3/storage path)."""
+
+    permission_classes = [IsAuthenticated, HasAccount]
+
+    def get(self, request, account_id: int):
+        try:
+            data, filename, content_type = read_account_logo_file(account_id)
         except FileNotFoundError as exc:
             raise Http404(str(exc)) from exc
         except ValueError as exc:

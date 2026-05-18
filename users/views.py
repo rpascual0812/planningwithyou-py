@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework import filters, status, viewsets
+from rest_framework import filters, parsers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -104,6 +104,7 @@ class AccountViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated]
     serializer_class = AccountSerializer
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'name', 'status', 'created_at', 'updated_at']
     ordering = ['name']

@@ -33,7 +33,17 @@ class UserAdminForm(forms.ModelForm):
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'name', 'status', 'is_active', 'country', 'supplier_type', 'created_at', 'deleted_at',
+        'id',
+        'name',
+        'status',
+        'is_active',
+        'contact_person',
+        'contact_email',
+        'timezone',
+        'country',
+        'supplier_type',
+        'created_at',
+        'deleted_at',
     )
     list_filter = ('is_active', 'country', 'supplier_type', 'status')
     search_fields = ('name',)

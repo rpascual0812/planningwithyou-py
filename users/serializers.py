@@ -2,6 +2,9 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from planningwithyou.file_storage import account_logo_public_url
+
+from .logo_image import delete_account_logo, save_account_logo
 from .models import Account
 from .supplier_price import (
     build_supplier_tiers_by_account,
@@ -93,6 +96,8 @@ class AccountSerializer(serializers.ModelSerializer):
     )
     tier_id = serializers.IntegerField(required=False, allow_null=True)
     supplier_tiers = serializers.SerializerMethodField()
+    logo_url = serializers.SerializerMethodField()
+    logo_upload = serializers.FileField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Account
@@ -101,6 +106,13 @@ class AccountSerializer(serializers.ModelSerializer):
             'name',
             'status',
             'is_active',
+            'logo',
+            'logo_upload',
+            'logo_url',
+            'contact_person',
+            'contact_email',
+            'contact_mobile_number',
+            'timezone',
             'country',
             'country_name',
             'country_iso_code',
@@ -108,8 +120,6 @@ class AccountSerializer(serializers.ModelSerializer):
             'country_currency',
             'country_currency_symbol',
             'country_currency_code',
-            'discount',
-            'price_adjustment',
             'price',
             'tier_id',
             'supplier_tiers',
@@ -122,6 +132,8 @@ class AccountSerializer(serializers.ModelSerializer):
             'id',
             'created_at',
             'updated_at',
+            'logo',
+            'logo_url',
             'country_name',
             'country_iso_code',
             'country_iso2_code',
@@ -131,6 +143,42 @@ class AccountSerializer(serializers.ModelSerializer):
             'supplier_type_name',
         ]
 
+    def get_logo_url(self, obj):
+        return account_logo_public_url(
+            obj.logo,
+            obj.pk,
+            request=self.context.get('request'),
+        )
+
+    def to_internal_value(self, data):
+        if hasattr(data, 'copy'):
+            payload = data.copy()
+        else:
+            payload = dict(data)
+        logo_val = payload.get('logo')
+        if logo_val is not None and hasattr(logo_val, 'read'):
+            payload['logo_upload'] = logo_val
+            del payload['logo']
+        return super().to_internal_value(payload)
+
+    def _apply_logo_upload(self, instance, logo_upload):
+        if logo_upload is serializers.empty:
+            return
+        try:
+            if logo_upload:
+                instance.logo = save_account_logo(
+                    instance.pk,
+                    logo_upload,
+                    old_logo=instance.logo or '',
+                    request=self.context.get('request'),
+                )
+            else:
+                delete_account_logo(instance.logo, account_id=instance.pk)
+                instance.logo = ''
+        except ValueError as exc:
+            raise serializers.ValidationError({'logo_upload': str(exc)}) from exc
+        instance.save(update_fields=['logo', 'updated_at'])
+
     def get_supplier_tiers(self, obj):
         by_supplier = self.context.get('tier_pricing_by_supplier')
         if not by_supplier:
@@ -138,8 +186,11 @@ class AccountSerializer(serializers.ModelSerializer):
         return by_supplier.get(obj.id, [])
 
     def create(self, validated_data):
+        logo_upload = validated_data.pop('logo_upload', serializers.empty)
         validated_data.pop('price', None)
-        return super().create(validated_data)
+        instance = super().create(validated_data)
+        self._apply_logo_upload(instance, logo_upload)
+        return instance
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -169,9 +220,11 @@ class AccountSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
+        logo_upload = validated_data.pop('logo_upload', serializers.empty)
         tier_id = validated_data.pop('tier_id', serializers.empty)
         price = validated_data.pop('price', serializers.empty)
         instance = super().update(instance, validated_data)
+        self._apply_logo_upload(instance, logo_upload)
         request = self.context.get('request')
         tenant_account_id = getattr(request.user, 'account_id', None) if request else None
         if tenant_account_id and (

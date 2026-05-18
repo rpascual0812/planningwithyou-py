@@ -13,4 +13,9 @@ urlpatterns = [
         file_views.BookingPdfFileView.as_view(),
         name='secured-file-booking-pdf',
     ),
+    path(
+        'files/a/<int:account_id>/logo/',
+        file_views.AccountLogoFileView.as_view(),
+        name='secured-file-account-logo',
+    ),
 ]
