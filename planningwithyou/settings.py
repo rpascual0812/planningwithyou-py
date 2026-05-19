@@ -80,6 +80,7 @@ INSTALLED_APPS = [
     'calendars',
     'suppliers',
     'subscriptions',
+    'packages',
 ]
 
 MIDDLEWARE = [

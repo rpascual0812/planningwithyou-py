@@ -167,6 +167,30 @@ class BookingLine(models.Model):
         on_delete=models.CASCADE,
         related_name='lines',
     )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='company_id',
+        related_name='booking_lines',
+    )
+    tier = models.ForeignKey(
+        'suppliers.Tier',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='tier_id',
+        related_name='booking_lines',
+    )
+    package_version = models.ForeignKey(
+        'packages.PackageVersion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='package_version_id',
+        related_name='booking_lines',
+    )
     label = models.CharField(max_length=255)
     booking_group = models.ForeignKey(
         BookingGroup,

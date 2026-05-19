@@ -66,3 +66,8 @@ Settings
   - Roles and Permissions
 
 
+TODO
+
+- When supplier 1 adds supplier 2 to a quotation, supplier 2 should be able to see the quotation and 
+  let supplier 1 know that they have accepted/declined the quotation.
+- Supplier has the capability to change package version (e.g. to give clients an already done discount promo)
