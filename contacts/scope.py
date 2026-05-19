@@ -6,8 +6,5 @@ from contacts.models import Contact
 
 
 def contacts_for_user(user):
-    """Base queryset for contacts visible to ``user``."""
-    return Contact.objects.filter(
-        account_id=user.account_id,
-        company_org_id=user.company_id,
-    )
+    """Base queryset for contacts visible to ``user`` (all companies on the account)."""
+    return Contact.objects.filter(account_id=user.account_id)

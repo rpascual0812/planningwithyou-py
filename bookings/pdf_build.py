@@ -16,8 +16,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
+from companies.models import Company
 from suppliers.models import Tier
-from users.models import Account
 
 from planningwithyou.file_storage import (
     booking_pdf_storage_key,
@@ -170,7 +170,7 @@ def _load_supplier_and_tier_names(lines) -> tuple[dict[int, str], dict[int, str]
 
     supplier_names = {}
     if supplier_ids:
-        for row in Account.all_objects.filter(pk__in=supplier_ids).values('id', 'name'):
+        for row in Company.all_objects.filter(pk__in=supplier_ids).values('id', 'name'):
             supplier_names[row['id']] = row['name']
 
     tier_names = {}

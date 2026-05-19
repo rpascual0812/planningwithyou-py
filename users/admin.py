@@ -41,11 +41,10 @@ class AccountAdmin(admin.ModelAdmin):
         'contact_email',
         'timezone',
         'country',
-        'supplier_type',
         'created_at',
         'deleted_at',
     )
-    list_filter = ('is_active', 'country', 'supplier_type', 'status')
+    list_filter = ('is_active', 'country', 'status')
     search_fields = ('name',)
     readonly_fields = ('created_at', 'updated_at')
 

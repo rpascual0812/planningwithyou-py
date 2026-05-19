@@ -4,14 +4,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from companies.models import Company
+
 from planningwithyou.permissions import HasAccount
 
-from .models import SupplierSetting, SupplierSettingTier, SupplierType, Tier
+from .models import SupplierType, Tier
 from .serializers import (
-    SupplierListOptionSerializer,
+    CompanyListOptionSerializer,
     SupplierOptionQuerySerializer,
-    SupplierOptionSerializer,
-    SupplierTierOptionSerializer,
     SupplierTierQuerySerializer,
     SupplierTypeSerializer,
     TierSerializer,
@@ -45,10 +45,22 @@ class TierViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
+        account_id = self.request.user.account_id
         qs = Tier.objects.filter(
-            account_id=self.request.user.account_id,
+            account_id=account_id,
             deleted_at__isnull=True,
         )
+        company_id = self.request.query_params.get('company_id', '').strip()
+        if company_id:
+            if not Company.objects.filter(
+                pk=company_id,
+                account_id=account_id,
+                deleted_at__isnull=True,
+            ).exists():
+                return qs.none()
+            qs = qs.filter(company_id=company_id)
+        else:
+            qs = qs.filter(company_id=self.request.user.company_id)
         active_only = self.request.query_params.get('active_only', '').lower()
         if active_only in ('1', 'true', 'yes'):
             qs = qs.filter(is_active=True)
@@ -67,10 +79,9 @@ class TierViewSet(viewsets.ModelViewSet):
 
 class SupplierOptionListView(APIView):
     """
-  Suppliers linked to the current account via active supplier_settings.
+    Active, non-deleted companies for the current account (supplier dropdown).
 
-  Without ``tier_id``: all suppliers for the account (pick supplier first).
-  With ``tier_id``: suppliers that have that tier configured (legacy filter).
+    ``tier_id`` is accepted for API compatibility; the list is not filtered by tier.
     """
 
     permission_classes = [IsAuthenticated, HasAccount]
@@ -82,35 +93,13 @@ class SupplierOptionListView(APIView):
         )
         query.is_valid(raise_exception=True)
         account_id = request.user.account_id
-        tier_id = query.validated_data.get('tier_id')
 
-        if tier_id is not None:
-            rows = (
-                SupplierSettingTier.objects.filter(
-                    tier_id=tier_id,
-                    tier__account_id=account_id,
-                    tier__is_active=True,
-                    tier__deleted_at__isnull=True,
-                    supplier_setting__account_id=account_id,
-                    supplier_setting__is_active=True,
-                    supplier_setting__supplier__is_active=True,
-                )
-                .select_related('supplier_setting__supplier')
-                .order_by('supplier_setting__supplier__name', 'id')
-            )
-            serializer = SupplierOptionSerializer(rows, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        settings = (
-            SupplierSetting.objects.filter(
-                account_id=account_id,
-                is_active=True,
-                supplier__is_active=True,
-            )
-            .select_related('supplier')
-            .order_by('supplier__name', 'id')
-        )
-        serializer = SupplierListOptionSerializer(settings, many=True)
+        companies = Company.objects.filter(
+            account_id=account_id,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).order_by('sort_order', 'name', 'id')
+        serializer = CompanyListOptionSerializer(companies, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -125,20 +114,15 @@ class SupplierTierListView(APIView):
             context={'request': request},
         )
         query.is_valid(raise_exception=True)
-        supplier_id = query.validated_data['supplier_id']
-        account_id = request.user.account_id
+        supplier_company_id = query.validated_data['supplier_id']
 
-        rows = (
-            SupplierSettingTier.objects.filter(
-                supplier_setting__account_id=account_id,
-                supplier_setting__supplier_id=supplier_id,
-                supplier_setting__is_active=True,
-                tier__account_id=account_id,
-                tier__is_active=True,
-                tier__deleted_at__isnull=True,
-            )
-            .select_related('tier')
-            .order_by('tier__name', 'id')
+        from users.supplier_price import get_supplier_company_tier_options
+
+        return Response(
+            get_supplier_company_tier_options(
+                supplier_company_id,
+                request.user.account_id,
+                request.user.company_id,
+            ),
+            status=status.HTTP_200_OK,
         )
-        serializer = SupplierTierOptionSerializer(rows, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)

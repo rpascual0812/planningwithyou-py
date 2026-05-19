@@ -37,7 +37,7 @@ class SupplierType(models.Model):
 class SupplierSetting(models.Model):
     is_active = models.BooleanField(default=True)
     supplier = models.ForeignKey(
-        'users.Account',
+        'companies.Company',
         on_delete=models.CASCADE,
         db_column='supplier_id',
         related_name='supplier_settings_as_supplier',
@@ -84,6 +84,12 @@ class Tier(models.Model):
         'users.Account',
         on_delete=models.CASCADE,
         db_column='account_id',
+        related_name='tiers',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        db_column='company_id',
         related_name='tiers',
     )
     name = models.CharField(max_length=255)

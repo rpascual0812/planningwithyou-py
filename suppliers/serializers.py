@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from companies.models import Company
+
 from .models import SupplierSetting, SupplierSettingTier, SupplierType, Tier
 
 
@@ -13,8 +15,26 @@ class SupplierTypeSerializer(serializers.ModelSerializer):
 class TierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tier
-        fields = ['id', 'name', 'is_active', 'created_at']
+        fields = ['id', 'name', 'company', 'is_active', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+    def get_extra_kwargs(self):
+        kwargs = super().get_extra_kwargs()
+        if self.instance is not None:
+            extra = dict(kwargs.get('company', {}))
+            extra['read_only'] = True
+            kwargs['company'] = extra
+        return kwargs
+
+    def validate_company(self, value):
+        request = self.context.get('request')
+        if request is None:
+            return value
+        if value.account_id != request.user.account_id:
+            raise serializers.ValidationError('Invalid company.')
+        if not value.is_active or value.deleted_at is not None:
+            raise serializers.ValidationError('Company must be active.')
+        return value
 
 
 class SupplierOptionSerializer(serializers.Serializer):
@@ -43,10 +63,10 @@ class SupplierOptionQuerySerializer(serializers.Serializer):
     tier_id = serializers.IntegerField(required=False)
 
     def validate_tier_id(self, value):
-        account_id = self.context['request'].user.account_id
+        company_id = self.context['request'].user.company_id
         if not Tier.objects.filter(
             pk=value,
-            account_id=account_id,
+            company_id=company_id,
             is_active=True,
             deleted_at__isnull=True,
         ).exists():
@@ -59,19 +79,25 @@ class SupplierListOptionSerializer(serializers.Serializer):
     name = serializers.CharField(source='supplier.name')
 
 
+class CompanyListOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Company
+        fields = ['id', 'name']
+
+
 class SupplierTierQuerySerializer(serializers.Serializer):
     supplier_id = serializers.IntegerField()
 
     def validate_supplier_id(self, value):
         account_id = self.context['request'].user.account_id
-        if not SupplierSetting.objects.filter(
+        if not Company.objects.filter(
+            pk=value,
             account_id=account_id,
-            supplier_id=value,
             is_active=True,
-            supplier__is_active=True,
+            deleted_at__isnull=True,
         ).exists():
             raise serializers.ValidationError(
-                'Invalid or inactive supplier for this account.',
+                'Invalid or inactive company.',
             )
         return value
 

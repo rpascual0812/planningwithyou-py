@@ -31,11 +31,14 @@ class SupplierSettingAdmin(admin.ModelAdmin):
 
 @admin.register(Tier)
 class TierAdmin(admin.ModelAdmin):
-    list_display = ('id', 'account', 'name', 'is_active', 'created_by', 'created_at', 'deleted_at')
+    list_display = (
+        'id', 'account', 'company', 'name', 'is_active',
+        'created_by', 'created_at', 'deleted_at',
+    )
     list_filter = ('is_active', 'account')
     search_fields = ('name',)
     readonly_fields = ('created_at',)
-    raw_id_fields = ('account', 'created_by')
+    raw_id_fields = ('account', 'company', 'created_by')
 
 
 @admin.register(SupplierSettingTier)

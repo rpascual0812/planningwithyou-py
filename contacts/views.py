@@ -16,9 +16,10 @@ class ContactViewSet(viewsets.ModelViewSet):
     ordering = ['first_name', 'last_name']
 
     def get_queryset(self):
-        qs = contacts_for_user(self.request.user).prefetch_related(
-            'phone_numbers',
-            'addresses',
+        qs = (
+            contacts_for_user(self.request.user)
+            .select_related('company_org')
+            .prefetch_related('phone_numbers', 'addresses')
         )
         search = self.request.query_params.get('search', '').strip()
         if search:
@@ -27,6 +28,7 @@ class ContactViewSet(viewsets.ModelViewSet):
                 | Q(last_name__icontains=search)
                 | Q(email__icontains=search)
                 | Q(company__icontains=search)
+                | Q(company_org__name__icontains=search)
                 | Q(phone_numbers__number__icontains=search)
             ).distinct()
         return qs

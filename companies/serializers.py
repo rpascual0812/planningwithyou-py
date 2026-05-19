@@ -2,12 +2,58 @@ from django.db import transaction
 from rest_framework import serializers
 
 from planningwithyou.file_storage import company_logo_public_url
+from suppliers.models import SupplierType
 
 from .logo_image import delete_company_logo, save_company_logo
 from .models import Company
 
 
+class SupplierCompanyTierPricingItemSerializer(serializers.Serializer):
+    tier_id = serializers.IntegerField()
+    tier_name = serializers.CharField(read_only=True)
+    discount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True,
+    )
+    mark_up = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True,
+    )
+    price = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True,
+    )
+
+
+class SupplierCompanyTierPricingSerializer(serializers.Serializer):
+    name = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    tiers = SupplierCompanyTierPricingItemSerializer(many=True)
+
+    def validate_tiers(self, value):
+        request = self.context.get('request')
+        tenant_company_id = getattr(request.user, 'company_id', None) if request else None
+        if tenant_company_id is None:
+            raise serializers.ValidationError('No company context for tiers.')
+        from suppliers.models import Tier
+
+        valid_ids = set(
+            Tier.objects.filter(
+                company_id=tenant_company_id,
+                is_active=True,
+                deleted_at__isnull=True,
+            ).values_list('id', flat=True),
+        )
+        for item in value:
+            if item['tier_id'] not in valid_ids:
+                raise serializers.ValidationError(
+                    f'Invalid or inactive tier id {item["tier_id"]}.',
+                )
+        return value
+
+
 class CompanySerializer(serializers.ModelSerializer):
+    supplier_type_name = serializers.CharField(
+        source='supplier_type.name',
+        read_only=True,
+    )
+    supplier_tiers = serializers.SerializerMethodField()
     logo_url = serializers.SerializerMethodField()
     logo_upload = serializers.FileField(write_only=True, required=False, allow_null=True)
 
@@ -16,6 +62,9 @@ class CompanySerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
+            'supplier_type',
+            'supplier_type_name',
+            'supplier_tiers',
             'timezone',
             'website',
             'is_active',
@@ -26,7 +75,24 @@ class CompanySerializer(serializers.ModelSerializer):
             'sort_order',
             'created_at',
         ]
-        read_only_fields = ['id', 'created_at', 'logo', 'logo_url']
+        read_only_fields = [
+            'id',
+            'created_at',
+            'logo',
+            'logo_url',
+            'supplier_type_name',
+        ]
+
+    def get_supplier_tiers(self, obj):
+        by_supplier = self.context.get('tier_pricing_by_supplier')
+        if not by_supplier:
+            return []
+        return by_supplier.get(obj.id, [])
+
+    def validate_supplier_type(self, value):
+        if not SupplierType.objects.filter(pk=value.pk, is_active=True).exists():
+            raise serializers.ValidationError('Invalid or inactive supplier type.')
+        return value
 
     def get_logo_url(self, obj):
         return company_logo_public_url(

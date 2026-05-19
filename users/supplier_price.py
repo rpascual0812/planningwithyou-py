@@ -3,8 +3,8 @@ from decimal import Decimal, InvalidOperation
 from suppliers.models import SupplierSetting, SupplierSettingTier, Tier
 
 
-def supplier_accounts_with_price_queryset(qs, tenant_account_id):
-    """Annotate supplier accounts with tier + price from supplier_setting_tiers."""
+def supplier_companies_with_price_queryset(qs, tenant_account_id):
+    """Annotate companies with tier + price from supplier_setting_tiers."""
     from django.db.models import OuterRef, Subquery
 
     tier_row_sq = SupplierSettingTier.objects.filter(
@@ -27,9 +27,18 @@ def parse_price_value(value):
         return None
 
 
+def _tenant_tiers_qs(tenant_company_id):
+    return Tier.objects.filter(
+        company_id=tenant_company_id,
+        is_active=True,
+        deleted_at__isnull=True,
+    )
+
+
 def set_supplier_tier_pricing(
-    supplier_account_id,
+    supplier_company_id,
     tenant_account_id,
+    tenant_company_id,
     *,
     tier_id=None,
     price=None,
@@ -41,19 +50,14 @@ def set_supplier_tier_pricing(
     ``price_unset`` is True when ``price`` was not included in the API payload.
     """
     setting, _ = SupplierSetting.objects.get_or_create(
-        supplier_id=supplier_account_id,
+        supplier_id=supplier_company_id,
         account_id=tenant_account_id,
         defaults={'is_active': True},
     )
 
     tier_row = None
     if tier_id is not None:
-        tier = Tier.objects.filter(
-            pk=tier_id,
-            account_id=tenant_account_id,
-            is_active=True,
-            deleted_at__isnull=True,
-        ).first()
+        tier = _tenant_tiers_qs(tenant_company_id).filter(pk=tier_id).first()
         if tier is None:
             return
         tier_row, _ = SupplierSettingTier.objects.get_or_create(
@@ -68,11 +72,7 @@ def set_supplier_tier_pricing(
         )
 
     if tier_row is None:
-        default_tier = Tier.objects.filter(
-            account_id=tenant_account_id,
-            is_active=True,
-            deleted_at__isnull=True,
-        ).order_by('name').first()
+        default_tier = _tenant_tiers_qs(tenant_company_id).order_by('name').first()
         if default_tier is None:
             return
         tier_row, _ = SupplierSettingTier.objects.get_or_create(
@@ -87,31 +87,60 @@ def set_supplier_tier_pricing(
     tier_row.save(update_fields=update_fields)
 
 
-def set_supplier_account_price(supplier_account_id, tenant_account_id, price):
-    """Persist price on the active tier row for this supplier setting."""
-    set_supplier_tier_pricing(
-        supplier_account_id,
-        tenant_account_id,
-        price=price,
-    )
-
-
 def _decimal_to_api(value):
     if value is None:
         return None
     return format(value, 'f').rstrip('0').rstrip('.') or '0'
 
 
-def get_supplier_account_tier_pricing(supplier_account_id, tenant_account_id):
-    """All active tiers for the tenant with pricing from supplier_setting_tiers."""
-    tiers = Tier.objects.filter(
-        account_id=tenant_account_id,
-        is_active=True,
-        deleted_at__isnull=True,
-    ).order_by('name')
+def get_supplier_company_tier_options(
+    supplier_company_id,
+    tenant_account_id,
+    tenant_company_id,
+):
+    """Tier catalog for booking supplier field with optional SST pricing."""
+    tiers = _tenant_tiers_qs(tenant_company_id).order_by('name')
 
     setting = SupplierSetting.objects.filter(
-        supplier_id=supplier_account_id,
+        supplier_id=supplier_company_id,
+        account_id=tenant_account_id,
+    ).first()
+
+    by_tier_id = {}
+    if setting:
+        for row in SupplierSettingTier.objects.filter(
+            supplier_setting=setting,
+        ).select_related('tier'):
+            by_tier_id[row.tier_id] = row
+
+    default_type = SupplierSettingTier.AdjustmentType.PERCENT
+    return [
+        {
+            'id': tier.id,
+            'name': tier.name,
+            'is_active': tier.is_active,
+            'discount': row.discount if (row := by_tier_id.get(tier.id)) else None,
+            'discount_type': row.discount_type if row else default_type,
+            'mark_up': row.mark_up if row else None,
+            'mark_up_type': row.mark_up_type if row else default_type,
+            'price_override': row.price_override if row else None,
+            'tax': row.tax if row else None,
+            'price': row.price if row else None,
+        }
+        for tier in tiers
+    ]
+
+
+def get_supplier_company_tier_pricing(
+    supplier_company_id,
+    tenant_account_id,
+    tenant_company_id,
+):
+    """All active tiers for the tenant company with pricing from supplier_setting_tiers."""
+    tiers = _tenant_tiers_qs(tenant_company_id).order_by('name')
+
+    setting = SupplierSetting.objects.filter(
+        supplier_id=supplier_company_id,
         account_id=tenant_account_id,
     ).first()
 
@@ -138,21 +167,21 @@ def get_supplier_account_tier_pricing(supplier_account_id, tenant_account_id):
     ]
 
 
-def build_supplier_tiers_by_account(supplier_account_ids, tenant_account_id):
-    """Tier pricing rows keyed by supplier account id (for list views)."""
-    if not supplier_account_ids:
+def build_supplier_tiers_by_company(
+    supplier_company_ids,
+    tenant_account_id,
+    tenant_company_id,
+):
+    """Tier pricing rows keyed by supplier company id (for list views)."""
+    if not supplier_company_ids:
         return {}
 
     tier_rows = list(
-        Tier.objects.filter(
-            account_id=tenant_account_id,
-            is_active=True,
-            deleted_at__isnull=True,
-        ).order_by('name').values_list('id', 'name'),
+        _tenant_tiers_qs(tenant_company_id).order_by('name').values_list('id', 'name'),
     )
 
     settings = SupplierSetting.objects.filter(
-        supplier_id__in=supplier_account_ids,
+        supplier_id__in=supplier_company_ids,
         account_id=tenant_account_id,
     ).prefetch_related('tiers')
 
@@ -163,7 +192,7 @@ def build_supplier_tiers_by_account(supplier_account_ids, tenant_account_id):
         }
 
     result = {}
-    for supplier_id in supplier_account_ids:
+    for supplier_id in supplier_company_ids:
         existing = existing_by_supplier.get(supplier_id, {})
         result[supplier_id] = [
             {
@@ -184,24 +213,21 @@ def build_supplier_tiers_by_account(supplier_account_ids, tenant_account_id):
     return result
 
 
-def save_supplier_account_tier_pricing(
-    supplier_account_id,
+def save_supplier_company_tier_pricing(
+    supplier_company_id,
     tenant_account_id,
+    tenant_company_id,
     tiers_data,
 ):
     """Persist discount, mark-up, and price for each tier row."""
     setting, _ = SupplierSetting.objects.get_or_create(
-        supplier_id=supplier_account_id,
+        supplier_id=supplier_company_id,
         account_id=tenant_account_id,
         defaults={'is_active': True},
     )
 
     valid_tier_ids = set(
-        Tier.objects.filter(
-            account_id=tenant_account_id,
-            is_active=True,
-            deleted_at__isnull=True,
-        ).values_list('id', flat=True),
+        _tenant_tiers_qs(tenant_company_id).values_list('id', flat=True),
     )
 
     for item in tiers_data:

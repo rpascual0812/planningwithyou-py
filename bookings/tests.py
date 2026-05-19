@@ -32,11 +32,11 @@ class BookingUniqueIdTests(TestCase):
         self.account = Account.objects.create(
             name='Test Account',
             country=country,
-            supplier_type=supplier_type,
         )
         self.company = Company.objects.create(
             account=self.account,
             name='Main',
+            supplier_type=supplier_type,
             is_main=True,
         )
 
@@ -78,11 +78,11 @@ class BookingLinePricingTests(TestCase):
         self.account = Account.objects.create(
             name='Test Account',
             country=country,
-            supplier_type=supplier_type,
         )
         self.company = Company.objects.create(
             account=self.account,
             name='Main',
+            supplier_type=supplier_type,
             is_main=True,
         )
         self.status = BookingStatus.objects.create(
@@ -136,11 +136,9 @@ class BookingPdfCurrencyTests(TestCase):
             currency_symbol='₱',
             currency_code='PHP',
         )
-        supplier_type = SupplierType.objects.create(name='General')
         self.account = Account.objects.create(
             name='PH Account',
             country=self.philippines,
-            supplier_type=supplier_type,
         )
 
     def test_currency_for_philippines_account(self):

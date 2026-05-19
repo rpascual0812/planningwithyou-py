@@ -35,12 +35,6 @@ class Account(models.Model):
         db_column='country_id',
         related_name='accounts',
     )
-    supplier_type = models.ForeignKey(
-        'suppliers.SupplierType',
-        on_delete=models.PROTECT,
-        db_column='supplier_type_id',
-        related_name='accounts',
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)

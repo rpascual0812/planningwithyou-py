@@ -16,20 +16,21 @@ class CompanyMainFlagTests(TestCase):
             currency_symbol='$',
             currency_code='USD',
         )
-        supplier_type = SupplierType.objects.create(name='General')
+        self.supplier_type = SupplierType.objects.create(name='General')
         self.account = Account.objects.create(
             name='Test Account',
             country=country,
-            supplier_type=supplier_type,
         )
         self.first = Company.objects.create(
             account=self.account,
             name='First Co',
+            supplier_type=self.supplier_type,
             is_main=True,
         )
         self.second = Company.objects.create(
             account=self.account,
             name='Second Co',
+            supplier_type=self.supplier_type,
             is_main=False,
         )
 
@@ -50,6 +51,7 @@ class CompanyMainFlagTests(TestCase):
         third = Company(
             account=self.account,
             name='Third Co',
+            supplier_type=self.supplier_type,
             is_main=True,
         )
         third.save()

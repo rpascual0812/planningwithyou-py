@@ -23,19 +23,12 @@ from emails.tasks import send_email_task
 
 from .models import Account, PasswordResetToken
 from .scope import users_for_user
-from .supplier_price import supplier_accounts_with_price_queryset
 from .serializers import (
     AccountSerializer,
     EmailTokenObtainPairSerializer,
     PasswordResetConfirmSerializer,
-    SupplierAccountTierPricingSerializer,
     UserCreateSerializer,
     UserSerializer,
-)
-from .supplier_price import (
-    build_supplier_tiers_by_account,
-    get_supplier_account_tier_pricing,
-    save_supplier_account_tier_pricing,
 )
 
 User = get_user_model()
@@ -112,33 +105,13 @@ class AccountViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
-        qs = Account.objects.select_related('supplier_type', 'country')
-        supplier_type = self.request.query_params.get('supplier_type', '').strip()
-        if supplier_type:
-            qs = qs.filter(supplier_type_id=supplier_type)
-            tenant_account_id = getattr(self.request.user, 'account_id', None)
-            if tenant_account_id:
-                qs = supplier_accounts_with_price_queryset(qs, tenant_account_id)
+        qs = Account.objects.select_related('country')
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
                 Q(name__icontains=search) | Q(status__icontains=search),
             )
         return qs
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        supplier_type = self.request.query_params.get('supplier_type', '').strip()
-        if self.action == 'list' and supplier_type:
-            tenant_account_id = getattr(self.request.user, 'account_id', None)
-            if tenant_account_id:
-                qs = self.filter_queryset(self.get_queryset())
-                supplier_ids = list(qs.values_list('id', flat=True))
-                context['tier_pricing_by_supplier'] = build_supplier_tiers_by_account(
-                    supplier_ids,
-                    tenant_account_id,
-                )
-        return context
 
     def perform_destroy(self, instance):
         instance.deleted_at = timezone.now()
@@ -153,7 +126,7 @@ class AccountViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
         account = (
-            Account.objects.select_related('country', 'supplier_type')
+            Account.objects.select_related('country')
             .filter(pk=account_id, deleted_at__isnull=True)
             .first()
         )
@@ -164,54 +137,6 @@ class AccountViewSet(viewsets.ModelViewSet):
             )
         serializer = AccountSerializer(account)
         return Response(serializer.data)
-
-    @action(detail=True, methods=['get', 'patch'], url_path='tier-pricing')
-    def tier_pricing(self, request, pk=None):
-        account = self.get_object()
-        tenant_account_id = getattr(request.user, 'account_id', None)
-        if not tenant_account_id:
-            return Response(
-                {'detail': 'No account associated with this user.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if request.method == 'GET':
-            return Response(
-                {
-                    'name': account.name,
-                    'tiers': get_supplier_account_tier_pricing(
-                        account.id,
-                        tenant_account_id,
-                    ),
-                },
-            )
-
-        serializer = SupplierAccountTierPricingSerializer(
-            data=request.data,
-            context={'request': request},
-        )
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        if 'name' in data:
-            name = data['name'].strip() or account.name
-            if name != account.name:
-                account.name = name
-                account.save(update_fields=['name', 'updated_at'])
-        save_supplier_account_tier_pricing(
-            account.id,
-            tenant_account_id,
-            data['tiers'],
-        )
-        return Response(
-            {
-                'name': account.name,
-                'tiers': get_supplier_account_tier_pricing(
-                    account.id,
-                    tenant_account_id,
-                ),
-            },
-        )
-
 
 class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasAccount, HasCompany]

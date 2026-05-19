@@ -24,6 +24,12 @@ class Company(models.Model):
         related_name='companies',
     )
     name = models.CharField(max_length=255)
+    supplier_type = models.ForeignKey(
+        'suppliers.SupplierType',
+        on_delete=models.PROTECT,
+        db_column='supplier_type_id',
+        related_name='companies',
+    )
     timezone = models.CharField(max_length=63, blank=True, default='')
     website = models.URLField(max_length=512, blank=True, default='')
     is_active = models.BooleanField(default=True)

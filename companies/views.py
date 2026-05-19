@@ -1,11 +1,19 @@
 from django.utils import timezone
-from rest_framework import filters, parsers, viewsets
+from rest_framework import filters, parsers, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from planningwithyou.permissions import HasAccount
+from users.supplier_price import (
+    build_supplier_tiers_by_company,
+    get_supplier_company_tier_pricing,
+    save_supplier_company_tier_pricing,
+    supplier_companies_with_price_queryset,
+)
 
 from .models import Company
-from .serializers import CompanySerializer
+from .serializers import CompanySerializer, SupplierCompanyTierPricingSerializer
 
 
 class CompanyViewSet(viewsets.ModelViewSet):
@@ -18,22 +26,111 @@ class CompanyViewSet(viewsets.ModelViewSet):
     ordering_fields = ['id', 'name', 'sort_order', 'created_at']
     ordering = ['sort_order', 'name']
 
-    def get_queryset(self):
-        qs = Company.objects.filter(
-            account_id=self.request.user.account_id,
-            deleted_at__isnull=True,
+    def _is_supplier_directory(self) -> bool:
+        """Supplier Settings: all companies (any account), not scoped to the current tenant."""
+        return self.request.query_params.get('supplier_directory', '').lower() in (
+            '1',
+            'true',
+            'yes',
         )
+
+    def get_queryset(self):
+        qs = Company.objects.filter(deleted_at__isnull=True).select_related('supplier_type')
+
+        if not self._is_supplier_directory():
+            qs = qs.filter(account_id=self.request.user.account_id)
+
+        supplier_type = self.request.query_params.get('supplier_type', '').strip()
+        if supplier_type:
+            qs = qs.filter(supplier_type_id=supplier_type)
+            qs = supplier_companies_with_price_queryset(
+                qs,
+                self.request.user.account_id,
+            )
+
         active_only = self.request.query_params.get('active_only', '').lower()
         if active_only in ('1', 'true', 'yes'):
             qs = qs.filter(is_active=True)
+
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(name__icontains=search)
+
         return qs
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        supplier_type = self.request.query_params.get('supplier_type', '').strip()
+        if self.action == 'list' and supplier_type:
+            user = self.request.user
+            qs = self.filter_queryset(self.get_queryset())
+            company_ids = list(qs.values_list('id', flat=True))
+            context['tier_pricing_by_supplier'] = build_supplier_tiers_by_company(
+                company_ids,
+                user.account_id,
+                user.company_id,
+            )
+        return context
+
     def perform_create(self, serializer):
-        serializer.save(
-            account_id=self.request.user.account_id,
-            created_by=self.request.user,
-        )
+        from suppliers.models import SupplierType
+
+        extra = {
+            'account_id': self.request.user.account_id,
+            'created_by': self.request.user,
+        }
+        if 'supplier_type' not in serializer.validated_data:
+            default_type = SupplierType.objects.filter(is_active=True).order_by('id').first()
+            if default_type is not None:
+                extra['supplier_type'] = default_type
+        serializer.save(**extra)
 
     def perform_destroy(self, instance):
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at'])
+
+    @action(detail=True, methods=['get', 'patch'], url_path='tier-pricing')
+    def tier_pricing(self, request, pk=None):
+        company = self.get_object()
+        tenant_account_id = request.user.account_id
+        tenant_company_id = request.user.company_id
+
+        if request.method == 'GET':
+            return Response(
+                {
+                    'name': company.name,
+                    'tiers': get_supplier_company_tier_pricing(
+                        company.id,
+                        tenant_account_id,
+                        tenant_company_id,
+                    ),
+                },
+            )
+
+        serializer = SupplierCompanyTierPricingSerializer(
+            data=request.data,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if 'name' in data:
+            name = data['name'].strip() or company.name
+            if name != company.name:
+                company.name = name
+                company.save(update_fields=['name'])
+        save_supplier_company_tier_pricing(
+            company.id,
+            tenant_account_id,
+            tenant_company_id,
+            data['tiers'],
+        )
+        return Response(
+            {
+                'name': company.name,
+                'tiers': get_supplier_company_tier_pricing(
+                    company.id,
+                    tenant_account_id,
+                    tenant_company_id,
+                ),
+            },
+        )
