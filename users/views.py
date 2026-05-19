@@ -2,13 +2,14 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework import filters, parsers, status, viewsets
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from planningwithyou.permissions import HasAccount, HasCompany
 from planningwithyou.template_placeholders import (
     DEFAULT_PASSWORD_RESET_BODY_HTML,
     DEFAULT_PASSWORD_RESET_SUBJECT,
@@ -21,6 +22,7 @@ from emails.models import EmailTemplate
 from emails.tasks import send_email_task
 
 from .models import Account, PasswordResetToken
+from .scope import users_for_user
 from .supplier_price import supplier_accounts_with_price_queryset
 from .serializers import (
     AccountSerializer,
@@ -95,6 +97,7 @@ def _send_reset_email(user):
         subject=subject,
         body=body,
         account=getattr(user, 'account', None),
+        created_by=user,
     )
     send_email_task.delay(log.pk)
 
@@ -104,7 +107,6 @@ class AccountViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated]
     serializer_class = AccountSerializer
-    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'name', 'status', 'created_at', 'updated_at']
     ordering = ['name']
@@ -212,7 +214,7 @@ class AccountViewSet(viewsets.ModelViewSet):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'username', 'email', 'created_at']
     ordering = ['id']
@@ -223,7 +225,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_queryset(self):
-        qs = User.objects.all()
+        qs = users_for_user(self.request.user)
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
@@ -249,7 +251,7 @@ class UserViewSet(viewsets.ModelViewSet):
         # Always load from the `users` table (not a stale JWT user instance).
         user = (
             User.objects.filter(pk=request.user.pk)
-            .select_related('account')
+            .select_related('account', 'company')
             .first()
         )
         if user is None:

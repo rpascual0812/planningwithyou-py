@@ -31,6 +31,12 @@ class BookingItem(models.Model):
         db_column='account_id',
         related_name='+',
     )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.PROTECT,
+        db_column='company_id',
+        related_name='bookings',
+    )
     status = models.ForeignKey(
         BookingStatus,
         on_delete=models.CASCADE,
@@ -81,12 +87,18 @@ class BookingItem(models.Model):
 
 
 class BookingUniqueIdSequence(models.Model):
-    """Per-account, per-year counter for ``BookingItem.unique_id`` (YY-####)."""
+    """Per-company, per-year counter for ``BookingItem.unique_id`` (YY-####)."""
 
     account = models.ForeignKey(
         'users.Account',
         on_delete=models.CASCADE,
         db_column='account_id',
+        related_name='+',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        db_column='company_id',
         related_name='+',
     )
     year = models.PositiveSmallIntegerField()
@@ -96,8 +108,8 @@ class BookingUniqueIdSequence(models.Model):
         db_table = 'booking_unique_id_sequences'
         constraints = [
             models.UniqueConstraint(
-                fields=['account', 'year'],
-                name='booking_unique_id_seq_account_year_uniq',
+                fields=['company', 'year'],
+                name='booking_unique_id_seq_company_year_uniq',
             ),
         ]
 

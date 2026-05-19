@@ -25,12 +25,6 @@ class Account(models.Model):
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=64, default='active')
     is_active = models.BooleanField(default=True)
-    logo = models.CharField(
-        max_length=512,
-        blank=True,
-        default='',
-        help_text='Secured API URL for the account logo download route.',
-    )
     contact_person = models.CharField(max_length=255, blank=True, default='')
     contact_email = models.EmailField(blank=True, default='')
     contact_mobile_number = models.CharField(max_length=32, blank=True, default='')
@@ -98,6 +92,12 @@ class User(AbstractBaseUser):
         on_delete=models.PROTECT,
         related_name='users',
         db_column='account_id',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.PROTECT,
+        related_name='users',
+        db_column='company_id',
     )
     username = models.CharField(max_length=150, unique=True, db_index=True)
     email = models.EmailField(unique=True, db_index=True)

@@ -23,6 +23,7 @@ def build_mailjet_attachments(
     items: list[Any],
     *,
     account_id: int | None = None,
+    company_id: int | None = None,
 ) -> tuple[list[dict], list[str]]:
     """
     Build Mailjet v3.1 attachment objects.
@@ -40,6 +41,7 @@ def build_mailjet_attachments(
             raw, filename, content_type = resolve_attachment_item(
                 item,
                 account_id=account_id,
+                company_id=company_id,
             )
             if len(raw) > MAX_ATTACHMENT_BYTES:
                 raise ValueError('Attachment exceeds size limit')

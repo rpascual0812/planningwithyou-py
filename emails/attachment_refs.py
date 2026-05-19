@@ -157,14 +157,23 @@ def resolve_attachment_item(
     item: Any,
     *,
     account_id: int | None = None,
+    company_id: int | None = None,
 ) -> tuple[bytes, str, str]:
     """Load bytes, filename, and content type for one attachment entry."""
     if isinstance(item, dict):
         kind = item.get('kind')
         if kind == 'document':
-            return read_document_file(int(item['id']), account_id=account_id)
+            return read_document_file(
+                int(item['id']),
+                account_id=account_id,
+                company_id=company_id,
+            )
         if kind == 'booking_pdf':
-            return read_booking_pdf_file(int(item['id']), account_id=account_id)
+            return read_booking_pdf_file(
+                int(item['id']),
+                account_id=account_id,
+                company_id=company_id,
+            )
         if kind == 'url':
             url = str(item.get('url') or '').strip()
             raw = load_attachment_bytes(url, account_id=account_id)
@@ -175,7 +184,11 @@ def resolve_attachment_item(
         text = item.strip()
         parsed = parse_proxy_file_url(text)
         if parsed:
-            return read_file_from_proxy_url(text, account_id=account_id)
+            return read_file_from_proxy_url(
+                text,
+                account_id=account_id,
+                company_id=company_id,
+            )
         raw = load_attachment_bytes(text, account_id=account_id)
         filename = text.rstrip('/').rsplit('/', 1)[-1] or 'attachment'
         return raw, filename, _guess_type(filename)

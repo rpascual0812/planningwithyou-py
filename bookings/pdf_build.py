@@ -21,7 +21,7 @@ from users.models import Account
 
 from planningwithyou.file_storage import (
     booking_pdf_storage_key,
-    read_account_logo_file,
+    read_account_brand_logo_file,
 )
 
 from .models import BookingItem, BookingLine
@@ -265,10 +265,10 @@ def _organize_sections(
     return sections, summary_rows
 
 
-def _load_account_logo_bytes(account) -> bytes | None:
-    """Load account logo bytes from storage (S3/local), not the proxy URL."""
+def _load_brand_logo_bytes(account) -> bytes | None:
+    """Load main company logo bytes for this account (S3/local)."""
     try:
-        data, _, _ = read_account_logo_file(account.pk)
+        data, _, _ = read_account_brand_logo_file(account.pk)
         return data
     except (FileNotFoundError, ValueError, OSError):
         return None
@@ -580,7 +580,7 @@ class BookingQuotePDF:
         logo_w = 42 * mm
         logo_x = PAGE_W - MARGIN_R - pad - logo_w
         logo_y = band_top - pad - logo_h
-        logo_bytes = _load_account_logo_bytes(account)
+        logo_bytes = _load_brand_logo_bytes(account)
         if logo_bytes:
             try:
                 self.c.drawImage(

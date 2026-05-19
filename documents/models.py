@@ -12,6 +12,12 @@ class DocumentFolder(models.Model):
         db_column='account_id',
         related_name='+',
     )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.PROTECT,
+        db_column='company_id',
+        related_name='document_folders',
+    )
     name = models.CharField(max_length=255)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -38,6 +44,12 @@ class Document(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.PROTECT,
+        db_column='company_id',
+        related_name='documents',
     )
     file = models.FileField(upload_to=document_upload_path)
     original_name = models.CharField(max_length=255)

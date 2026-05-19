@@ -12,15 +12,15 @@ from django.urls import reverse
 
 from bookings.models import BookingItem
 from documents.models import Document
-from users.models import Account
+from companies.models import Company
 
 MAX_FILE_BYTES = 15 * 1024 * 1024
 
 DOCUMENT_PROXY_RE = re.compile(r'/files/d/(\d+)/?', re.IGNORECASE)
 BOOKING_PDF_PROXY_RE = re.compile(r'/files/b/(\d+)/pdf/?', re.IGNORECASE)
-ACCOUNT_LOGO_PROXY_RE = re.compile(r'/files/a/(\d+)/logo/?', re.IGNORECASE)
+COMPANY_LOGO_PROXY_RE = re.compile(r'/files/c/(\d+)/logo/?', re.IGNORECASE)
 
-ACCOUNT_LOGO_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
+LOGO_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
 
 
 def parse_proxy_file_url(url: str) -> tuple[str, int] | None:
@@ -34,9 +34,9 @@ def parse_proxy_file_url(url: str) -> tuple[str, int] | None:
     match = BOOKING_PDF_PROXY_RE.search(path)
     if match:
         return 'booking_pdf', int(match.group(1))
-    match = ACCOUNT_LOGO_PROXY_RE.search(path)
+    match = COMPANY_LOGO_PROXY_RE.search(path)
     if match:
-        return 'account_logo', int(match.group(1))
+        return 'company_logo', int(match.group(1))
     return None
 
 
@@ -68,19 +68,19 @@ def booking_pdf_file_url(booking_id: int, request=None) -> str:
     return absolute_file_url(request, booking_pdf_download_path(booking_id))
 
 
-def account_logo_download_path(account_id: int) -> str:
-    return reverse('secured-file-account-logo', kwargs={'account_id': account_id})
+def company_logo_download_path(company_id: int) -> str:
+    return reverse('secured-file-company-logo', kwargs={'company_id': company_id})
 
 
-def account_logo_file_url(account_id: int, request=None) -> str:
-    return absolute_file_url(request, account_logo_download_path(account_id))
+def company_logo_file_url(company_id: int, request=None) -> str:
+    return absolute_file_url(request, company_logo_download_path(company_id))
 
 
-def account_logo_api_url(account_id: int, request=None) -> str:
-    """Absolute secured download URL stored on ``accounts.logo``."""
+def company_logo_api_url(company_id: int, request=None) -> str:
+    """Absolute secured download URL stored on ``companies.logo``."""
     if request is not None:
-        return account_logo_file_url(account_id, request=request)
-    return f'{api_public_base_url()}{account_logo_download_path(account_id)}'
+        return company_logo_file_url(company_id, request=request)
+    return f'{api_public_base_url()}{company_logo_download_path(company_id)}'
 
 
 def api_public_base_url() -> str:
@@ -122,24 +122,24 @@ def _read_booking_pdf_bytes(stored: str) -> bytes:
     return _read_storage_key_bytes(stored)
 
 
-def account_logo_storage_key(account_id: int, filename: str) -> str:
+def company_logo_storage_key(account_id: int, company_id: int, filename: str) -> str:
     ext = Path(filename).suffix.lower() or '.png'
-    if ext not in ACCOUNT_LOGO_EXTENSIONS:
+    if ext not in LOGO_EXTENSIONS:
         ext = '.png'
-    return f'account_logos/{account_id}/logo{ext}'
+    return f'company_logos/{account_id}/{company_id}/logo{ext}'
 
 
-def find_account_logo_storage_key(account_id: int) -> str:
-    for ext in ACCOUNT_LOGO_EXTENSIONS:
-        key = f'account_logos/{account_id}/logo{ext}'
+def find_company_logo_storage_key(account_id: int, company_id: int) -> str:
+    for ext in LOGO_EXTENSIONS:
+        key = f'company_logos/{account_id}/{company_id}/logo{ext}'
         if default_storage.exists(key):
             return key
     return ''
 
 
-def delete_account_logo_storage(account_id: int) -> None:
-    for ext in ACCOUNT_LOGO_EXTENSIONS:
-        key = f'account_logos/{account_id}/logo{ext}'
+def delete_company_logo_storage(account_id: int, company_id: int) -> None:
+    for ext in LOGO_EXTENSIONS:
+        key = f'company_logos/{account_id}/{company_id}/logo{ext}'
         try:
             if default_storage.exists(key):
                 default_storage.delete(key)
@@ -147,8 +147,8 @@ def delete_account_logo_storage(account_id: int) -> None:
             pass
 
 
-def account_logo_public_url(stored: str, account_id: int, request=None) -> str:
-    """Resolve ``accounts.logo`` (API URL) or legacy values to a display URL."""
+def company_logo_public_url(stored: str, company_id: int, request=None) -> str:
+    """Resolve ``companies.logo`` (API URL) or legacy values to a display URL."""
     value = (stored or '').strip()
     if value.startswith(('http://', 'https://')):
         return value
@@ -159,23 +159,31 @@ def account_logo_public_url(stored: str, account_id: int, request=None) -> str:
             return default_storage.url(value)
         except OSError:
             pass
-    if find_account_logo_storage_key(account_id):
-        return account_logo_file_url(account_id, request=request)
+    company = Company.objects.filter(pk=company_id, deleted_at__isnull=True).first()
+    if company and find_company_logo_storage_key(company.account_id, company_id):
+        return company_logo_file_url(company_id, request=request)
     return ''
 
 
-def read_account_logo_file(account_id: int) -> tuple[bytes, str, str]:
-    account = Account.objects.filter(pk=account_id, deleted_at__isnull=True).first()
-    if account is None:
-        raise FileNotFoundError('Account not found')
+def read_company_logo_file(
+    company_id: int,
+    *,
+    account_id: int | None = None,
+) -> tuple[bytes, str, str]:
+    qs = Company.objects.filter(pk=company_id, deleted_at__isnull=True)
+    if account_id is not None:
+        qs = qs.filter(account_id=account_id)
+    company = qs.first()
+    if company is None:
+        raise FileNotFoundError('Company not found')
 
-    storage_key = find_account_logo_storage_key(account_id)
+    storage_key = find_company_logo_storage_key(company.account_id, company_id)
     if not storage_key:
-        legacy = (account.logo or '').strip()
+        legacy = (company.logo or '').strip()
         if legacy and not legacy.startswith(('http://', 'https://', '/')):
             storage_key = legacy
         else:
-            raise FileNotFoundError('Account logo not found')
+            raise FileNotFoundError('Company logo not found')
 
     data = _read_storage_key_bytes(storage_key)
     suffix = Path(storage_key).suffix.lower() or '.png'
@@ -184,14 +192,51 @@ def read_account_logo_file(account_id: int) -> tuple[bytes, str, str]:
     return data, filename, content_type
 
 
+def find_main_company_logo_storage_key(account_id: int) -> tuple[int, str]:
+    """Return (company_id, storage_key) for the account's main company logo, if any."""
+    company = (
+        Company.objects.filter(
+            account_id=account_id,
+            is_main=True,
+            deleted_at__isnull=True,
+        )
+        .order_by('id')
+        .first()
+    )
+    if company is None:
+        company = (
+            Company.objects.filter(
+                account_id=account_id,
+                deleted_at__isnull=True,
+            )
+            .order_by('sort_order', 'name', 'id')
+            .first()
+        )
+    if company is None:
+        return 0, ''
+    key = find_company_logo_storage_key(account_id, company.pk)
+    return company.pk, key
+
+
+def read_account_brand_logo_file(account_id: int) -> tuple[bytes, str, str]:
+    """Logo for PDFs: main company logo for this account."""
+    company_id, storage_key = find_main_company_logo_storage_key(account_id)
+    if not company_id or not storage_key:
+        raise FileNotFoundError('Company logo not found')
+    return read_company_logo_file(company_id, account_id=account_id)
+
+
 def read_document_file(
     document_id: int,
     *,
     account_id: int | None = None,
+    company_id: int | None = None,
 ) -> tuple[bytes, str, str]:
     qs = Document.objects.filter(pk=document_id, is_deleted=False)
     if account_id is not None:
         qs = qs.filter(account_id=account_id)
+    if company_id is not None:
+        qs = qs.filter(company_id=company_id)
     doc = qs.first()
     if doc is None or not doc.file:
         raise FileNotFoundError('Document not found')
@@ -214,10 +259,13 @@ def read_booking_pdf_file(
     booking_id: int,
     *,
     account_id: int | None = None,
+    company_id: int | None = None,
 ) -> tuple[bytes, str, str]:
     qs = BookingItem.objects.filter(pk=booking_id)
     if account_id is not None:
         qs = qs.filter(account_id=account_id)
+    if company_id is not None:
+        qs = qs.filter(company_id=company_id)
     booking = qs.first()
     if booking is None:
         raise FileNotFoundError('Booking PDF not found')
@@ -241,13 +289,14 @@ def read_file_from_proxy_url(
     url: str,
     *,
     account_id: int | None = None,
+    company_id: int | None = None,
 ) -> tuple[bytes, str, str]:
     parsed = parse_proxy_file_url(url)
     if parsed is None:
         raise ValueError('Not a proxy file URL')
     kind, pk = parsed
     if kind == 'document':
-        return read_document_file(pk, account_id=account_id)
-    if kind == 'account_logo':
-        return read_account_logo_file(pk)
-    return read_booking_pdf_file(pk, account_id=account_id)
+        return read_document_file(pk, account_id=account_id, company_id=company_id)
+    if kind == 'company_logo':
+        return read_company_logo_file(pk, account_id=account_id)
+    return read_booking_pdf_file(pk, account_id=account_id, company_id=company_id)

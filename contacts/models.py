@@ -8,6 +8,12 @@ class Contact(models.Model):
         db_column='account_id',
         related_name='+',
     )
+    company_org = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.PROTECT,
+        db_column='company_id',
+        related_name='contacts',
+    )
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100, blank=True, default='')
     email = models.EmailField(blank=True, default='')

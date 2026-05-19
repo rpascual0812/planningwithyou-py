@@ -1,4 +1,4 @@
-"""Resize account logos and persist them on default storage (S3 or local media)."""
+"""Resize company logos and persist them on default storage (S3 or local media)."""
 
 from __future__ import annotations
 
@@ -10,15 +10,15 @@ from django.core.files.storage import default_storage
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from planningwithyou.file_storage import (
-    account_logo_api_url,
-    account_logo_storage_key,
-    delete_account_logo_storage,
+    company_logo_api_url,
+    company_logo_storage_key,
+    delete_company_logo_storage,
 )
 
 MAX_LOGO_WIDTH = 400
 
 
-def resize_account_logo(uploaded_file) -> ContentFile:
+def resize_logo_image(uploaded_file) -> ContentFile:
     """If image width exceeds 400px, scale down to 400px wide (height proportional)."""
     uploaded_file.seek(0)
     try:
@@ -65,8 +65,8 @@ def resize_account_logo(uploaded_file) -> ContentFile:
     return content
 
 
-def delete_account_logo(stored: str, account_id: int | None = None) -> None:
-    """Remove logo bytes from storage (legacy key or by account id)."""
+def delete_company_logo(stored: str, *, account_id: int, company_id: int) -> None:
+    """Remove logo bytes from storage (legacy key or by company id)."""
     key = (stored or '').strip()
     if key and not key.startswith(('http://', 'https://', '/')):
         try:
@@ -74,26 +74,24 @@ def delete_account_logo(stored: str, account_id: int | None = None) -> None:
                 default_storage.delete(key)
         except OSError:
             pass
-    if account_id is not None:
-        delete_account_logo_storage(account_id)
+    delete_company_logo_storage(account_id, company_id)
 
 
-def save_account_logo(
+def save_company_logo(
     account_id: int,
+    company_id: int,
     uploaded_file,
     *,
     old_logo: str = '',
     request=None,
 ) -> str:
-    """
-    Resize, upload to S3/local storage, return secured API URL for ``accounts.logo``.
-    """
-    content = resize_account_logo(uploaded_file)
-    delete_account_logo(old_logo, account_id=account_id)
+    """Resize, upload to storage, return secured API URL for ``companies.logo``."""
+    content = resize_logo_image(uploaded_file)
+    delete_company_logo(old_logo, account_id=account_id, company_id=company_id)
 
-    key = account_logo_storage_key(account_id, content.name)
+    key = company_logo_storage_key(account_id, company_id, content.name)
     if default_storage.exists(key):
         default_storage.delete(key)
     default_storage.save(key, content)
 
-    return account_logo_api_url(account_id, request=request)
+    return company_logo_api_url(company_id, request=request)

@@ -7,7 +7,7 @@ from planningwithyou.file_storage import absolute_file_url, booking_pdf_file_url
 
 from .tasks import generate_booking_pdf_task
 
-from contacts.models import Contact
+from contacts.scope import contacts_for_user
 
 from .models import (
     BookingGroup,
@@ -105,12 +105,12 @@ class BookingItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookingItem
         fields = [
-            'id', 'unique_id', 'status', 'contact', 'title', 'date_of_event',
+            'id', 'unique_id', 'company', 'status', 'contact', 'title', 'date_of_event',
             'groups', 'field_values', 'notes', 'sort_order', 'created_by',
             'pdf_url', 'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'unique_id', 'created_by', 'pdf_url', 'created_at', 'updated_at',
+            'id', 'unique_id', 'company', 'created_by', 'pdf_url', 'created_at', 'updated_at',
         ]
 
     def get_pdf_url(self, obj):
@@ -135,9 +135,9 @@ class BookingItemSerializer(serializers.ModelSerializer):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         aid = getattr(request.user, 'account_id', None) if request and request.user.is_authenticated else None
-        if aid is not None:
+        if aid is not None and request and request.user.is_authenticated:
             self.fields['status'].queryset = BookingStatus.objects.filter(account_id=aid)
-            self.fields['contact'].queryset = Contact.objects.filter(account_id=aid)
+            self.fields['contact'].queryset = contacts_for_user(request.user)
 
     def _pop_field_values(self, validated_data):
         """Nested lines use ``source='lines'``, so validated_data key is ``lines``."""
@@ -192,20 +192,27 @@ class BookingItemSerializer(serializers.ModelSerializer):
         contact = attrs.get('contact')
         if contact is None and self.instance is not None:
             contact = self.instance.contact
-        if contact is not None and contact.account_id != aid:
-            raise serializers.ValidationError({'contact': ['Invalid contact for this account.']})
+        if contact is not None:
+            if contact.account_id != aid:
+                raise serializers.ValidationError({'contact': ['Invalid contact for this account.']})
+            company_id = getattr(request.user, 'company_id', None)
+            if company_id is not None and contact.company_org_id != company_id:
+                raise serializers.ValidationError({'contact': ['Invalid contact for this company.']})
         return attrs
 
     def create(self, validated_data):
         validated_data.pop('unique_id', None)
         field_values_data = self._pop_field_values(validated_data) or []
         groups_data = self._pop_groups(validated_data) or []
+        request = self.context['request']
         booking_status = validated_data['status']
         account_id = booking_status.account_id
-        validated_data['unique_id'] = allocate_booking_unique_id(account_id)
+        company_id = request.user.company_id
+        validated_data['unique_id'] = allocate_booking_unique_id(company_id, account_id)
         booking = BookingItem.objects.create(
             **validated_data,
             account_id=account_id,
+            company_id=company_id,
         )
         self._save_groups(booking, groups_data)
         self._save_field_values(booking, field_values_data)

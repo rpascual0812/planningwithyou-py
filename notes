@@ -25,7 +25,8 @@ http://localhost:5555
 
 When adding a new account, add defaults:
 
-config
+company
+config  
   - account,booking_view:list
   - account,bookings_group_name:Group
   - list of tiers (Tier 1, Tier 2, Tier 3)

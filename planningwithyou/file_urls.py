@@ -14,8 +14,8 @@ urlpatterns = [
         name='secured-file-booking-pdf',
     ),
     path(
-        'files/a/<int:account_id>/logo/',
-        file_views.AccountLogoFileView.as_view(),
-        name='secured-file-account-logo',
+        'files/c/<int:company_id>/logo/',
+        file_views.CompanyLogoFileView.as_view(),
+        name='secured-file-company-logo',
     ),
 ]

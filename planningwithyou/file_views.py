@@ -3,11 +3,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from planningwithyou.file_storage import (
-    read_account_logo_file,
     read_booking_pdf_file,
+    read_company_logo_file,
     read_document_file,
 )
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import HasAccount, HasCompany
 
 
 def _as_attachment(request) -> bool:
@@ -36,13 +36,14 @@ def _file_response(
 class DocumentFileView(APIView):
     """Download a document by id (hides underlying S3/storage path)."""
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
 
     def get(self, request, document_id: int):
         try:
             data, filename, content_type = read_document_file(
                 document_id,
                 account_id=request.user.account_id,
+                company_id=request.user.company_id,
             )
         except FileNotFoundError as exc:
             raise Http404(str(exc)) from exc
@@ -60,13 +61,14 @@ class DocumentFileView(APIView):
 class BookingPdfFileView(APIView):
     """Download a booking quote PDF by booking id."""
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
 
     def get(self, request, booking_id: int):
         try:
             data, filename, content_type = read_booking_pdf_file(
                 booking_id,
                 account_id=request.user.account_id,
+                company_id=request.user.company_id,
             )
         except FileNotFoundError as exc:
             raise Http404(str(exc)) from exc
@@ -81,14 +83,17 @@ class BookingPdfFileView(APIView):
         )
 
 
-class AccountLogoFileView(APIView):
-    """Serve an account logo by account id (hides underlying S3/storage path)."""
+class CompanyLogoFileView(APIView):
+    """Serve a company logo by company id (hides underlying S3/storage path)."""
 
     permission_classes = [IsAuthenticated, HasAccount]
 
-    def get(self, request, account_id: int):
+    def get(self, request, company_id: int):
         try:
-            data, filename, content_type = read_account_logo_file(account_id)
+            data, filename, content_type = read_company_logo_file(
+                company_id,
+                account_id=request.user.account_id,
+            )
         except FileNotFoundError as exc:
             raise Http404(str(exc)) from exc
         except ValueError as exc:

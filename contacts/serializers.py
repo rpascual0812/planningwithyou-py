@@ -44,6 +44,7 @@ class ContactSerializer(serializers.ModelSerializer):
         addresses_data = validated_data.pop('addresses', [])
         request = self.context['request']
         validated_data['account_id'] = request.user.account_id
+        validated_data['company_org_id'] = request.user.company_id
         contact = Contact.objects.create(**validated_data)
         for num in _ensure_single_default(numbers_data):
             ContactNumber.objects.create(

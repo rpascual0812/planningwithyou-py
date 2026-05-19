@@ -4,9 +4,10 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import HasAccount, HasCompany
 
 from .models import BookingGroup, BookingItem, BookingStatus, FormTemplate
+from .scope import bookings_for_user
 from .serializers import (
     BookingItemSerializer,
     BookingStatusSerializer,
@@ -47,12 +48,11 @@ class BookingStatusViewSet(viewsets.ModelViewSet):
 
 
 class BookingItemViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
     serializer_class = BookingItemSerializer
 
     def get_queryset(self):
-        aid = self.request.user.account_id
-        qs = BookingItem.objects.filter(account_id=aid).prefetch_related(
+        qs = bookings_for_user(self.request.user).prefetch_related(
             'groups',
             'lines__booking_group',
         )
@@ -64,7 +64,10 @@ class BookingItemViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         booking_status = serializer.validated_data['status']
         max_order = (
-            booking_status.items.filter(account_id=self.request.user.account_id)
+            booking_status.items.filter(
+                account_id=self.request.user.account_id,
+                company_id=self.request.user.company_id,
+            )
             .order_by('-sort_order')
             .values_list('sort_order', flat=True)
             .first()
@@ -73,6 +76,7 @@ class BookingItemViewSet(viewsets.ModelViewSet):
         serializer.save(
             sort_order=max_order + 1,
             created_by=self.request.user,
+            company_id=self.request.user.company_id,
         )
 
     @action(detail=True, methods=['post'])
@@ -136,9 +140,7 @@ class BookingItemViewSet(viewsets.ModelViewSet):
             if 'sort_order' in entry:
                 fields['sort_order'] = entry['sort_order']
             if fields:
-                BookingItem.objects.filter(pk=item_id, account_id=request.user.account_id).update(
-                    **fields,
-                )
+                base_qs.filter(pk=item_id).update(**fields)
         return Response({'status': 'ok'})
 
 

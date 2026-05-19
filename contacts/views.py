@@ -2,23 +2,23 @@ from django.db.models import Q
 from rest_framework import filters, viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import HasAccount, HasCompany
 
-from .models import Contact
+from .scope import contacts_for_user
 from .serializers import ContactSerializer
 
 
 class ContactViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
     serializer_class = ContactSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'first_name', 'last_name', 'email', 'company', 'created_at']
     ordering = ['first_name', 'last_name']
 
     def get_queryset(self):
-        aid = self.request.user.account_id
-        qs = Contact.objects.prefetch_related('phone_numbers', 'addresses').filter(
-            account_id=aid,
+        qs = contacts_for_user(self.request.user).prefetch_related(
+            'phone_numbers',
+            'addresses',
         )
         search = self.request.query_params.get('search', '').strip()
         if search:

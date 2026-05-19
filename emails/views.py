@@ -23,7 +23,10 @@ class EmailLogViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         aid = self.request.user.account_id
-        qs = EmailLog.objects.filter(account_id=aid)
+        qs = EmailLog.objects.filter(
+            account_id=aid,
+            created_by_id=self.request.user.pk,
+        )
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
@@ -41,6 +44,7 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         log = serializer.save(
             status=EmailLog.Status.QUEUED,
             account_id=self.request.user.account_id,
+            created_by=self.request.user,
             email_from=settings.MAILJET_SEND_FROM,
         )
         send_email_task.delay(log.pk)

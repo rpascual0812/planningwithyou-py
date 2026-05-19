@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     'countries',
     'config',
     'users',
+    'companies',
     'emails',
     'documents',
     'contacts',

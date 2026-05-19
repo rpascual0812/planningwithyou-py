@@ -155,6 +155,7 @@ def create_and_queue_email(
     reply_to: str = '',
     attachments: list | None = None,
     account=None,
+    created_by=None,
 ) -> EmailLog:
     """Create an EmailLog record and return it (caller dispatches the task)."""
     kwargs = dict(
@@ -169,4 +170,6 @@ def create_and_queue_email(
         status=EmailLog.Status.QUEUED,
         account=account if account is not None else Account.objects.get(pk=1),
     )
+    if created_by is not None:
+        kwargs['created_by'] = created_by
     return EmailLog.objects.create(**kwargs)

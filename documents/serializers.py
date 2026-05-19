@@ -3,6 +3,7 @@ from rest_framework import serializers
 from planningwithyou.file_storage import document_file_url
 
 from .models import Document, DocumentFolder
+from .scope import document_folders_for_user
 
 
 class DocumentFolderSerializer(serializers.ModelSerializer):
@@ -14,7 +15,11 @@ class DocumentFolderSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'is_deleted', 'created_at', 'updated_at']
 
     def get_document_count(self, obj):
-        return obj.documents.filter(is_deleted=False, account_id=obj.account_id).count()
+        return obj.documents.filter(
+            is_deleted=False,
+            account_id=obj.account_id,
+            company_id=obj.company_id,
+        ).count()
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -39,12 +44,10 @@ class DocumentSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
-        aid = getattr(request.user, 'account_id', None) if request and request.user.is_authenticated else None
-        if aid is not None:
-            self.fields['folder'].queryset = DocumentFolder.objects.filter(
-                account_id=aid,
-                is_deleted=False,
-            )
+        if request and request.user.is_authenticated:
+            self.fields['folder'].queryset = document_folders_for_user(
+                request.user,
+            ).filter(is_deleted=False)
 
     def get_url(self, obj):
         if not obj.file:

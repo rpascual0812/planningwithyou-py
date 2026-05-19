@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from bookings.models import BookingGroup, BookingItem, BookingLine, BookingStatus
+from companies.models import Company
 from bookings.pdf_build import (
     _currency_for_account,
     _ensure_pdf_unicode_fonts,
@@ -33,15 +34,20 @@ class BookingUniqueIdTests(TestCase):
             country=country,
             supplier_type=supplier_type,
         )
+        self.company = Company.objects.create(
+            account=self.account,
+            name='Main',
+            is_main=True,
+        )
 
     def test_format_booking_unique_id(self):
         self.assertEqual(format_booking_unique_id(2026, 1), '26-0001')
         self.assertEqual(format_booking_unique_id(2026, 42), '26-0042')
 
-    def test_allocate_increments_per_account_and_year(self):
+    def test_allocate_increments_per_company_and_year(self):
         when = timezone.datetime(2026, 3, 15, tzinfo=timezone.utc)
-        first = allocate_booking_unique_id(self.account.id, when=when)
-        second = allocate_booking_unique_id(self.account.id, when=when)
+        first = allocate_booking_unique_id(self.company.id, self.account.id, when=when)
+        second = allocate_booking_unique_id(self.company.id, self.account.id, when=when)
         self.assertEqual(first, '26-0001')
         self.assertEqual(second, '26-0002')
 
@@ -74,12 +80,18 @@ class BookingLinePricingTests(TestCase):
             country=country,
             supplier_type=supplier_type,
         )
+        self.company = Company.objects.create(
+            account=self.account,
+            name='Main',
+            is_main=True,
+        )
         self.status = BookingStatus.objects.create(
             account=self.account,
             title='New',
         )
         self.booking = BookingItem.objects.create(
             account=self.account,
+            company=self.company,
             status=self.status,
             unique_id='26-0001',
             title='Wedding',
