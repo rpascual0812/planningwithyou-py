@@ -60,19 +60,37 @@ class PackageVersionSerializer(serializers.ModelSerializer):
 
 
 class PackageItemSerializer(serializers.ModelSerializer):
+    children = serializers.SerializerMethodField()
+
     class Meta:
         model = PackageItem
-        fields = ['id', 'title', 'price', 'is_active']
+        fields = ['id', 'title', 'price', 'is_active', 'children']
         read_only_fields = ['id']
 
-    def validate_price(self, value):
-        if value is not None and value < 0:
-            raise serializers.ValidationError('Price must be 0 or greater.')
-        return value
+    def get_children(self, obj):
+        children = obj.children.filter(deleted_at__isnull=True).order_by('sort_order', 'id')
+        return PackageItemSerializer(children, many=True, context=self.context).data
+
+
+class PackageItemInputSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255)
+    price = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        default=0,
+    )
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
+PackageItemInputSerializer._declared_fields['children'] = PackageItemInputSerializer(
+    many=True,
+    required=False,
+)
 
 
 class PackageSerializer(serializers.ModelSerializer):
-    items = PackageItemSerializer(many=True, required=False)
+    items = PackageItemInputSerializer(many=True, required=False, write_only=True)
 
     class Meta:
         model = Package
@@ -102,6 +120,15 @@ class PackageSerializer(serializers.ModelSerializer):
             self.fields['package_version'].read_only = True
         elif self.context.get('request'):
             self.fields['package_version'].required = False
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        roots = instance.items.filter(
+            parent__isnull=True,
+            deleted_at__isnull=True,
+        ).order_by('sort_order', 'id')
+        data['items'] = PackageItemSerializer(roots, many=True, context=self.context).data
+        return data
 
     def validate_package_version(self, value):
         request = self.context.get('request')
@@ -142,24 +169,34 @@ class PackageSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Company must be active.')
         return value
 
-    def _create_items(self, package, items_data):
-        request = self.context.get('request')
-        created_by = request.user if request and request.user.is_authenticated else None
-        for item_data in items_data:
-            PackageItem.objects.create(
+    def _create_item_tree(self, package, items_data, parent=None, created_by=None):
+        for sort_order, item_data in enumerate(items_data):
+            children_data = item_data.pop('children', [])
+            item = PackageItem.objects.create(
                 package=package,
+                parent=parent,
                 account_id=package.account_id,
                 company_id=package.company_id,
                 created_by=created_by,
+                sort_order=sort_order,
                 is_active=item_data.get('is_active', True),
                 title=item_data['title'],
                 price=item_data.get('price', 0),
             )
+            if children_data:
+                self._create_item_tree(
+                    package,
+                    children_data,
+                    parent=item,
+                    created_by=created_by,
+                )
 
     def _replace_items(self, package, items_data):
         now = timezone.now()
         package.items.filter(deleted_at__isnull=True).update(deleted_at=now)
-        self._create_items(package, items_data)
+        request = self.context.get('request')
+        created_by = request.user if request and request.user.is_authenticated else None
+        self._create_item_tree(package, items_data, parent=None, created_by=created_by)
 
     def create(self, validated_data):
         request = self.context.get('request')
@@ -173,7 +210,8 @@ class PackageSerializer(serializers.ModelSerializer):
             )
         package = super().create(validated_data)
         if items_data:
-            self._create_items(package, items_data)
+            created_by = request.user if request and request.user.is_authenticated else None
+            self._create_item_tree(package, items_data, parent=None, created_by=created_by)
         return package
 
     def update(self, instance, validated_data):

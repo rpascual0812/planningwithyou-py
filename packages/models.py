@@ -82,9 +82,18 @@ class PackageItem(models.Model):
         db_column='package_id',
         related_name='items',
     )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_column='parent_id',
+        related_name='children',
+    )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    sort_order = models.PositiveIntegerField(default=0)
     company = models.ForeignKey(
         'companies.Company',
         on_delete=models.CASCADE,
@@ -114,7 +123,7 @@ class PackageItem(models.Model):
 
     class Meta:
         db_table = 'package_items'
-        ordering = ['title', 'id']
+        ordering = ['sort_order', 'title', 'id']
 
     def __str__(self):
         return self.title

@@ -35,8 +35,10 @@ class PackageItemAdmin(admin.ModelAdmin):
         'id',
         'title',
         'package',
+        'parent',
         'company',
         'price',
+        'sort_order',
         'is_active',
         'created_at',
         'deleted_at',
@@ -44,7 +46,7 @@ class PackageItemAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'account', 'package')
     search_fields = ('title', 'description')
     readonly_fields = ('created_at',)
-    raw_id_fields = ('package', 'company', 'account', 'created_by')
+    raw_id_fields = ('package', 'parent', 'company', 'account', 'created_by')
 
 
 @admin.register(PackageVersion)

@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import filters, viewsets
 from rest_framework.permissions import IsAuthenticated
@@ -5,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from companies.models import Company
 from planningwithyou.permissions import HasAccount, HasCompany
 
-from .models import Package, PackageVersion
+from .models import Package, PackageItem, PackageVersion
 from .serializers import PackageSerializer, PackageVersionSerializer
 
 
@@ -23,7 +24,32 @@ class PackageViewSet(viewsets.ModelViewSet):
         qs = Package.objects.filter(
             account_id=account_id,
             deleted_at__isnull=True,
-        ).select_related('package_version').prefetch_related('items')
+        ).select_related('package_version').prefetch_related(
+            Prefetch(
+                'items',
+                queryset=PackageItem.objects.filter(
+                    deleted_at__isnull=True,
+                    parent__isnull=True,
+                )
+                .order_by('sort_order', 'id')
+                .prefetch_related(
+                    Prefetch(
+                        'children',
+                        queryset=PackageItem.objects.filter(deleted_at__isnull=True).order_by(
+                            'sort_order',
+                            'id',
+                        ).prefetch_related(
+                            Prefetch(
+                                'children',
+                                queryset=PackageItem.objects.filter(
+                                    deleted_at__isnull=True,
+                                ).order_by('sort_order', 'id'),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
         company_id = self.request.query_params.get('company_id', '').strip()
         if company_id:
             if not Company.objects.filter(
