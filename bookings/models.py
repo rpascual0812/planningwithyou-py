@@ -17,7 +17,7 @@ class BookingStatus(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'statuses'
+        db_table = 'booking_statuses'
         ordering = ['sort_order', 'id']
 
     def __str__(self):

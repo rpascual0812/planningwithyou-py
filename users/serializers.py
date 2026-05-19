@@ -93,8 +93,6 @@ class AccountSerializer(serializers.ModelSerializer):
     )
     tier_id = serializers.IntegerField(required=False, allow_null=True)
     supplier_tiers = serializers.SerializerMethodField()
-    logo_url = serializers.SerializerMethodField()
-    logo_upload = serializers.FileField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Account

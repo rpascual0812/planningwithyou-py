@@ -26,6 +26,8 @@ http://localhost:5555
 When adding a new account, add defaults:
 
 company
+booking_statuses
+calendar_statuses
 config  
   - account,booking_view:list
   - account,bookings_group_name:Group

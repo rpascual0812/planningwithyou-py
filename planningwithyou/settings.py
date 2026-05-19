@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'documents',
     'contacts',
     'bookings',
+    'calendars',
     'suppliers',
     'subscriptions',
 ]
