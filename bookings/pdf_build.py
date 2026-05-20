@@ -17,12 +17,15 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from companies.models import Company
+from packages.models import Package, PackageItem
 from suppliers.models import Tier
 
 from planningwithyou.file_storage import (
     booking_pdf_storage_key,
     read_account_brand_logo_file,
 )
+
+from users.supplier_price import resolve_active_package_for_supplier_tier
 
 from .models import BookingItem, BookingLine
 from .pricing import (
@@ -52,6 +55,11 @@ MARGIN_T = 14 * mm
 MARGIN_B = 16 * mm
 CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R
 
+# Supplier package list: left inset + extra per nesting level (PDF points).
+PACKAGE_ITEM_BASE_X = MARGIN_L + 6 * mm
+PACKAGE_ITEM_INDENT_PER_DEPTH = 5 * mm
+PACKAGE_ITEM_BULLET_GAP = 3.5 * mm
+
 PDF_FONT_DIR = Path(__file__).resolve().parent / 'fonts'
 PDF_FONT = 'PdfDejaVu'
 PDF_FONT_BOLD = 'PdfDejaVu-Bold'
@@ -61,6 +69,8 @@ class ProductBlock:
     title: str
     price: Decimal
     specs: list[str] = field(default_factory=list)
+    """Bulleted package lines as ``(depth, title)``; depth 0 = root, 1+ = sub-items."""
+    package_items: list[tuple[int, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -181,6 +191,57 @@ def _load_supplier_and_tier_names(lines) -> tuple[dict[int, str], dict[int, str]
     return supplier_names, tier_names
 
 
+def _package_item_bullet_and_text_x(depth: int) -> tuple[float, float]:
+    inset = PACKAGE_ITEM_BASE_X + depth * PACKAGE_ITEM_INDENT_PER_DEPTH
+    return inset, inset + PACKAGE_ITEM_BULLET_GAP
+
+
+def _package_item_text_max_width(depth: int) -> float:
+    _, text_x = _package_item_bullet_and_text_x(depth)
+    return PAGE_W - MARGIN_R - text_x
+
+
+def _unordered_package_item_rows(package: Package) -> list[tuple[int, str]]:
+    """Package item rows as ``(depth, title)`` for PDF (tree order). Depth 0 = root."""
+    rows = list(
+        PackageItem.objects.filter(
+            package_id=package.pk,
+            is_active=True,
+            deleted_at__isnull=True,
+        ),
+    )
+    by_parent: dict[int | None, list[PackageItem]] = {}
+    for item in rows:
+        by_parent.setdefault(item.parent_id, []).append(item)
+    for children in by_parent.values():
+        children.sort(key=lambda x: (x.sort_order, x.id, x.title))
+
+    rows: list[tuple[int, str]] = []
+
+    def walk(parent_id: int | None, depth: int) -> None:
+        for item in by_parent.get(parent_id, []):
+            title = (item.title or '').strip() or '—'
+            rows.append((depth, title))
+            walk(item.pk, depth + 1)
+
+    walk(None, 0)
+    return rows
+
+
+def _package_item_lines_for_supplier_line(line: BookingLine) -> list[tuple[int, str]]:
+    if line.field_type != 'supplier':
+        return []
+    parsed = parse_supplier_field_value(line.value)
+    sid = parsed.get('supplier_id')
+    tid = parsed.get('tier_id')
+    if sid is None or tid is None:
+        return []
+    package = resolve_active_package_for_supplier_tier(int(sid), int(tid))
+    if package is None:
+        return []
+    return _unordered_package_item_rows(package)
+
+
 def _line_spec_text(
     line: BookingLine,
     supplier_names: dict[int, str],
@@ -207,10 +268,14 @@ def _group_into_blocks(
                 display = _format_line_value(line, supplier_names, tier_names)
                 if display:
                     title = display
+                pkg_lines = _package_item_lines_for_supplier_line(line)
+            else:
+                pkg_lines = []
             blocks.append(ProductBlock(
                 title=title,
                 price=price,
                 specs=pending_specs.copy(),
+                package_items=pkg_lines,
             ))
             pending_specs = []
             continue
@@ -700,10 +765,26 @@ class BookingQuotePDF:
             self.currency_code,
         )
 
+    def _count_product_block_body_lines(self, block: ProductBlock) -> int:
+        body_font = self._body_font()
+        n = len(block.specs)
+        if block.package_items:
+            if block.specs:
+                n += 1
+            n += 1
+            for depth, title in block.package_items:
+                max_w = _package_item_text_max_width(depth)
+                n += len(
+                    _wrap_text_lines(title[:500], body_font, 8, max_w),
+                )
+        return n
+
     def _draw_product_block(self, block: ProductBlock):
         assert self.c is not None
-        spec_count = max(len(block.specs), 0)
-        card_h = 11 * mm + spec_count * 10 + (4 * mm if spec_count else 0)
+        body_lines = self._count_product_block_body_lines(block)
+        card_h = 11 * mm + body_lines * 10
+        if body_lines:
+            card_h += 4 * mm
         self._ensure_space(card_h + 4 * mm)
 
         card_y = self.y - card_h
@@ -730,6 +811,34 @@ class BookingQuotePDF:
         for spec in block.specs:
             self.c.drawString(MARGIN_L + 6 * mm, spec_y, f'—  {spec[:92]}')
             spec_y -= 10
+
+        if block.package_items:
+            if block.specs:
+                spec_y -= 10
+            self.c.setFont(self._body_font(bold=True), 7.5)
+            self.c.setFillColor(TEXT)
+            self.c.drawString(MARGIN_L + 6 * mm, spec_y, 'Package includes')
+            spec_y -= 10
+            self.c.setFont(self._body_font(), 8)
+            self.c.setFillColor(TEXT_MUTED)
+            body_font = self._body_font()
+            bullet = '\u2022'
+            for depth, title in block.package_items:
+                bullet_x, text_x = _package_item_bullet_and_text_x(depth)
+                max_w = _package_item_text_max_width(depth)
+                wrapped = _wrap_text_lines(
+                    title[:500],
+                    body_font,
+                    8,
+                    max_w,
+                )
+                for j, display in enumerate(wrapped):
+                    if j == 0:
+                        self.c.drawString(bullet_x, spec_y, bullet)
+                        self.c.drawString(text_x, spec_y, display[:500])
+                    else:
+                        self.c.drawString(text_x, spec_y, display[:500])
+                    spec_y -= 10
 
         self.y = card_y - 5 * mm
 

@@ -10,7 +10,6 @@ from planningwithyou.permissions import HasAccount
 
 from .models import SupplierType, Tier
 from .serializers import (
-    CompanyListOptionSerializer,
     SupplierOptionQuerySerializer,
     SupplierTierQuerySerializer,
     SupplierTypeSerializer,
@@ -79,9 +78,8 @@ class TierViewSet(viewsets.ModelViewSet):
 
 class SupplierOptionListView(APIView):
     """
-    Active, non-deleted companies for the current account (supplier dropdown).
-
-    ``tier_id`` is accepted for API compatibility; the list is not filtered by tier.
+    Companies for the booking supplier field: ``supplier_settings.is_active``,
+    optionally filtered by ``supplier_type``.
     """
 
     permission_classes = [IsAuthenticated, HasAccount]
@@ -92,15 +90,21 @@ class SupplierOptionListView(APIView):
             context={'request': request},
         )
         query.is_valid(raise_exception=True)
-        account_id = request.user.account_id
+        data = query.validated_data
 
-        companies = Company.objects.filter(
-            account_id=account_id,
-            is_active=True,
-            deleted_at__isnull=True,
-        ).order_by('sort_order', 'name', 'id')
-        serializer = CompanyListOptionSerializer(companies, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        from users.supplier_price import get_booking_supplier_options
+
+        supplier_type_id = data.get('supplier_type')
+        include_supplier_id = data.get('supplier_id')
+
+        return Response(
+            get_booking_supplier_options(
+                request.user.account_id,
+                supplier_type_id=supplier_type_id,
+                include_supplier_id=include_supplier_id,
+            ),
+            status=status.HTTP_200_OK,
+        )
 
 
 class SupplierTierListView(APIView):

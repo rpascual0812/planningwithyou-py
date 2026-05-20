@@ -22,11 +22,54 @@ def _current_package_version_for_company(*, company_id, account_id):
             company_id=company_id,
             account_id=account_id,
             deleted_at__isnull=True,
+            is_active=True,
             effectivity_date__isnull=False,
             effectivity_date__lte=now,
         )
         .order_by('-effectivity_date', '-id')
         .first()
+    )
+
+
+def resolve_active_package_for_supplier_tier(
+    supplier_company_id: int,
+    tier_id: int,
+) -> Package | None:
+    """
+    Active package row for a supplier company + tier: tier must belong to that
+    company; version must be active, in effect (effectivity_date <= now), not
+    deleted; package must be active and not deleted.
+    """
+    from companies.models import Company
+
+    if not Tier.objects.filter(
+        pk=tier_id,
+        company_id=supplier_company_id,
+        is_active=True,
+        deleted_at__isnull=True,
+    ).exists():
+        return None
+    account_id = (
+        Company.objects.filter(pk=supplier_company_id)
+        .values_list('account_id', flat=True)
+        .first()
+    )
+    if account_id is None:
+        return None
+    version = _current_package_version_for_company(
+        company_id=supplier_company_id,
+        account_id=account_id,
+    )
+    if version is None:
+        return None
+    return (
+        Package.objects.filter(
+            company_id=supplier_company_id,
+            tier_id=tier_id,
+            package_version_id=version.id,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).first()
     )
 
 
@@ -160,42 +203,105 @@ def _decimal_to_api(value):
     return format(value, 'f').rstrip('0').rstrip('.') or '0'
 
 
+def get_booking_supplier_options(
+    tenant_account_id,
+    *,
+    supplier_type_id=None,
+    include_supplier_id=None,
+):
+    """
+    Companies available on the booking supplier field: active supplier_settings
+    for this tenant, optionally filtered by supplier type.
+    """
+    from companies.models import Company
+
+    qs = (
+        SupplierSetting.objects.filter(
+            account_id=tenant_account_id,
+            is_active=True,
+            supplier__deleted_at__isnull=True,
+            supplier__is_active=True,
+        )
+        .select_related('supplier')
+        .order_by('supplier__sort_order', 'supplier__name', 'supplier_id')
+    )
+    if supplier_type_id is not None:
+        qs = qs.filter(supplier__supplier_type_id=supplier_type_id)
+
+    results = []
+    seen_ids = set()
+    for setting in qs:
+        supplier = setting.supplier
+        if supplier.id in seen_ids:
+            continue
+        seen_ids.add(supplier.id)
+        results.append({
+            'id': supplier.id,
+            'name': supplier.name,
+            'supplier_type_id': supplier.supplier_type_id,
+        })
+
+    if include_supplier_id is not None and include_supplier_id not in seen_ids:
+        company = (
+            Company.objects.filter(
+                pk=include_supplier_id,
+                deleted_at__isnull=True,
+            )
+            .select_related('supplier_type')
+            .first()
+        )
+        if company is not None:
+            results.insert(
+                0,
+                {
+                    'id': company.id,
+                    'name': company.name,
+                    'supplier_type_id': company.supplier_type_id,
+                },
+            )
+    return results
+
+
 def get_supplier_company_tier_options(
     supplier_company_id,
     tenant_account_id,
-    tenant_company_id,
+    tenant_company_id=None,
 ):
-    """Tier catalog for booking supplier field with optional SST pricing."""
-    tiers = _tenant_tiers_qs(tenant_company_id).order_by('name')
+    """Tiers from supplier_setting_tiers for an active supplier setting."""
+    del tenant_company_id  # kept for call-site compatibility
 
     setting = SupplierSetting.objects.filter(
         supplier_id=supplier_company_id,
         account_id=tenant_account_id,
+        is_active=True,
     ).first()
-
-    by_tier_id = {}
-    if setting:
-        for row in SupplierSettingTier.objects.filter(
-            supplier_setting=setting,
-        ).select_related('tier'):
-            by_tier_id[row.tier_id] = row
+    if setting is None:
+        return []
 
     default_type = SupplierSettingTier.AdjustmentType.PERCENT
-    return [
-        {
+    rows = (
+        SupplierSettingTier.objects.filter(supplier_setting=setting)
+        .select_related('tier')
+        .order_by('tier__name', 'id')
+    )
+    result = []
+    for row in rows:
+        tier = row.tier
+        if not tier.is_active or tier.deleted_at is not None:
+            continue
+        result.append({
             'id': tier.id,
             'name': tier.name,
             'is_active': tier.is_active,
-            'discount': row.discount if (row := by_tier_id.get(tier.id)) else None,
-            'discount_type': row.discount_type if row else default_type,
-            'mark_up': row.mark_up if row else None,
-            'mark_up_type': row.mark_up_type if row else default_type,
-            'price_override': row.price_override if row else None,
-            'tax': row.tax if row else None,
-            'price': row.price if row else None,
-        }
-        for tier in tiers
-    ]
+            'discount': _decimal_to_api(row.discount),
+            'discount_type': row.discount_type or default_type,
+            'mark_up': _decimal_to_api(row.mark_up),
+            'mark_up_type': row.mark_up_type or default_type,
+            'price_override': _decimal_to_api(row.price_override),
+            'tax': _decimal_to_api(row.tax),
+            'price': _decimal_to_api(row.price),
+        })
+    return result
 
 
 def get_supplier_company_tier_pricing(
@@ -354,6 +460,7 @@ def build_supplier_tiers_by_company(
         )
         existing = existing_by_supplier.get(supplier_id, {})
         tiers = _supplier_company_tiers_qs(supplier_id).order_by('name')
+        default_type = SupplierSettingTier.AdjustmentType.PERCENT
         result[supplier_id] = [
             {
                 'tier_id': tier.id,
@@ -361,9 +468,15 @@ def build_supplier_tiers_by_company(
                 'discount': _decimal_to_api(existing[tier.id].discount)
                 if tier.id in existing
                 else None,
+                'discount_type': existing[tier.id].discount_type
+                if tier.id in existing
+                else default_type,
                 'mark_up': _decimal_to_api(existing[tier.id].mark_up)
                 if tier.id in existing
                 else None,
+                'mark_up_type': existing[tier.id].mark_up_type
+                if tier.id in existing
+                else default_type,
                 'price': _decimal_to_api(existing[tier.id].price)
                 if tier.id in existing
                 else None,

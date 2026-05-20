@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -10,12 +11,16 @@ from bookings.pdf_build import (
     _currency_for_account,
     _ensure_pdf_unicode_fonts,
     _format_money,
+    _unordered_package_item_rows,
+    _package_item_lines_for_supplier_line,
 )
 from bookings.pricing import resolve_booking_line_price
 from bookings.unique_id import allocate_booking_unique_id, format_booking_unique_id
 from countries.models import Country
-from suppliers.models import SupplierType
+from packages.models import Package, PackageItem, PackageVersion
+from suppliers.models import SupplierType, Tier
 from users.models import Account
+from users.supplier_price import resolve_active_package_for_supplier_tier
 
 
 class BookingUniqueIdTests(TestCase):
@@ -159,3 +164,173 @@ class BookingPdfCurrencyTests(TestCase):
                 _format_money(Decimal('100.00'), '₱', 'PHP'),
                 'PHP 100.00',
             )
+
+
+class BookingPdfPackageItemsTests(TestCase):
+    def setUp(self):
+        country = Country.objects.create(
+            name='Testland',
+            iso_code='TLD',
+            iso2_code='TL',
+            currency='Dollar',
+            currency_symbol='$',
+            currency_code='USD',
+        )
+        supplier_type = SupplierType.objects.create(name='General')
+        self.account = Account.objects.create(name='Tenant', country=country)
+        self.supplier = Company.objects.create(
+            account=self.account,
+            name='Supplier Co',
+            supplier_type=supplier_type,
+        )
+        self.tier = Tier.objects.create(
+            account=self.account,
+            company=self.supplier,
+            name='Gold',
+        )
+        past = timezone.now() - timedelta(days=1)
+        self.version = PackageVersion.objects.create(
+            title='V1',
+            effectivity_date=past,
+            company=self.supplier,
+            account=self.account,
+        )
+        self.package = Package.objects.create(
+            package_version=self.version,
+            tier=self.tier,
+            company=self.supplier,
+            account=self.account,
+            total_price=Decimal('100.00'),
+            is_active=True,
+        )
+
+    def test_unordered_package_item_rows_nested(self):
+        root_a = PackageItem.objects.create(
+            package=self.package,
+            parent=None,
+            title='Main service',
+            company=self.supplier,
+            account=self.account,
+            sort_order=0,
+        )
+        PackageItem.objects.create(
+            package=self.package,
+            parent=root_a,
+            title='Sub A',
+            company=self.supplier,
+            account=self.account,
+            sort_order=0,
+        )
+        PackageItem.objects.create(
+            package=self.package,
+            parent=None,
+            title='Second',
+            company=self.supplier,
+            account=self.account,
+            sort_order=1,
+        )
+        rows = _unordered_package_item_rows(self.package)
+        self.assertEqual(
+            rows,
+            [(0, 'Main service'), (1, 'Sub A'), (0, 'Second')],
+        )
+
+    def test_package_item_lines_for_supplier_booking_line(self):
+        status = BookingStatus.objects.create(account=self.account, title='New')
+        main = Company.objects.create(
+            account=self.account,
+            name='Main',
+            supplier_type=SupplierType.objects.create(name='X'),
+            is_main=True,
+        )
+        booking = BookingItem.objects.create(
+            account=self.account,
+            company=main,
+            status=status,
+            unique_id='26-0099',
+            title='Event',
+        )
+        group = BookingGroup.objects.create(booking=booking, name='Services')
+        PackageItem.objects.create(
+            package=self.package,
+            parent=None,
+            title='Included item',
+            company=self.supplier,
+            account=self.account,
+        )
+        line = BookingLine.objects.create(
+            account=self.account,
+            booking=booking,
+            booking_group=group,
+            label='Venue',
+            field_type='supplier',
+            price=Decimal('50.00'),
+            value='{"tier_id": %s, "supplier_id": %s}' % (self.tier.id, self.supplier.id),
+        )
+        found = _package_item_lines_for_supplier_line(line)
+        self.assertEqual(found, [(0, 'Included item')])
+
+    def test_package_item_lines_empty_without_package(self):
+        status = BookingStatus.objects.create(account=self.account, title='New')
+        main = Company.objects.create(
+            account=self.account,
+            name='Main',
+            supplier_type=SupplierType.objects.create(name='Y'),
+            is_main=True,
+        )
+        booking = BookingItem.objects.create(
+            account=self.account,
+            company=main,
+            status=status,
+            unique_id='26-0100',
+            title='Event',
+        )
+        group = BookingGroup.objects.create(booking=booking, name='Services')
+        line = BookingLine.objects.create(
+            account=self.account,
+            booking=booking,
+            booking_group=group,
+            label='Venue',
+            field_type='supplier',
+            price=Decimal('10.00'),
+            value=f'{{"tier_id": {self.tier.id}, "supplier_id": {self.supplier.id + 9999}}}',
+        )
+        self.assertEqual(_package_item_lines_for_supplier_line(line), [])
+
+    def test_resolve_active_package_requires_active_version(self):
+        self.version.is_active = False
+        self.version.save(update_fields=['is_active'])
+        self.assertIsNone(
+            resolve_active_package_for_supplier_tier(self.supplier.id, self.tier.id),
+        )
+
+    def test_resolve_uses_latest_active_eligible_version(self):
+        """When a newer version exists but is inactive, use the prior active row."""
+        self.version.effectivity_date = timezone.now() - timedelta(days=30)
+        self.version.save(update_fields=['effectivity_date'])
+        PackageVersion.objects.create(
+            title='V2',
+            effectivity_date=timezone.now() - timedelta(days=1),
+            company=self.supplier,
+            account=self.account,
+            is_active=False,
+        )
+        pkg = resolve_active_package_for_supplier_tier(self.supplier.id, self.tier.id)
+        self.assertIsNotNone(pkg)
+        self.assertEqual(pkg.id, self.package.id)
+        self.assertEqual(pkg.package_version_id, self.version.id)
+
+    def test_resolve_rejects_tier_not_on_supplier_company(self):
+        other = Company.objects.create(
+            account=self.account,
+            name='Other co',
+            supplier_type=SupplierType.objects.create(name='Zed'),
+        )
+        foreign_tier = Tier.objects.create(
+            account=self.account,
+            company=other,
+            name='Silver',
+        )
+        self.assertIsNone(
+            resolve_active_package_for_supplier_tier(self.supplier.id, foreign_tier.id),
+        )
