@@ -220,6 +220,14 @@ class FormTemplate(models.Model):
         db_column='account_id',
         related_name='+',
     )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='form_templates',
+        db_column='company_id',
+    )
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
     is_active = models.BooleanField(default=True)

@@ -149,6 +149,13 @@ class FormTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = FormTemplateSerializer
 
     def get_queryset(self):
-        return FormTemplate.objects.filter(
+        qs = FormTemplate.objects.filter(
             account_id=self.request.user.account_id,
         ).prefetch_related('fields__options')
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            try:
+                qs = qs.filter(company_id=int(company_id))
+            except (TypeError, ValueError):
+                pass
+        return qs

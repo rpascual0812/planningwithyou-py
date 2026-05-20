@@ -20,7 +20,12 @@ def generate_booking_pdf_task(self, booking_id: int):
             ).prefetch_related(
                 'contact__phone_numbers', 'contact__addresses',
             )
-            .prefetch_related('lines__booking_group')
+            .prefetch_related(
+                'lines__booking_group',
+                'lines__company',
+                'lines__tier',
+                'lines__package_version',
+            )
             .get(pk=booking_id)
         )
         with transaction.atomic():

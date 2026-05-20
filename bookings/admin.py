@@ -59,7 +59,7 @@ class FormTemplateFieldInline(admin.TabularInline):
 
 @admin.register(FormTemplate)
 class FormTemplateAdmin(admin.ModelAdmin):
-    list_display = ['name', 'is_active', 'created_at', 'updated_at']
-    list_filter = ['is_active']
+    list_display = ['name', 'company', 'is_active', 'created_at', 'updated_at']
+    list_filter = ['is_active', 'company']
     search_fields = ['name']
     inlines = [FormTemplateFieldInline]

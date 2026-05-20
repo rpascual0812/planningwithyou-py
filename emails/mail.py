@@ -156,6 +156,7 @@ def create_and_queue_email(
     attachments: list | None = None,
     account=None,
     created_by=None,
+    company=None,
 ) -> EmailLog:
     """Create an EmailLog record and return it (caller dispatches the task)."""
     kwargs = dict(
@@ -172,4 +173,8 @@ def create_and_queue_email(
     )
     if created_by is not None:
         kwargs['created_by'] = created_by
+        if company is None and getattr(created_by, 'company_id', None):
+            kwargs['company_id'] = created_by.company_id
+    if company is not None:
+        kwargs['company'] = company
     return EmailLog.objects.create(**kwargs)

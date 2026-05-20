@@ -1,39 +1,10 @@
-import json
 import re
 from decimal import Decimal, InvalidOperation
-from typing import Any
 
 from .models import BookingLine
+from .supplier_line import parse_supplier_field_value, supplier_selection_from_line
 
 CLIENT_GROUP_RE = re.compile(r'client|customer|contact', re.IGNORECASE)
-
-
-def parse_supplier_field_value(raw: str) -> dict[str, Any]:
-    if not (raw or '').strip():
-        return {'tier_id': None, 'supplier_id': None, 'price': None}
-    try:
-        data = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return {'tier_id': None, 'supplier_id': None, 'price': None}
-    if not isinstance(data, dict):
-        return {'tier_id': None, 'supplier_id': None, 'price': None}
-
-    def _int_or_none(key: str):
-        val = data.get(key)
-        if val is None or val == '':
-            return None
-        try:
-            return int(val)
-        except (TypeError, ValueError):
-            return None
-
-    price_raw = data.get('price')
-    price = None if price_raw in (None, '') else str(price_raw)
-    return {
-        'tier_id': _int_or_none('tier_id'),
-        'supplier_id': _int_or_none('supplier_id'),
-        'price': price,
-    }
 
 
 def _parse_amount(raw) -> Decimal | None:
@@ -66,7 +37,7 @@ def resolve_booking_line_price(line: BookingLine) -> Decimal | None:
         return _configured_line_price(line)
 
     if line.field_type == 'supplier':
-        parsed = parse_supplier_field_value(line.value)
+        parsed = supplier_selection_from_line(line)
         if parsed['tier_id'] is None or parsed['supplier_id'] is None:
             return None
         raw = line.price if line.price is not None else parsed.get('price')

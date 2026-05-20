@@ -6,27 +6,24 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import HasAccount, HasCompany
 
 from .models import EmailLog, EmailTemplate
+from .scope import email_logs_for_user
 from .serializers import EmailLogSerializer, EmailTemplateSerializer
 from .tasks import send_email_task
 
 
 class EmailLogViewSet(viewsets.ModelViewSet):
     """CRUD + resend for email logs."""
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
     serializer_class = EmailLogSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'status', 'created_at', 'sent_at']
     ordering = ['-created_at']
 
     def get_queryset(self):
-        aid = self.request.user.account_id
-        qs = EmailLog.objects.filter(
-            account_id=aid,
-            created_by_id=self.request.user.pk,
-        )
+        qs = email_logs_for_user(self.request.user)
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
@@ -44,6 +41,7 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         log = serializer.save(
             status=EmailLog.Status.QUEUED,
             account_id=self.request.user.account_id,
+            company_id=self.request.user.company_id,
             created_by=self.request.user,
             email_from=settings.MAILJET_SEND_FROM,
         )
@@ -84,6 +82,12 @@ class EmailTypedTemplateViewSet(viewsets.ModelViewSet):
             deleted_at__isnull=True,
             account_id=aid,
         )
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            try:
+                qs = qs.filter(company_id=int(company_id))
+            except (TypeError, ValueError):
+                pass
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(

@@ -9,6 +9,12 @@ class EmailLog(models.Model):
         db_column='account_id',
         related_name='+',
     )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        related_name='email_logs',
+        db_column='company_id',
+    )
     class Status(models.TextChoices):
         QUEUED = 'queued', 'Queued'
         SENT = 'sent', 'Sent'
@@ -79,6 +85,14 @@ class EmailTemplate(models.Model):
         on_delete=models.CASCADE,
         db_column='account_id',
         related_name='+',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='email_templates',
+        db_column='company_id',
     )
     class TemplateType(models.TextChoices):
         USERS = 'users', 'Users'

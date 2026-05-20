@@ -46,12 +46,12 @@ class EmailLogSerializer(serializers.ModelSerializer):
         model = EmailLog
         fields = [
             'id', 'to', 'cc', 'bcc', 'email_from', 'reply_to', 'subject',
-            'body', 'attachments', 'created_by',
+            'body', 'attachments', 'created_by', 'company_id',
             'status', 'error', 'attempts', 'created_at', 'sent_at',
         ]
         read_only_fields = [
-            'id', 'email_from', 'created_by', 'status', 'error', 'attempts',
-            'created_at', 'sent_at',
+            'id', 'email_from', 'created_by', 'company_id', 'status', 'error',
+            'attempts', 'created_at', 'sent_at',
         ]
 
 
@@ -64,6 +64,18 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
         model = EmailTemplate
         fields = [
             'id', 'name', 'title', 'subject', 'body', 'type', 'is_active',
-            'created_at', 'updated_at', 'deleted_at',
+            'company_id', 'created_at', 'updated_at', 'deleted_at',
         ]
         read_only_fields = ['id', 'type', 'created_at', 'updated_at', 'deleted_at']
+
+    def validate_company_id(self, value):
+        if value is None:
+            return value
+        request = self.context.get('request')
+        if request is None:
+            return value
+        from companies.scope import company_belongs_to_account
+
+        if not company_belongs_to_account(value, request.user.account_id):
+            raise serializers.ValidationError('Company not found.')
+        return value

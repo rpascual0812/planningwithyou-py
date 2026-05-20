@@ -5,14 +5,20 @@ from .models import EmailLog, EmailTemplate
 
 @admin.register(EmailLog)
 class EmailLogAdmin(admin.ModelAdmin):
-    list_display = ('id', 'to', 'email_from', 'subject', 'created_by', 'status', 'created_at', 'sent_at')
-    list_filter = ('status',)
+    list_display = (
+        'id', 'to', 'email_from', 'subject', 'company', 'created_by',
+        'status', 'created_at', 'sent_at',
+    )
+    list_filter = ('status', 'company')
     search_fields = ('to', 'subject', 'email_from')
     readonly_fields = ('created_at', 'sent_at')
 
 
 @admin.register(EmailTemplate)
 class EmailTemplateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'title', 'subject', 'template_type', 'is_active', 'deleted_at', 'updated_at')
-    list_filter = ('template_type', 'is_active')
+    list_display = (
+        'id', 'name', 'title', 'subject', 'template_type', 'company',
+        'is_active', 'deleted_at', 'updated_at',
+    )
+    list_filter = ('template_type', 'is_active', 'company')
     search_fields = ('name', 'title', 'subject', 'body')

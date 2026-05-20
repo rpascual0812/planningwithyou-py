@@ -11,10 +11,16 @@ from bookings.pdf_build import (
     _currency_for_account,
     _ensure_pdf_unicode_fonts,
     _format_money,
+    _group_into_blocks,
     _unordered_package_item_rows,
     _package_item_lines_for_supplier_line,
 )
 from bookings.pricing import resolve_booking_line_price
+from bookings.supplier_line import (
+    _package_query_for_supplier_line,
+    package_for_supplier_booking_line,
+    prepare_supplier_field_dict,
+)
 from bookings.unique_id import allocate_booking_unique_id, format_booking_unique_id
 from countries.models import Country
 from packages.models import Package, PackageItem, PackageVersion
@@ -131,6 +137,133 @@ class BookingLinePricingTests(TestCase):
         self.assertEqual(resolve_booking_line_price(line), Decimal('99.50'))
 
 
+class BookingSupplierLineStorageTests(TestCase):
+    def setUp(self):
+        country = Country.objects.create(
+            name='Testland',
+            iso_code='TLD',
+            iso2_code='TL',
+            currency='Dollar',
+            currency_symbol='$',
+            currency_code='USD',
+        )
+        supplier_type = SupplierType.objects.create(name='General')
+        self.account = Account.objects.create(name='Tenant', country=country)
+        self.supplier = Company.objects.create(
+            account=self.account,
+            name='Supplier Co',
+            supplier_type=supplier_type,
+        )
+        self.tier = Tier.objects.create(
+            account=self.account,
+            company=self.supplier,
+            name='Gold',
+        )
+        past = timezone.now() - timedelta(days=1)
+        self.version = PackageVersion.objects.create(
+            title='V1',
+            effectivity_date=past,
+            company=self.supplier,
+            account=self.account,
+        )
+        self.package = Package.objects.create(
+            package_version=self.version,
+            tier=self.tier,
+            company=self.supplier,
+            account=self.account,
+            total_price=Decimal('100.00'),
+            is_active=True,
+        )
+
+    def test_prepare_supplier_field_dict_sets_fks_and_clears_value(self):
+        fv = {
+            'field_type': 'supplier',
+            'label': 'Venue',
+            'value': (
+                f'{{"tier_id": {self.tier.id}, "supplier_id": {self.supplier.id}, '
+                f'"price": "75.00"}}'
+            ),
+            'price': None,
+        }
+        prepare_supplier_field_dict(fv)
+        self.assertEqual(fv['company_id'], self.supplier.id)
+        self.assertEqual(fv['tier_id'], self.tier.id)
+        self.assertEqual(fv['package_version_id'], self.version.id)
+        self.assertEqual(fv['value'], '')
+        self.assertEqual(fv['price'], '75.00')
+
+    def test_package_query_when_package_version_id_is_package_pk(self):
+        """Some rows may store ``packages.id`` in ``package_version_id``."""
+        pkg = _package_query_for_supplier_line(
+            self.supplier.id,
+            self.tier.id,
+            self.package.id,
+        )
+        self.assertIsNotNone(pkg)
+        self.assertEqual(pkg.id, self.package.id)
+
+    def test_package_for_supplier_booking_line_uses_stored_fks(self):
+        status = BookingStatus.objects.create(account=self.account, title='New')
+        main = Company.objects.create(
+            account=self.account,
+            name='Main',
+            supplier_type=SupplierType.objects.create(name='MainType'),
+            is_main=True,
+        )
+        booking = BookingItem.objects.create(
+            account=self.account,
+            company=main,
+            status=status,
+            unique_id='26-0201',
+            title='Event',
+        )
+        group = BookingGroup.objects.create(booking=booking, name='Services')
+        line = BookingLine.objects.create(
+            account=self.account,
+            booking=booking,
+            booking_group=group,
+            label='Venue',
+            field_type='supplier',
+            company=self.supplier,
+            tier=self.tier,
+            package_version=self.version,
+            value='',
+        )
+        pkg = package_for_supplier_booking_line(line)
+        self.assertIsNotNone(pkg)
+        self.assertEqual(pkg.id, self.package.id)
+
+    def test_resolve_price_from_supplier_fks_without_value(self):
+        status = BookingStatus.objects.create(account=self.account, title='New')
+        main = Company.objects.create(
+            account=self.account,
+            name='Main',
+            supplier_type=SupplierType.objects.create(name='MainType'),
+            is_main=True,
+        )
+        booking = BookingItem.objects.create(
+            account=self.account,
+            company=main,
+            status=status,
+            unique_id='26-0200',
+            title='Event',
+        )
+        group = BookingGroup.objects.create(booking=booking, name='Services')
+        line = BookingLine.objects.create(
+            account=self.account,
+            booking=booking,
+            booking_group=group,
+            label='Venue',
+            field_type='supplier',
+            company=self.supplier,
+            tier=self.tier,
+            package_version=self.version,
+            price=Decimal('88.00'),
+            value='',
+        )
+        self.assertEqual(resolve_booking_line_price(line), Decimal('88.00'))
+
+
 class BookingPdfCurrencyTests(TestCase):
     def setUp(self):
         self.philippines = Country.objects.create(
@@ -235,6 +368,45 @@ class BookingPdfPackageItemsTests(TestCase):
             [(0, 'Main service'), (1, 'Sub A'), (0, 'Second')],
         )
 
+    def test_group_into_blocks_includes_package_items_for_supplier_line(self):
+        status = BookingStatus.objects.create(account=self.account, title='New')
+        main = Company.objects.create(
+            account=self.account,
+            name='Main',
+            supplier_type=SupplierType.objects.create(name='X'),
+            is_main=True,
+        )
+        booking = BookingItem.objects.create(
+            account=self.account,
+            company=main,
+            status=status,
+            unique_id='26-0098',
+            title='Event',
+        )
+        group = BookingGroup.objects.create(booking=booking, name='Suppliers')
+        PackageItem.objects.create(
+            package=self.package,
+            parent=None,
+            title='Included item',
+            company=self.supplier,
+            account=self.account,
+        )
+        line = BookingLine.objects.create(
+            account=self.account,
+            booking=booking,
+            booking_group=group,
+            label='Venue',
+            field_type='supplier',
+            company=self.supplier,
+            tier=self.tier,
+            package_version=self.version,
+            price=Decimal('50.00'),
+            value='',
+        )
+        blocks = _group_into_blocks([line], {}, {self.tier.id: 'Gold'})
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0].package_items, [(0, 'Included item')])
+
     def test_package_item_lines_for_supplier_booking_line(self):
         status = BookingStatus.objects.create(account=self.account, title='New')
         main = Company.objects.create(
@@ -264,8 +436,11 @@ class BookingPdfPackageItemsTests(TestCase):
             booking_group=group,
             label='Venue',
             field_type='supplier',
+            company=self.supplier,
+            tier=self.tier,
+            package_version=self.version,
             price=Decimal('50.00'),
-            value='{"tier_id": %s, "supplier_id": %s}' % (self.tier.id, self.supplier.id),
+            value='',
         )
         found = _package_item_lines_for_supplier_line(line)
         self.assertEqual(found, [(0, 'Included item')])

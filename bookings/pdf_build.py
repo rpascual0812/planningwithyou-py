@@ -25,14 +25,15 @@ from planningwithyou.file_storage import (
     read_account_brand_logo_file,
 )
 
-from users.supplier_price import resolve_active_package_for_supplier_tier
-
 from .models import BookingItem, BookingLine
 from .pricing import (
     client_detail_lines,
     is_client_group_name,
-    parse_supplier_field_value,
     resolve_booking_line_price,
+)
+from .supplier_line import (
+    package_for_supplier_booking_line,
+    supplier_selection_from_line,
 )
 
 # Premium palette — navy structure, muted sage accent, soft surfaces
@@ -152,14 +153,19 @@ def _format_line_value(
     tier_names: dict[int, str],
 ) -> str:
     if line.field_type == 'supplier':
-        parsed = parse_supplier_field_value(line.value)
         parts = []
-        sid = parsed.get('supplier_id')
-        tid = parsed.get('tier_id')
-        if sid is not None:
-            parts.append(supplier_names.get(sid, f'Supplier #{sid}'))
-        if tid is not None:
-            parts.append(tier_names.get(tid, f'Tier #{tid}'))
+        if line.company_id:
+            parts.append(supplier_names.get(line.company_id, f'Supplier #{line.company_id}'))
+        if line.tier_id:
+            parts.append(tier_names.get(line.tier_id, f'Tier #{line.tier_id}'))
+        if not parts:
+            parsed = supplier_selection_from_line(line)
+            sid = parsed.get('supplier_id')
+            tid = parsed.get('tier_id')
+            if sid is not None:
+                parts.append(supplier_names.get(sid, f'Supplier #{sid}'))
+            if tid is not None:
+                parts.append(tier_names.get(tid, f'Tier #{tid}'))
         return ' — '.join(parts) if parts else ''
     if line.field_type == 'checkbox':
         return 'Yes' if line.value == 'true' else 'No'
@@ -172,11 +178,16 @@ def _load_supplier_and_tier_names(lines) -> tuple[dict[int, str], dict[int, str]
     for line in lines:
         if line.field_type != 'supplier':
             continue
-        parsed = parse_supplier_field_value(line.value)
-        if parsed.get('supplier_id') is not None:
-            supplier_ids.add(parsed['supplier_id'])
-        if parsed.get('tier_id') is not None:
-            tier_ids.add(parsed['tier_id'])
+        if line.company_id:
+            supplier_ids.add(line.company_id)
+        if line.tier_id:
+            tier_ids.add(line.tier_id)
+        if not line.company_id or not line.tier_id:
+            parsed = supplier_selection_from_line(line)
+            if not line.company_id and parsed.get('supplier_id') is not None:
+                supplier_ids.add(parsed['supplier_id'])
+            if not line.tier_id and parsed.get('tier_id') is not None:
+                tier_ids.add(parsed['tier_id'])
 
     supplier_names = {}
     if supplier_ids:
@@ -201,17 +212,21 @@ def _package_item_text_max_width(depth: int) -> float:
     return PAGE_W - MARGIN_R - text_x
 
 
-def _unordered_package_item_rows(package: Package) -> list[tuple[int, str]]:
+def _unordered_package_item_rows(
+    package: Package,
+    *,
+    include_inactive: bool = False,
+) -> list[tuple[int, str]]:
     """Package item rows as ``(depth, title)`` for PDF (tree order). Depth 0 = root."""
-    rows = list(
-        PackageItem.objects.filter(
-            package_id=package.pk,
-            is_active=True,
-            deleted_at__isnull=True,
-        ),
+    item_qs = PackageItem.objects.filter(
+        package_id=package.pk,
+        deleted_at__isnull=True,
     )
+    if not include_inactive:
+        item_qs = item_qs.filter(is_active=True)
+    package_items = list(item_qs)
     by_parent: dict[int | None, list[PackageItem]] = {}
-    for item in rows:
+    for item in package_items:
         by_parent.setdefault(item.parent_id, []).append(item)
     for children in by_parent.values():
         children.sort(key=lambda x: (x.sort_order, x.id, x.title))
@@ -229,17 +244,10 @@ def _unordered_package_item_rows(package: Package) -> list[tuple[int, str]]:
 
 
 def _package_item_lines_for_supplier_line(line: BookingLine) -> list[tuple[int, str]]:
-    if line.field_type != 'supplier':
-        return []
-    parsed = parse_supplier_field_value(line.value)
-    sid = parsed.get('supplier_id')
-    tid = parsed.get('tier_id')
-    if sid is None or tid is None:
-        return []
-    package = resolve_active_package_for_supplier_tier(int(sid), int(tid))
+    package = package_for_supplier_booking_line(line)
     if package is None:
         return []
-    return _unordered_package_item_rows(package)
+    return _unordered_package_item_rows(package, include_inactive=True)
 
 
 def _line_spec_text(
@@ -261,14 +269,18 @@ def _group_into_blocks(
     blocks: list[ProductBlock] = []
     pending_specs: list[str] = []
     for line in group_lines:
+        pkg_lines: list[tuple[int, str]] = []
+        if line.field_type == 'supplier':
+            pkg_lines = _package_item_lines_for_supplier_line(line)
         price = resolve_booking_line_price(line)
+        if price is None and line.field_type == 'supplier' and pkg_lines:
+            price = Decimal('0')
         if price is not None:
             title = line.label.strip()
             if line.field_type == 'supplier':
                 display = _format_line_value(line, supplier_names, tier_names)
                 if display:
                     title = display
-                pkg_lines = _package_item_lines_for_supplier_line(line)
             else:
                 pkg_lines = []
             blocks.append(ProductBlock(
@@ -970,7 +982,12 @@ class BookingQuotePDF:
 def build_booking_pdf(booking: BookingItem) -> None:
     """Build the quote PDF and store it on default storage (S3/local)."""
     lines = list(
-        booking.lines.select_related('booking_group').order_by(
+        booking.lines.select_related(
+            'booking_group',
+            'company',
+            'tier',
+            'package_version',
+        ).order_by(
             'booking_group__id', 'sort_order', 'id',
         ),
     )

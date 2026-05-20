@@ -1,5 +1,3 @@
-import json
-
 from django.db import transaction
 from rest_framework import serializers
 
@@ -18,35 +16,10 @@ from .models import (
     FormTemplateField,
     FormTemplateFieldOption,
 )
+from .supplier_line import prepare_supplier_field_dict, supplier_value_json_for_line
 from .unique_id import allocate_booking_unique_id
 
 DEFAULT_BOOKING_GROUP_NAME = 'Suppliers'
-
-
-def _normalize_supplier_line(field_value: dict) -> None:
-    """Move tier price from JSON value to the line price column."""
-    if field_value.get('field_type') != 'supplier':
-        return
-    raw = field_value.get('value') or ''
-    if not str(raw).strip():
-        return
-    try:
-        data = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return
-    if not isinstance(data, dict):
-        return
-    json_price = data.pop('price', None)
-    if field_value.get('price') in (None, '') and json_price not in (None, ''):
-        field_value['price'] = json_price
-    tier_id = data.get('tier_id')
-    supplier_id = data.get('supplier_id')
-    if tier_id is None and supplier_id is None:
-        field_value['value'] = ''
-    else:
-        field_value['value'] = json.dumps(
-            {'tier_id': tier_id, 'supplier_id': supplier_id},
-        )
 
 
 class BookingGroupSerializer(serializers.ModelSerializer):
@@ -88,10 +61,11 @@ class BookingLineSerializer(serializers.ModelSerializer):
         )
         if instance.booking_group_id:
             data['booking_group_id'] = instance.booking_group_id
-        if instance.field_type == 'supplier' and data.get('value'):
-            payload = dict(data)
-            _normalize_supplier_line(payload)
-            data['value'] = payload['value']
+        if instance.field_type == 'supplier':
+            data['value'] = supplier_value_json_for_line(instance)
+            data['company'] = instance.company_id
+            data['tier'] = instance.tier_id
+            data['package_version'] = instance.package_version_id
         return data
 
 
@@ -173,7 +147,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
     def _save_field_values(self, booking, field_values_data):
         for idx, fv in enumerate(field_values_data):
             fv.setdefault('sort_order', idx)
-            _normalize_supplier_line(fv)
+            prepare_supplier_field_dict(fv)
             booking_group = self._resolve_booking_group(booking, fv)
             BookingLine.objects.create(
                 booking=booking,
@@ -278,9 +252,21 @@ class FormTemplateSerializer(serializers.ModelSerializer):
         model = FormTemplate
         fields = [
             'id', 'name', 'description', 'is_active', 'is_default',
-            'fields', 'created_at', 'updated_at',
+            'company_id', 'fields', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def validate_company_id(self, value):
+        if value is None:
+            return value
+        request = self.context.get('request')
+        if request is None:
+            return value
+        from companies.scope import company_belongs_to_account
+
+        if not company_belongs_to_account(value, request.user.account_id):
+            raise serializers.ValidationError('Company not found.')
+        return value
 
     def _save_fields(self, template, fields_data):
         for idx, field_data in enumerate(fields_data):
@@ -300,11 +286,17 @@ class FormTemplateSerializer(serializers.ModelSerializer):
                 )
 
     def _clear_other_defaults(self, template):
-        if template.is_default:
-            FormTemplate.objects.filter(
-                is_default=True,
-                account_id=template.account_id,
-            ).exclude(pk=template.pk).update(is_default=False)
+        if not template.is_default:
+            return
+        qs = FormTemplate.objects.filter(
+            is_default=True,
+            account_id=template.account_id,
+        )
+        if template.company_id:
+            qs = qs.filter(company_id=template.company_id)
+        else:
+            qs = qs.filter(company_id__isnull=True)
+        qs.exclude(pk=template.pk).update(is_default=False)
 
     def create(self, validated_data):
         fields_data = validated_data.pop('fields', [])
