@@ -11,7 +11,7 @@ celery -A planningwithyou worker -l info
 # Terminal 3 - Redis
 sudo docker start local-redis
 # Terminal 4 - Flower
-
+celery -A planningwithyou flower
 
 # REDIS
 sudo docker run --name local-redis -p 6379:6379 -d redis
@@ -71,3 +71,8 @@ TODO
 - When supplier 1 adds supplier 2 to a quotation, supplier 2 should be able to see the quotation and 
   let supplier 1 know that they have accepted/declined the quotation.
 - Supplier has the capability to change package version (e.g. to give clients an already done discount promo)
+
+
+
+
+

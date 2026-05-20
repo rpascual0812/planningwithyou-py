@@ -16,15 +16,15 @@ class PackageViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasAccount, HasCompany]
     serializer_class = PackageSerializer
     filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['id', 'title', 'total_price', 'created_at']
-    ordering = ['title', 'id']
+    ordering_fields = ['id', 'tier', 'total_price', 'created_at']
+    ordering = ['tier_id', 'id']
 
     def get_queryset(self):
         account_id = self.request.user.account_id
         qs = Package.objects.filter(
             account_id=account_id,
             deleted_at__isnull=True,
-        ).select_related('package_version').prefetch_related(
+        ).select_related('package_version', 'tier').prefetch_related(
             Prefetch(
                 'items',
                 queryset=PackageItem.objects.filter(
@@ -64,6 +64,9 @@ class PackageViewSet(viewsets.ModelViewSet):
         version_id = self.request.query_params.get('package_version_id', '').strip()
         if version_id:
             qs = qs.filter(package_version_id=version_id)
+        tier_id = self.request.query_params.get('tier_id', '').strip()
+        if tier_id:
+            qs = qs.filter(tier_id=tier_id)
         return qs
 
     def perform_create(self, serializer):
@@ -73,8 +76,27 @@ class PackageViewSet(viewsets.ModelViewSet):
         )
 
     def perform_destroy(self, instance):
+        was_active = instance.is_active
+        scope = {
+            'company_id': instance.company_id,
+            'tier_id': instance.tier_id,
+            'package_version_id': instance.package_version_id,
+        }
         instance.deleted_at = timezone.now()
-        instance.save(update_fields=['deleted_at'])
+        instance.is_active = False
+        instance.save(update_fields=['deleted_at', 'is_active'])
+        if was_active:
+            replacement = (
+                Package.objects.filter(
+                    deleted_at__isnull=True,
+                    is_active=False,
+                    **scope,
+                )
+                .order_by('id')
+                .first()
+            )
+            if replacement is not None:
+                Package.objects.filter(pk=replacement.pk).update(is_active=True)
 
 
 class PackageVersionViewSet(viewsets.ModelViewSet):

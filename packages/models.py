@@ -23,7 +23,12 @@ class Package(models.Model):
         db_column='package_version_id',
         related_name='packages',
     )
-    title = models.CharField(max_length=255)
+    tier = models.ForeignKey(
+        'suppliers.Tier',
+        on_delete=models.PROTECT,
+        db_column='tier_id',
+        related_name='packages',
+    )
     description = models.TextField(blank=True, default='')
     total_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     company = models.ForeignKey(
@@ -55,10 +60,19 @@ class Package(models.Model):
 
     class Meta:
         db_table = 'packages'
-        ordering = ['title', 'id']
+        ordering = ['tier_id', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company', 'tier', 'package_version'],
+                condition=models.Q(is_active=True, deleted_at__isnull=True),
+                name='packages_one_active_per_company_tier_version',
+            ),
+        ]
 
     def __str__(self):
-        return self.title
+        if self.tier_id and getattr(self, 'tier', None) is not None:
+            return self.tier.name
+        return f'Package {self.id}'
 
 
 class PackageItemQuerySet(models.QuerySet):

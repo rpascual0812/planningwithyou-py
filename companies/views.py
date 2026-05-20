@@ -1,3 +1,4 @@
+from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 from rest_framework import filters, parsers, status, viewsets
 from rest_framework.decorators import action
@@ -6,11 +7,13 @@ from rest_framework.response import Response
 
 from planningwithyou.permissions import HasAccount
 from users.supplier_price import (
+    build_supplier_setting_active_by_company,
     build_supplier_tiers_by_company,
     get_supplier_company_tier_pricing,
     save_supplier_company_tier_pricing,
-    supplier_companies_with_price_queryset,
 )
+
+from suppliers.models import SupplierSetting
 
 from .models import Company
 from .serializers import CompanySerializer, SupplierCompanyTierPricingSerializer
@@ -34,8 +37,25 @@ class CompanyViewSet(viewsets.ModelViewSet):
             'yes',
         )
 
+    def _uses_supplier_setting_active(self) -> bool:
+        return self._is_supplier_directory() or bool(
+            self.request.query_params.get('supplier_type', '').strip(),
+        )
+
+    def _annotate_supplier_setting_active(self, qs):
+        if not self._uses_supplier_setting_active():
+            return qs
+        active_sq = SupplierSetting.objects.filter(
+            supplier_id=OuterRef('pk'),
+            account_id=self.request.user.account_id,
+        ).values('is_active')[:1]
+        return qs.annotate(_supplier_setting_is_active=Subquery(active_sq))
+
     def get_queryset(self):
-        qs = Company.objects.filter(deleted_at__isnull=True).select_related('supplier_type')
+        qs = Company.objects.filter(deleted_at__isnull=True).select_related(
+            'supplier_type',
+            'account__country',
+        )
 
         if not self._is_supplier_directory():
             qs = qs.filter(account_id=self.request.user.account_id)
@@ -43,24 +63,25 @@ class CompanyViewSet(viewsets.ModelViewSet):
         supplier_type = self.request.query_params.get('supplier_type', '').strip()
         if supplier_type:
             qs = qs.filter(supplier_type_id=supplier_type)
-            qs = supplier_companies_with_price_queryset(
-                qs,
-                self.request.user.account_id,
-            )
+
+        if self._uses_supplier_setting_active():
+            qs = qs.filter(is_active=True)
 
         active_only = self.request.query_params.get('active_only', '').lower()
-        if active_only in ('1', 'true', 'yes'):
+        if active_only in ('1', 'true', 'yes') and not self._uses_supplier_setting_active():
             qs = qs.filter(is_active=True)
 
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(name__icontains=search)
 
-        return qs
+        return self._annotate_supplier_setting_active(qs)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
         supplier_type = self.request.query_params.get('supplier_type', '').strip()
+        if self._is_supplier_directory() or supplier_type:
+            context['supplier_directory'] = True
         if self.action == 'list' and supplier_type:
             user = self.request.user
             qs = self.filter_queryset(self.get_queryset())
@@ -68,7 +89,12 @@ class CompanyViewSet(viewsets.ModelViewSet):
             context['tier_pricing_by_supplier'] = build_supplier_tiers_by_company(
                 company_ids,
                 user.account_id,
-                user.company_id,
+            )
+            context['supplier_setting_active_by_id'] = (
+                build_supplier_setting_active_by_company(
+                    company_ids,
+                    user.account_id,
+                )
             )
         return context
 
@@ -93,7 +119,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
     def tier_pricing(self, request, pk=None):
         company = self.get_object()
         tenant_account_id = request.user.account_id
-        tenant_company_id = request.user.company_id
 
         if request.method == 'GET':
             return Response(
@@ -102,14 +127,14 @@ class CompanyViewSet(viewsets.ModelViewSet):
                     'tiers': get_supplier_company_tier_pricing(
                         company.id,
                         tenant_account_id,
-                        tenant_company_id,
+                        supplier_account_id=company.account_id,
                     ),
                 },
             )
 
         serializer = SupplierCompanyTierPricingSerializer(
             data=request.data,
-            context={'request': request},
+            context={'request': request, 'supplier_company': company},
         )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -121,8 +146,8 @@ class CompanyViewSet(viewsets.ModelViewSet):
         save_supplier_company_tier_pricing(
             company.id,
             tenant_account_id,
-            tenant_company_id,
             data['tiers'],
+            supplier_account_id=company.account_id,
         )
         return Response(
             {
@@ -130,7 +155,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
                 'tiers': get_supplier_company_tier_pricing(
                     company.id,
                     tenant_account_id,
-                    tenant_company_id,
+                    supplier_account_id=company.account_id,
                 ),
             },
         )

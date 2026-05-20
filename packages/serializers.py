@@ -1,7 +1,9 @@
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
 from companies.models import Company
+from suppliers.models import Tier
 
 from .models import Package, PackageItem, PackageVersion
 
@@ -91,13 +93,15 @@ PackageItemInputSerializer._declared_fields['children'] = PackageItemInputSerial
 
 class PackageSerializer(serializers.ModelSerializer):
     items = PackageItemInputSerializer(many=True, required=False, write_only=True)
+    tier_name = serializers.CharField(source='tier.name', read_only=True)
 
     class Meta:
         model = Package
         fields = [
             'id',
             'package_version',
-            'title',
+            'tier',
+            'tier_name',
             'description',
             'total_price',
             'company',
@@ -105,13 +109,17 @@ class PackageSerializer(serializers.ModelSerializer):
             'items',
             'created_at',
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'created_at', 'tier_name']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request is not None:
             self.fields['package_version'].queryset = PackageVersion.objects.filter(
+                account_id=request.user.account_id,
+                deleted_at__isnull=True,
+            )
+            self.fields['tier'].queryset = Tier.objects.filter(
                 account_id=request.user.account_id,
                 deleted_at__isnull=True,
             )
@@ -140,13 +148,34 @@ class PackageSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Package version must be active.')
         return value
 
+    def validate_company(self, value):
+        request = self.context.get('request')
+        if request is None:
+            return value
+        if value.account_id != request.user.account_id:
+            raise serializers.ValidationError('Invalid company.')
+        if not value.is_active or value.deleted_at is not None:
+            raise serializers.ValidationError('Company must be active.')
+        return value
+
+    def validate_tier(self, value):
+        request = self.context.get('request')
+        if request is None:
+            return value
+        if value.account_id != request.user.account_id:
+            raise serializers.ValidationError('Invalid tier.')
+        if value.deleted_at is not None:
+            raise serializers.ValidationError('Tier must be active.')
+        return value
+
     def validate(self, attrs):
         attrs = super().validate(attrs)
         request = self.context.get('request')
         if request is None:
             return attrs
         version = attrs.get('package_version')
-        company = attrs.get('company')
+        company = attrs.get('company') or (self.instance.company if self.instance else None)
+        tier = attrs.get('tier')
         if version is not None and company is not None:
             if version.company_id != company.id:
                 raise serializers.ValidationError(
@@ -157,17 +186,61 @@ class PackageSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {'package_version': 'Package version must belong to the package company.'},
                 )
+        if tier is not None and company is not None and tier.company_id != company.id:
+            raise serializers.ValidationError(
+                {'tier': 'Tier must belong to the selected company.'},
+            )
+        elif tier is not None and self.instance is not None and tier.company_id != self.instance.company_id:
+            raise serializers.ValidationError(
+                {'tier': 'Tier must belong to the package company.'},
+            )
+
+        company = company or (self.instance.company if self.instance else None)
+        tier = tier or (self.instance.tier if self.instance else None)
+        version = version or (self.instance.package_version if self.instance else None)
+        if company is not None and tier is not None and version is not None:
+            is_active = attrs.get('is_active')
+            if is_active is None:
+                is_active = self.instance.is_active if self.instance is not None else True
+            siblings = self._sibling_packages(company, tier, version)
+            if self.instance is not None:
+                siblings = siblings.exclude(pk=self.instance.pk)
+            is_first = not siblings.exists()
+            if is_first and not is_active:
+                raise serializers.ValidationError(
+                    {
+                        'is_active': (
+                            'The first package for this company, tier, and version must be active.'
+                        ),
+                    },
+                )
+            if not is_active and not siblings.filter(is_active=True).exists():
+                raise serializers.ValidationError(
+                    {
+                        'is_active': (
+                            'At least one package must remain active for this company, tier, and version.'
+                        ),
+                    },
+                )
         return attrs
 
-    def validate_company(self, value):
-        request = self.context.get('request')
-        if request is None:
-            return value
-        if value.account_id != request.user.account_id:
-            raise serializers.ValidationError('Invalid company.')
-        if not value.is_active or value.deleted_at is not None:
-            raise serializers.ValidationError('Company must be active.')
-        return value
+    def _sibling_packages(self, company, tier, package_version):
+        return Package.objects.filter(
+            company=company,
+            tier=tier,
+            package_version=package_version,
+            deleted_at__isnull=True,
+        )
+
+    @staticmethod
+    def _deactivate_other_active_packages(package):
+        Package.objects.filter(
+            company_id=package.company_id,
+            tier_id=package.tier_id,
+            package_version_id=package.package_version_id,
+            deleted_at__isnull=True,
+            is_active=True,
+        ).exclude(pk=package.pk).update(is_active=False)
 
     def _create_item_tree(self, package, items_data, parent=None, created_by=None):
         for sort_order, item_data in enumerate(items_data):
@@ -198,6 +271,7 @@ class PackageSerializer(serializers.ModelSerializer):
         created_by = request.user if request and request.user.is_authenticated else None
         self._create_item_tree(package, items_data, parent=None, created_by=created_by)
 
+    @transaction.atomic
     def create(self, validated_data):
         request = self.context.get('request')
         items_data = validated_data.pop('items', [])
@@ -208,15 +282,27 @@ class PackageSerializer(serializers.ModelSerializer):
                 company.id,
                 created_by=request.user,
             )
+        siblings = self._sibling_packages(
+            validated_data['company'],
+            validated_data['tier'],
+            validated_data['package_version'],
+        )
+        if not siblings.exists():
+            validated_data['is_active'] = True
         package = super().create(validated_data)
+        if package.is_active:
+            self._deactivate_other_active_packages(package)
         if items_data:
             created_by = request.user if request and request.user.is_authenticated else None
             self._create_item_tree(package, items_data, parent=None, created_by=created_by)
         return package
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)
         package = super().update(instance, validated_data)
+        if package.is_active:
+            self._deactivate_other_active_packages(package)
         if items_data is not None:
             self._replace_items(package, items_data)
         return package
