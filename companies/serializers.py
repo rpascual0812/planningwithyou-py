@@ -90,9 +90,14 @@ class CompanySerializer(serializers.ModelSerializer):
             'currency_symbol',
             'currency_code',
             'timezone',
+            'contact_person',
+            'phone_number',
+            'mobile_number',
+            'address',
             'website',
             'is_active',
             'is_main',
+            'kyb_verified',
             'logo',
             'logo_upload',
             'logo_url',
@@ -102,6 +107,7 @@ class CompanySerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id',
             'created_at',
+            'kyb_verified',
             'logo',
             'logo_url',
             'supplier_type_name',
@@ -177,6 +183,18 @@ class CompanySerializer(serializers.ModelSerializer):
         return (value or '').strip()
 
     def validate_timezone(self, value):
+        return (value or '').strip()
+
+    def validate_contact_person(self, value):
+        return (value or '').strip()
+
+    def validate_phone_number(self, value):
+        return (value or '').strip()
+
+    def validate_mobile_number(self, value):
+        return (value or '').strip()
+
+    def validate_address(self, value):
         return (value or '').strip()
 
     def to_internal_value(self, data):

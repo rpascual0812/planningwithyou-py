@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from companies.models import Company
+from companies.models import Company, CompanyKybVerification
 from countries.models import Country
 from suppliers.models import SupplierType
 from users.models import Account
@@ -60,3 +60,46 @@ class CompanyMainFlagTests(TestCase):
         third.refresh_from_db()
         self.assertFalse(self.first.is_main)
         self.assertTrue(third.is_main)
+
+
+class CompanyKybVerifiedTests(TestCase):
+    def setUp(self):
+        country = Country.objects.create(
+            name='KYBland',
+            iso_code='KYB',
+            iso2_code='KB',
+            currency='Peso',
+            currency_symbol='₱',
+            currency_code='PHP',
+        )
+        supplier_type = SupplierType.objects.create(name='Events')
+        account = Account.objects.create(name='KYB Account', country=country)
+        self.company = Company.objects.create(
+            account=account,
+            name='KYB Co',
+            supplier_type=supplier_type,
+        )
+
+    def test_kyb_approved_sets_company_kyb_verified(self):
+        kyb = CompanyKybVerification.objects.create(company=self.company)
+        self.assertFalse(self.company.kyb_verified)
+
+        kyb.status = CompanyKybVerification.Status.APPROVED
+        kyb.save()
+
+        self.company.refresh_from_db()
+        self.assertTrue(self.company.kyb_verified)
+
+    def test_kyb_rejected_clears_company_kyb_verified(self):
+        kyb = CompanyKybVerification.objects.create(
+            company=self.company,
+            status=CompanyKybVerification.Status.APPROVED,
+        )
+        self.company.refresh_from_db()
+        self.assertTrue(self.company.kyb_verified)
+
+        kyb.status = CompanyKybVerification.Status.REJECTED
+        kyb.save()
+
+        self.company.refresh_from_db()
+        self.assertFalse(self.company.kyb_verified)

@@ -31,9 +31,17 @@ class Company(models.Model):
         related_name='companies',
     )
     timezone = models.CharField(max_length=63, blank=True, default='')
+    contact_person = models.CharField(max_length=255, blank=True, default='')
+    phone_number = models.CharField(max_length=63, blank=True, default='')
+    mobile_number = models.CharField(max_length=63, blank=True, default='')
+    address = models.TextField(blank=True, default='')
     website = models.URLField(max_length=512, blank=True, default='')
     is_active = models.BooleanField(default=True)
     is_main = models.BooleanField(default=False)
+    kyb_verified = models.BooleanField(
+        default=False,
+        help_text='Set when KYB verification is approved; required for live payments.',
+    )
     logo = models.CharField(
         max_length=512,
         blank=True,
@@ -79,3 +87,98 @@ class Company(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class CompanyKybVerification(models.Model):
+    """Know Your Business (KYB) data required before live payments are enabled."""
+
+    class BusinessType(models.TextChoices):
+        SOLE_PROPRIETOR = 'sole_proprietor', 'Sole proprietorship'
+        CORPORATION = 'corporation', 'Corporation'
+
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        SUBMITTED = 'submitted', 'Submitted for review'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+
+    company = models.OneToOneField(
+        Company,
+        on_delete=models.CASCADE,
+        related_name='kyb_verification',
+        db_column='company_id',
+    )
+    business_type = models.CharField(
+        max_length=32,
+        choices=BusinessType.choices,
+        blank=True,
+        default='',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+    )
+
+    # Sole proprietorship
+    government_id_file = models.CharField(
+        max_length=512,
+        blank=True,
+        default='',
+        help_text='Stored file reference for valid government ID.',
+    )
+    dti_registration_file = models.CharField(max_length=512, blank=True, default='')
+    sole_prop_business_address = models.TextField(blank=True, default='')
+    sole_prop_mobile_number = models.CharField(max_length=63, blank=True, default='')
+    bank_account_same_name = models.TextField(
+        blank=True,
+        default='',
+        help_text='Bank account details; account must be under the same legal name.',
+    )
+
+    # Corporation
+    sec_registration_file = models.CharField(max_length=512, blank=True, default='')
+    articles_of_incorporation_file = models.CharField(max_length=512, blank=True, default='')
+    bir_registration_file = models.CharField(max_length=512, blank=True, default='')
+    owner_director_id_files = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of file references for valid IDs of owners/directors.',
+    )
+    business_website_social = models.TextField(
+        blank=True,
+        default='',
+        help_text='Business website and/or social media pages.',
+    )
+    company_email_domain = models.CharField(max_length=255, blank=True, default='')
+
+    # Additional checks (all business types)
+    proof_of_address_file = models.CharField(max_length=512, blank=True, default='')
+    business_description = models.TextField(blank=True, default='')
+
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='company_kyb_reviews',
+        db_column='reviewed_by',
+    )
+    rejection_notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'company_kyb_verifications'
+        ordering = ['-updated_at']
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        verified = self.status == self.Status.APPROVED
+        Company.all_objects.filter(pk=self.company_id).update(kyb_verified=verified)
+
+    def __str__(self):
+        return f'KYB {self.company_id} ({self.status})'

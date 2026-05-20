@@ -15,7 +15,8 @@ from users.supplier_price import (
 
 from suppliers.models import SupplierSetting
 
-from .models import Company
+from .kyb_serializers import CompanyKybVerificationSerializer
+from .models import Company, CompanyKybVerification
 from .serializers import CompanySerializer, SupplierCompanyTierPricingSerializer
 
 
@@ -159,3 +160,33 @@ class CompanyViewSet(viewsets.ModelViewSet):
                 ),
             },
         )
+
+    def _get_or_create_kyb(self, company: Company) -> CompanyKybVerification:
+        kyb, _created = CompanyKybVerification.objects.get_or_create(
+            company=company,
+        )
+        return kyb
+
+    @action(detail=True, methods=['get', 'patch', 'put'], url_path='kyb')
+    def kyb(self, request, pk=None):
+        """GET/PATCH Know Your Business verification for a company."""
+        company = self.get_object()
+        record = self._get_or_create_kyb(company)
+
+        if request.method == 'GET':
+            return Response(
+                CompanyKybVerificationSerializer(
+                    record,
+                    context=self.get_serializer_context(),
+                ).data,
+            )
+
+        serializer = CompanyKybVerificationSerializer(
+            record,
+            data=request.data,
+            partial=request.method == 'PATCH',
+            context=self.get_serializer_context(),
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
