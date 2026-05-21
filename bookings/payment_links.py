@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.utils import timezone
@@ -13,7 +14,7 @@ from companies.models import Company
 
 from .models import BookingItem, BookingPaymentLink
 from .payment_pricing import PaymentLinkPricing, amount_to_centavos, compute_payment_link_pricing
-from .payment_validity import booking_has_valid_payment
+from .payment_summary import booking_is_fully_paid, booking_remaining_balance
 from .paymongo_client import PayMongoError, create_checkout_session, paymongo_configured
 
 
@@ -34,6 +35,7 @@ def public_payment_url(token: uuid.UUID | str) -> str:
 def create_booking_payment_link(
     booking: BookingItem,
     *,
+    charge_base_amount=None,
     created_by=None,
     expires_in_days: int = 14,
 ) -> BookingPaymentLink:
@@ -50,11 +52,26 @@ def create_booking_payment_link(
             'Live payments are not enabled. Complete KYB verification first.',
         )
 
-    if booking_has_valid_payment(booking.pk):
-        raise PaymentLinkError('This booking already has a successful payment.')
+    if booking_is_fully_paid(booking):
+        raise PaymentLinkError('This booking is already fully paid.')
+
+    remaining = booking_remaining_balance(booking)
+    if charge_base_amount is None:
+        base_amount = booking.required_downpayment_amount or Decimal('0')
+        if base_amount <= Decimal('0'):
+            base_amount = remaining
+    else:
+        base_amount = Decimal(str(charge_base_amount))
+
+    if base_amount <= Decimal('0'):
+        raise PaymentLinkError('Payment amount must be greater than zero.')
+    if base_amount > remaining:
+        raise PaymentLinkError(
+            f'Payment amount cannot exceed the remaining balance ({remaining}).',
+        )
 
     try:
-        pricing = compute_payment_link_pricing(booking.total_amount)
+        pricing = compute_payment_link_pricing(base_amount)
     except ValueError as exc:
         raise PaymentLinkError(str(exc)) from exc
 

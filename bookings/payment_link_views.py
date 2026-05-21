@@ -12,6 +12,7 @@ from planningwithyou.permissions import HasAccount, HasCompany
 from .models import BookingPaymentLink
 from .payment_link_serializers import BookingPaymentLinkSerializer
 from .payment_links import PaymentLinkError, create_booking_payment_link, serialize_public_payment_link
+from .payment_summary import booking_payment_summary
 from .paymongo_webhook import (
     handle_paymongo_webhook_event,
     normalize_paymongo_webhook_body,
@@ -27,12 +28,20 @@ class BookingPaymentLinkListCreateView(APIView):
     def get(self, request, booking_id: int):
         booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)
         links = BookingPaymentLink.objects.filter(booking=booking).order_by('-created_at')
-        return Response(BookingPaymentLinkSerializer(links, many=True).data)
+        return Response({
+            'links': BookingPaymentLinkSerializer(links, many=True).data,
+            'summary': booking_payment_summary(booking),
+        })
 
     def post(self, request, booking_id: int):
         booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)
+        amount = request.data.get('amount')
         try:
-            link = create_booking_payment_link(booking, created_by=request.user)
+            link = create_booking_payment_link(
+                booking,
+                charge_base_amount=amount,
+                created_by=request.user,
+            )
         except PaymentLinkError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(

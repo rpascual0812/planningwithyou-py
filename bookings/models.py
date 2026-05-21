@@ -55,7 +55,11 @@ class BookingItem(models.Model):
     title = models.CharField(max_length=255)
     date_of_event = models.DateTimeField(null=True, blank=True)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total_tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    required_downpayment_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+    )
     notes = models.TextField(blank=True, default='')
     pdf = models.TextField(
         blank=True,
@@ -303,6 +307,12 @@ class BookingLine(models.Model):
     field_type = models.CharField(max_length=20, choices=FIELD_TYPES, default='text')
     is_required = models.BooleanField(default=False)
     price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    required_downpayment = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
     value = models.TextField(blank=True, default='')
     options = models.JSONField(default=list, blank=True)
     sort_order = models.PositiveIntegerField(default=0)

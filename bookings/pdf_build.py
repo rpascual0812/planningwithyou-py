@@ -866,8 +866,12 @@ class BookingQuotePDF:
     def _draw_summary(self):
         assert self.c is not None
         total = self._grand_total()
-        deposit = (total / 2).quantize(Decimal('0.01'))
-        balance = total - deposit
+        deposit = (self.booking.required_downpayment_amount or Decimal('0')).quantize(
+            Decimal('0.01'),
+        )
+        if deposit > total:
+            deposit = total
+        balance = (total - deposit).quantize(Decimal('0.01'))
 
         rows: list[tuple[str, Decimal, bool]] = []
         for row in self.extra_summary_rows:

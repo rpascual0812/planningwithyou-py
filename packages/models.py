@@ -31,6 +31,11 @@ class Package(models.Model):
     )
     description = models.TextField(blank=True, default='')
     total_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    required_downpayment_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+    )
     company = models.ForeignKey(
         'companies.Company',
         on_delete=models.CASCADE,

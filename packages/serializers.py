@@ -104,6 +104,7 @@ class PackageSerializer(serializers.ModelSerializer):
             'tier_name',
             'description',
             'total_price',
+            'required_downpayment_amount',
             'company',
             'is_active',
             'items',
@@ -198,6 +199,25 @@ class PackageSerializer(serializers.ModelSerializer):
         company = company or (self.instance.company if self.instance else None)
         tier = tier or (self.instance.tier if self.instance else None)
         version = version or (self.instance.package_version if self.instance else None)
+        total_price = attrs.get('total_price')
+        if total_price is None and self.instance is not None:
+            total_price = self.instance.total_price
+        downpayment = attrs.get('required_downpayment_amount')
+        if downpayment is None and self.instance is not None:
+            downpayment = self.instance.required_downpayment_amount
+        if (
+            total_price is not None
+            and downpayment is not None
+            and downpayment >= total_price
+        ):
+            raise serializers.ValidationError(
+                {
+                    'required_downpayment_amount': (
+                        'Downpayment must be less than total price.'
+                    ),
+                },
+            )
+
         if company is not None and tier is not None and version is not None:
             is_active = attrs.get('is_active')
             if is_active is None:

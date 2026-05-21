@@ -28,6 +28,11 @@ from bookings.supplier_line import (
     package_for_supplier_booking_line,
     prepare_supplier_field_dict,
 )
+from bookings.downpayment import (
+    sum_booking_required_downpayment,
+    validate_field_value_downpayment,
+)
+from rest_framework.exceptions import ValidationError
 from bookings.supplier_capacity import supplier_booking_capacity_status
 from bookings.unique_id import allocate_booking_unique_id, format_booking_unique_id
 from countries.models import Country
@@ -624,3 +629,103 @@ class SupplierBookingCapacityTests(TestCase):
         payment = self._add_valid_payment(booking, transaction_status='failed')
         self.assertFalse(is_valid_booking_payment(payment))
         self.assertFalse(booking_has_valid_payment(booking.id))
+
+
+class BookingRequiredDownpaymentTests(TestCase):
+    def setUp(self):
+        country = Country.objects.create(
+            name='Testland',
+            iso_code='TLD',
+            iso2_code='TL',
+            currency='Peso',
+            currency_symbol='₱',
+            currency_code='PHP',
+        )
+        supplier_type = SupplierType.objects.create(name='General')
+        self.account = Account.objects.create(name='Tenant', country=country)
+        self.main = Company.objects.create(
+            account=self.account,
+            name='Main Co',
+            supplier_type=supplier_type,
+            is_main=True,
+        )
+        self.supplier = Company.objects.create(
+            account=self.account,
+            name='Supplier Co',
+            supplier_type=supplier_type,
+        )
+        self.tier = Tier.objects.create(
+            account=self.account,
+            company=self.supplier,
+            name='Gold',
+        )
+        past = timezone.now() - timedelta(days=1)
+        self.version = PackageVersion.objects.create(
+            title='V1',
+            effectivity_date=past,
+            company=self.supplier,
+            account=self.account,
+        )
+        self.package = Package.objects.create(
+            package_version=self.version,
+            tier=self.tier,
+            company=self.supplier,
+            account=self.account,
+            total_price=Decimal('1000.00'),
+            required_downpayment_amount=Decimal('250.00'),
+            is_active=True,
+        )
+        self.status = BookingStatus.objects.create(account=self.account, title='New')
+
+    def test_sum_includes_package_and_line_downpayments(self):
+        booking = BookingItem.objects.create(
+            account=self.account,
+            company=self.main,
+            status=self.status,
+            unique_id='26-0100',
+            title='Event',
+        )
+        supplier_group = BookingGroup.objects.create(booking=booking, name='Suppliers')
+        services_group = BookingGroup.objects.create(booking=booking, name='Services')
+        BookingLine.objects.create(
+            account=self.account,
+            booking=booking,
+            booking_group=supplier_group,
+            label='Venue',
+            field_type='supplier',
+            company=self.supplier,
+            tier=self.tier,
+            package_version=self.version,
+            price=Decimal('1000.00'),
+            value='',
+        )
+        BookingLine.objects.create(
+            account=self.account,
+            booking=booking,
+            booking_group=services_group,
+            label='Extras',
+            field_type='text',
+            price=Decimal('100.00'),
+            required_downpayment=Decimal('75.00'),
+            value='Rush fee',
+        )
+        total = sum_booking_required_downpayment(booking)
+        self.assertEqual(total, Decimal('325.00'))
+
+    def test_validate_line_downpayment_must_be_less_than_price(self):
+        with self.assertRaises(ValidationError):
+            validate_field_value_downpayment({
+                'field_type': 'text',
+                'price': '100.00',
+                'required_downpayment': '100.00',
+            })
+
+    def test_validate_supplier_package_downpayment_must_be_less_than_price(self):
+        with self.assertRaises(ValidationError):
+            validate_field_value_downpayment({
+                'field_type': 'supplier',
+                'company_id': self.supplier.id,
+                'tier_id': self.tier.id,
+                'package_version_id': self.version.id,
+                'price': '200.00',
+            })

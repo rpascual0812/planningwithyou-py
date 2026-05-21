@@ -20,7 +20,15 @@ from .models import (
     FormTemplateField,
     FormTemplateFieldOption,
 )
-from .supplier_line import prepare_supplier_field_dict, supplier_value_json_for_line
+from .downpayment import (
+    sum_booking_required_downpayment,
+    validate_field_value_downpayment,
+)
+from .supplier_line import (
+    package_for_supplier_booking_line,
+    prepare_supplier_field_dict,
+    supplier_value_json_for_line,
+)
 from .unique_id import allocate_booking_unique_id
 
 DEFAULT_BOOKING_GROUP_NAME = 'Suppliers'
@@ -50,6 +58,7 @@ class BookingLineSerializer(serializers.ModelSerializer):
             'field_type',
             'is_required',
             'price',
+            'required_downpayment',
             'value',
             'options',
             'sort_order',
@@ -83,6 +92,13 @@ class BookingLineSerializer(serializers.ModelSerializer):
                 )
             else:
                 data['company_logo_url'] = ''
+            package = package_for_supplier_booking_line(instance)
+            if package is not None:
+                data['package_required_downpayment_amount'] = str(
+                    package.required_downpayment_amount,
+                )
+            else:
+                data['package_required_downpayment_amount'] = '0'
         return data
 
 
@@ -100,7 +116,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         model = BookingItem
         fields = [
             'id', 'unique_id', 'company', 'status', 'contact', 'title', 'date_of_event',
-            'total_amount', 'total_tax',
+            'total_amount', 'required_downpayment_amount',
             'groups', 'field_values', 'notes', 'sort_order', 'created_by',
             'pdf_url', 'created_at', 'updated_at',
         ]
@@ -162,10 +178,17 @@ class BookingItemSerializer(serializers.ModelSerializer):
         )
         return group
 
+    def _refresh_required_downpayment_amount(self, booking):
+        total = sum_booking_required_downpayment(booking)
+        if booking.required_downpayment_amount != total:
+            booking.required_downpayment_amount = total
+            booking.save(update_fields=['required_downpayment_amount', 'updated_at'])
+
     def _save_field_values(self, booking, field_values_data):
         for idx, fv in enumerate(field_values_data):
             fv.setdefault('sort_order', idx)
             prepare_supplier_field_dict(fv)
+            validate_field_value_downpayment(fv)
             booking_group = self._resolve_booking_group(booking, fv)
             BookingLine.objects.create(
                 booking=booking,
@@ -202,15 +225,16 @@ class BookingItemSerializer(serializers.ModelSerializer):
         request = self.context['request']
         booking_status = validated_data['status']
         account_id = booking_status.account_id
-        company_id = request.user.company_id
+        company_id = validated_data.get('company_id') or request.user.company_id
         validated_data['unique_id'] = allocate_booking_unique_id(company_id, account_id)
+        validated_data.setdefault('company_id', company_id)
         booking = BookingItem.objects.create(
             **validated_data,
             account_id=account_id,
-            company_id=company_id,
         )
         self._save_groups(booking, groups_data)
         self._save_field_values(booking, field_values_data)
+        self._refresh_required_downpayment_amount(booking)
         self._enqueue_pdf_generation(booking)
         return booking
 
@@ -230,6 +254,8 @@ class BookingItemSerializer(serializers.ModelSerializer):
         elif groups_data is not None:
             instance.groups.all().delete()
             self._save_groups(instance, groups_data)
+        if field_values_data is not None:
+            self._refresh_required_downpayment_amount(instance)
         self._enqueue_pdf_generation(instance)
         return instance
 

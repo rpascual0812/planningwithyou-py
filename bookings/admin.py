@@ -53,7 +53,7 @@ class BookingItemAdmin(admin.ModelAdmin):
         'title',
         'status',
         'total_amount',
-        'total_tax',
+        'required_downpayment_amount',
         'created_by',
         'sort_order',
         'created_at',

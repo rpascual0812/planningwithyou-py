@@ -90,6 +90,26 @@ def _original_prices_by_tier_id(*, company_id, account_id):
     return {row['tier_id']: row['total_price'] for row in rows}
 
 
+def _required_downpayment_by_tier_id(*, company_id, account_id):
+    """Active package required_downpayment_amount per tier for the current version."""
+    version = _current_package_version_for_company(
+        company_id=company_id,
+        account_id=account_id,
+    )
+    if version is None:
+        return {}
+    rows = Package.objects.filter(
+        company_id=company_id,
+        package_version_id=version.id,
+        is_active=True,
+        deleted_at__isnull=True,
+    ).values('tier_id', 'required_downpayment_amount')
+    return {
+        row['tier_id']: row['required_downpayment_amount']
+        for row in rows
+    }
+
+
 def parse_price_value(value):
     if value is None or value == '':
         return None
@@ -286,6 +306,21 @@ def get_supplier_company_tier_options(
         .select_related('tier')
         .order_by('tier__name', 'id')
     )
+    from companies.models import Company
+
+    supplier_account_id = (
+        Company.objects.filter(pk=supplier_company_id)
+        .values_list('account_id', flat=True)
+        .first()
+    )
+    downpayment_by_tier = (
+        _required_downpayment_by_tier_id(
+            company_id=supplier_company_id,
+            account_id=supplier_account_id,
+        )
+        if supplier_account_id is not None
+        else {}
+    )
     result = []
     for row in rows:
         tier = row.tier
@@ -302,6 +337,9 @@ def get_supplier_company_tier_options(
             'price_override': _decimal_to_api(row.price_override),
             'tax': _decimal_to_api(row.tax),
             'price': _decimal_to_api(row.price),
+            'required_downpayment_amount': _decimal_to_api(
+                downpayment_by_tier.get(tier.id),
+            ),
         })
     return result
 
