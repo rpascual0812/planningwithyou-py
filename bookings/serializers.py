@@ -1,7 +1,11 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from planningwithyou.file_storage import absolute_file_url, booking_pdf_file_url
+from planningwithyou.file_storage import (
+    absolute_file_url,
+    booking_pdf_file_url,
+    company_logo_public_url,
+)
 
 from .tasks import generate_booking_pdf_task
 
@@ -63,9 +67,22 @@ class BookingLineSerializer(serializers.ModelSerializer):
             data['booking_group_id'] = instance.booking_group_id
         if instance.field_type == 'supplier':
             data['value'] = supplier_value_json_for_line(instance)
-            data['company'] = instance.company_id
+            company_id = instance.company_id
+            data['company'] = company_id
             data['tier'] = instance.tier_id
             data['package_version'] = instance.package_version_id
+            if company_id:
+                logo_stored = ''
+                company = getattr(instance, 'company', None)
+                if company is not None:
+                    logo_stored = company.logo or ''
+                data['company_logo_url'] = company_logo_public_url(
+                    logo_stored,
+                    company_id,
+                    request=self.context.get('request'),
+                )
+            else:
+                data['company_logo_url'] = ''
         return data
 
 
@@ -83,6 +100,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         model = BookingItem
         fields = [
             'id', 'unique_id', 'company', 'status', 'contact', 'title', 'date_of_event',
+            'total_amount', 'total_tax',
             'groups', 'field_values', 'notes', 'sort_order', 'created_by',
             'pdf_url', 'created_at', 'updated_at',
         ]

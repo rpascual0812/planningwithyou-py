@@ -54,6 +54,8 @@ class BookingItem(models.Model):
     unique_id = models.CharField(max_length=7)
     title = models.CharField(max_length=255)
     date_of_event = models.DateTimeField(null=True, blank=True)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     notes = models.TextField(blank=True, default='')
     pdf = models.TextField(
         blank=True,

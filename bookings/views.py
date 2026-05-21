@@ -58,6 +58,7 @@ class BookingItemViewSet(viewsets.ModelViewSet):
         qs = bookings_for_user(self.request.user).prefetch_related(
             'groups',
             'lines__booking_group',
+            'lines__company',
         )
         status_id = self.request.query_params.get('status')
         if status_id:
