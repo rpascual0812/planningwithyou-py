@@ -78,6 +78,11 @@ class CompanySerializer(serializers.ModelSerializer):
     currency_code = serializers.SerializerMethodField()
     logo_url = serializers.SerializerMethodField()
     logo_upload = serializers.FileField(write_only=True, required=False, allow_null=True)
+    max_bookings_per_day = serializers.IntegerField(
+        required=False,
+        default=1,
+        min_value=1,
+    )
 
     class Meta:
         model = Company
@@ -98,6 +103,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'is_active',
             'is_main',
             'kyb_verified',
+            'max_bookings_per_day',
             'logo',
             'logo_upload',
             'logo_url',

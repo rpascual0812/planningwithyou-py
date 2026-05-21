@@ -42,6 +42,7 @@ class Company(models.Model):
         default=False,
         help_text='Set when KYB verification is approved; required for live payments.',
     )
+    max_bookings_per_day = models.PositiveIntegerField(default=1)
     logo = models.CharField(
         max_length=512,
         blank=True,

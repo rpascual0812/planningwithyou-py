@@ -1,12 +1,15 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from companies.models import Company
 from planningwithyou.permissions import HasAccount, HasCompany
 
 from .models import BookingGroup, BookingItem, BookingStatus, FormTemplate
+from .supplier_capacity import supplier_booking_capacity_status
 from .scope import bookings_for_user
 from .serializers import (
     BookingItemSerializer,
@@ -142,6 +145,36 @@ class BookingItemViewSet(viewsets.ModelViewSet):
             if fields:
                 base_qs.filter(pk=item_id).update(**fields)
         return Response({'status': 'ok'})
+
+
+class SupplierBookingCapacityQuerySerializer(serializers.Serializer):
+    supplier_id = serializers.IntegerField()
+    date_of_event = serializers.DateField()
+    exclude_booking_id = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate_supplier_id(self, value):
+        if not Company.objects.filter(pk=value, deleted_at__isnull=True).exists():
+            raise serializers.ValidationError('Supplier company not found.')
+        return value
+
+
+class SupplierBookingCapacityView(APIView):
+    """Check whether a supplier has reached ``max_bookings_per_day`` for a date."""
+
+    permission_classes = [IsAuthenticated, HasAccount]
+
+    def get(self, request):
+        query = SupplierBookingCapacityQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        data = query.validated_data
+        return Response(
+            supplier_booking_capacity_status(
+                request.user.account_id,
+                data['supplier_id'],
+                data['date_of_event'],
+                exclude_booking_id=data.get('exclude_booking_id'),
+            ),
+        )
 
 
 class FormTemplateViewSet(viewsets.ModelViewSet):

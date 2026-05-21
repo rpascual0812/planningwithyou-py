@@ -5,7 +5,14 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
 
-from bookings.models import BookingGroup, BookingItem, BookingLine, BookingStatus
+from bookings.models import (
+    BookingGroup,
+    BookingItem,
+    BookingLine,
+    BookingPayment,
+    BookingStatus,
+)
+from bookings.payment_validity import booking_has_valid_payment, is_valid_booking_payment
 from companies.models import Company
 from bookings.pdf_build import (
     _currency_for_account,
@@ -21,6 +28,7 @@ from bookings.supplier_line import (
     package_for_supplier_booking_line,
     prepare_supplier_field_dict,
 )
+from bookings.supplier_capacity import supplier_booking_capacity_status
 from bookings.unique_id import allocate_booking_unique_id, format_booking_unique_id
 from countries.models import Country
 from packages.models import Package, PackageItem, PackageVersion
@@ -509,3 +517,110 @@ class BookingPdfPackageItemsTests(TestCase):
         self.assertIsNone(
             resolve_active_package_for_supplier_tier(self.supplier.id, foreign_tier.id),
         )
+
+
+class SupplierBookingCapacityTests(TestCase):
+    def setUp(self):
+        country = Country.objects.create(
+            name='Testland',
+            iso_code='TLD',
+            iso2_code='TL',
+            currency='Dollar',
+            currency_symbol='$',
+            currency_code='USD',
+        )
+        supplier_type = SupplierType.objects.create(name='General')
+        self.account = Account.objects.create(name='Tenant', country=country)
+        self.tenant_company = Company.objects.create(
+            account=self.account,
+            name='Tenant Co',
+            supplier_type=supplier_type,
+            is_main=True,
+        )
+        self.supplier = Company.objects.create(
+            account=self.account,
+            name='Florist',
+            supplier_type=supplier_type,
+            max_bookings_per_day=1,
+        )
+        self.status = BookingStatus.objects.create(
+            account=self.account,
+            title='New',
+        )
+        self.event_day = timezone.datetime(2026, 6, 15, 14, 0, tzinfo=timezone.utc)
+        self.group_name = 'Services'
+
+    def _booking_with_supplier_line(self, *, supplier=None, when=None):
+        supplier = supplier or self.supplier
+        when = when or self.event_day
+        booking = BookingItem.objects.create(
+            account=self.account,
+            company=self.tenant_company,
+            status=self.status,
+            unique_id='26-0099',
+            title='Event',
+            date_of_event=when,
+        )
+        group = BookingGroup.objects.create(booking=booking, name=self.group_name)
+        BookingLine.objects.create(
+            account=self.account,
+            booking=booking,
+            booking_group=group,
+            company=supplier,
+            label='Florist',
+            field_type='supplier',
+            value='',
+        )
+        return booking
+
+    def _add_valid_payment(self, booking, **kwargs):
+        defaults = {
+            'account': self.account,
+            'company': self.tenant_company,
+            'amount': Decimal('100.00'),
+            'tax': Decimal('0'),
+            'transaction_status': 'succeeded',
+            'transaction_id': 'txn_test',
+        }
+        defaults.update(kwargs)
+        return BookingPayment.objects.create(booking=booking, **defaults)
+
+    def test_unpaid_booking_does_not_count_toward_capacity(self):
+        self._booking_with_supplier_line()
+        status = supplier_booking_capacity_status(
+            self.account.id,
+            self.supplier.id,
+            self.event_day.date(),
+        )
+        self.assertFalse(status['at_capacity'])
+        self.assertEqual(status['booking_count'], 0)
+
+    def test_at_capacity_when_paid_booking_reaches_max(self):
+        booking = self._booking_with_supplier_line()
+        self._add_valid_payment(booking)
+        status = supplier_booking_capacity_status(
+            self.account.id,
+            self.supplier.id,
+            self.event_day.date(),
+        )
+        self.assertTrue(status['at_capacity'])
+        self.assertFalse(status['available'])
+        self.assertEqual(status['booking_count'], 1)
+
+    def test_exclude_current_booking_when_editing(self):
+        booking = self._booking_with_supplier_line()
+        self._add_valid_payment(booking)
+        status = supplier_booking_capacity_status(
+            self.account.id,
+            self.supplier.id,
+            self.event_day.date(),
+            exclude_booking_id=booking.id,
+        )
+        self.assertFalse(status['at_capacity'])
+        self.assertEqual(status['booking_count'], 0)
+
+    def test_failed_payment_is_not_valid(self):
+        booking = self._booking_with_supplier_line()
+        payment = self._add_valid_payment(booking, transaction_status='failed')
+        self.assertFalse(is_valid_booking_payment(payment))
+        self.assertFalse(booking_has_valid_payment(booking.id))

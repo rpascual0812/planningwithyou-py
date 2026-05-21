@@ -239,6 +239,7 @@ def get_booking_supplier_options(
             'id': supplier.id,
             'name': supplier.name,
             'supplier_type_id': supplier.supplier_type_id,
+            'kyb_verified': supplier.kyb_verified,
         })
 
     if include_supplier_id is not None and include_supplier_id not in seen_ids:
@@ -257,6 +258,7 @@ def get_booking_supplier_options(
                     'id': company.id,
                     'name': company.name,
                     'supplier_type_id': company.supplier_type_id,
+                    'kyb_verified': company.kyb_verified,
                 },
             )
     return results

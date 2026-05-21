@@ -86,6 +86,45 @@ class BookingItem(models.Model):
         return self.unique_id or self.title
 
 
+class BookingPayment(models.Model):
+    booking = models.ForeignKey(
+        BookingItem,
+        on_delete=models.CASCADE,
+        related_name='payments',
+        db_column='booking_id',
+    )
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.PROTECT,
+        db_column='company_id',
+        related_name='booking_payments',
+    )
+    payment_method = models.CharField(max_length=63, blank=True, default='')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    transaction_id = models.CharField(max_length=255, blank=True, default='')
+    transaction_status = models.CharField(max_length=63, blank=True, default='', db_index=True)
+    notes = models.TextField(blank=True, default='')
+    api_response = models.JSONField(null=True, blank=True, default=None)
+    transaction_date = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'booking_payments'
+        ordering = ['-transaction_date', '-created_at']
+
+    def __str__(self):
+        return f'Payment {self.pk} booking={self.booking_id}'
+
+
 class BookingUniqueIdSequence(models.Model):
     """Per-company, per-year counter for ``BookingItem.unique_id`` (YY-####)."""
 

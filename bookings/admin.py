@@ -2,12 +2,28 @@ from django.contrib import admin
 
 from .models import (
     BookingItem,
+    BookingPayment,
     BookingStatus,
     BookingUniqueIdSequence,
     FormTemplate,
     FormTemplateField,
     FormTemplateFieldOption,
 )
+
+
+class BookingPaymentInline(admin.TabularInline):
+    model = BookingPayment
+    extra = 0
+    fields = [
+        'payment_method',
+        'amount',
+        'tax',
+        'transaction_status',
+        'transaction_id',
+        'transaction_date',
+    ]
+    readonly_fields = ['created_at']
+    ordering = ['-transaction_date', '-created_at']
 
 
 class BookingItemInline(admin.TabularInline):
@@ -35,6 +51,25 @@ class BookingItemAdmin(admin.ModelAdmin):
     search_fields = ['unique_id', 'title']
     list_filter = ['status']
     ordering = ['sort_order', 'id']
+    inlines = [BookingPaymentInline]
+
+
+@admin.register(BookingPayment)
+class BookingPaymentAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'booking',
+        'payment_method',
+        'amount',
+        'transaction_status',
+        'transaction_date',
+        'company',
+        'created_at',
+    ]
+    list_filter = ['transaction_status', 'payment_method', 'company']
+    search_fields = ['transaction_id', 'booking__unique_id', 'booking__title']
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['booking', 'company', 'account']
 
 
 class FormTemplateFieldOptionInline(admin.TabularInline):
