@@ -12,7 +12,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import BookingPayment, BookingPaymentLink
-from .payment_validity import booking_has_valid_payment
+from .paymongo_client import PayMongoError, retrieve_checkout_session, retrieve_payment
+
+# PayMongo payment ``attributes.status`` values that mark the link as collected.
+_PAYMONGO_LINK_PAID_STATUSES = frozenset({'paid', 'succeeded'})
 
 
 def verify_paymongo_signature(payload: bytes, signature_header: str | None) -> bool:
@@ -52,42 +55,246 @@ def _payment_link_from_metadata(metadata: dict) -> BookingPaymentLink | None:
     )
 
 
-def _mark_link_paid(
+def _resolve_payment_link(
+    metadata: dict,
+    checkout_session_id: str = '',
+) -> BookingPaymentLink | None:
+    link = _payment_link_from_metadata(metadata)
+    if link is not None:
+        return link
+    session_id = (checkout_session_id or '').strip()
+    if not session_id:
+        return None
+    return (
+        BookingPaymentLink.objects.select_related('booking', 'company')
+        .filter(paymongo_checkout_session_id=session_id)
+        .first()
+    )
+
+
+def _amount_php_from_paymongo_attributes(attrs: dict) -> Decimal | None:
+    """Convert PayMongo amount (centavos) to PHP decimal."""
+    raw = attrs.get('amount')
+    if raw is None or raw == '':
+        return None
+    try:
+        return (Decimal(str(raw)) / Decimal('100')).quantize(Decimal('0.01'))
+    except Exception:
+        return None
+
+
+def _payment_method_from_attributes(attrs: dict, resource_type: str = '') -> str:
+    source = attrs.get('source')
+    source_type = source.get('type') if isinstance(source, dict) else ''
+    return (
+        (attrs.get('payment_method_type') or source_type or resource_type or 'paymongo')
+    ).strip() or 'paymongo'
+
+
+def _payment_id_from_resource(resource: dict) -> str:
+    return str(resource.get('id') or '').strip()
+
+
+def _payment_status_from_attributes(attrs: dict, *, fallback: str = '') -> str:
+    status = (attrs.get('status') or fallback or '').strip()
+    return status or 'unknown'
+
+
+def _extract_payment_from_event(event: dict) -> dict | None:
+    """
+    Parse PayMongo payment id and status from a webhook event.
+
+    Returns dict with keys: payment_id, status, amount, payment_method, metadata,
+    checkout_session_id, resource (raw payment data object).
+    """
+    data = event.get('data')
+    if not isinstance(data, dict):
+        return None
+    event_attrs = data.get('attributes')
+    if not isinstance(event_attrs, dict):
+        return None
+
+    event_type = (event.get('type') or event_attrs.get('type') or '').strip()
+    resource = event_attrs.get('data')
+    if not isinstance(resource, dict):
+        return None
+
+    resource_type = (resource.get('type') or '').strip()
+    resource_attrs = resource.get('attributes')
+    if not isinstance(resource_attrs, dict):
+        resource_attrs = {}
+
+    metadata = resource_attrs.get('metadata') or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    if not metadata and isinstance(event_attrs.get('metadata'), dict):
+        metadata = event_attrs['metadata']
+
+    checkout_session_id = (resource_attrs.get('checkout_session_id') or '').strip()
+
+    if resource_type == 'payment':
+        payment_id = _payment_id_from_resource(resource)
+        if not payment_id:
+            return None
+        return {
+            'payment_id': payment_id,
+            'status': _payment_status_from_attributes(resource_attrs),
+            'amount': _amount_php_from_paymongo_attributes(resource_attrs),
+            'payment_method': _payment_method_from_attributes(resource_attrs, 'payment'),
+            'metadata': metadata,
+            'checkout_session_id': checkout_session_id,
+            'event_type': event_type,
+            'resource': resource,
+        }
+
+    if resource_type == 'checkout_session' and event_type == 'checkout.session.completed':
+        session_id = _payment_id_from_resource(resource)
+        return _extract_payment_from_checkout_session(
+            session_id,
+            metadata=metadata,
+            event_type=event_type,
+            session_resource=resource,
+        )
+
+    return None
+
+
+def _extract_payment_from_checkout_session(
+    session_id: str,
+    *,
+    metadata: dict,
+    event_type: str = '',
+    session_resource: dict | None = None,
+) -> dict | None:
+    """Resolve payment id/status via checkout session (PayMongo API)."""
+    if not session_id:
+        return None
+    try:
+        session = retrieve_checkout_session(session_id)
+    except PayMongoError:
+        return None
+
+    session_attrs = session.get('attributes')
+    if not isinstance(session_attrs, dict):
+        session_attrs = {}
+
+    if not metadata and isinstance(session_attrs.get('metadata'), dict):
+        metadata = session_attrs['metadata']
+
+    payment_ids: list[str] = []
+    payments = session_attrs.get('payments')
+    if isinstance(payments, list):
+        for entry in payments:
+            if isinstance(entry, dict):
+                pid = _payment_id_from_resource(entry)
+            else:
+                pid = str(entry or '').strip()
+            if pid:
+                payment_ids.append(pid)
+
+    payment_id = payment_ids[-1] if payment_ids else ''
+    if not payment_id:
+        return None
+
+    try:
+        payment = retrieve_payment(payment_id)
+    except PayMongoError:
+        return None
+
+    payment_attrs = payment.get('attributes')
+    if not isinstance(payment_attrs, dict):
+        payment_attrs = {}
+
+    return {
+        'payment_id': payment_id,
+        'status': _payment_status_from_attributes(payment_attrs),
+        'amount': _amount_php_from_paymongo_attributes(payment_attrs),
+        'payment_method': _payment_method_from_attributes(payment_attrs, 'payment'),
+        'metadata': metadata,
+        'checkout_session_id': session_id,
+        'event_type': event_type,
+        'resource': payment,
+        'session_resource': session_resource or session,
+    }
+
+
+@transaction.atomic
+def _record_booking_payment(
     link: BookingPaymentLink,
     *,
     transaction_id: str,
+    transaction_status: str,
     payment_method: str,
+    amount: Decimal | None,
     api_response: dict,
-) -> BookingPayment | None:
-    if link.status == BookingPaymentLink.Status.PAID:
-        return (
+) -> BookingPayment:
+    """Persist PayMongo payment details on ``booking_payments`` (upsert by payment id)."""
+    payment_id = (transaction_id or '').strip()
+    status = (transaction_status or 'unknown').strip()
+    now = timezone.now()
+
+    charge_amount = amount if amount is not None else link.charge_amount
+    if charge_amount is None:
+        charge_amount = Decimal('0')
+
+    notes = f'PayMongo payment {payment_id or "—"} (link #{link.pk})'
+
+    existing = None
+    if payment_id:
+        existing = (
             BookingPayment.objects.filter(
                 booking_id=link.booking_id,
+                transaction_id=payment_id,
                 deleted_at__isnull=True,
-                transaction_status__iexact='paid',
             )
             .order_by('-id')
             .first()
         )
 
-    now = timezone.now()
-    link.status = BookingPaymentLink.Status.PAID
-    link.paid_at = now
-    link.save(update_fields=['status', 'paid_at', 'updated_at'])
+    if existing is not None:
+        existing.transaction_status = status
+        existing.payment_method = payment_method or existing.payment_method
+        existing.amount = charge_amount
+        existing.api_response = api_response
+        existing.transaction_date = now
+        existing.notes = notes
+        existing.save(
+            update_fields=[
+                'transaction_status',
+                'payment_method',
+                'amount',
+                'api_response',
+                'transaction_date',
+                'notes',
+                'updated_at',
+            ],
+        )
+        payment = existing
+    else:
+        payment = BookingPayment.objects.create(
+            booking_id=link.booking_id,
+            account_id=link.account_id,
+            company_id=link.company_id,
+            payment_method=payment_method or 'paymongo',
+            amount=charge_amount,
+            tax=Decimal('0'),
+            transaction_id=payment_id,
+            transaction_status=status,
+            notes=notes,
+            api_response=api_response,
+            transaction_date=now,
+        )
 
-    payment = BookingPayment.objects.create(
-        booking_id=link.booking_id,
-        account_id=link.account_id,
-        company_id=link.company_id,
-        payment_method=payment_method or 'paymongo',
-        amount=link.charge_amount,
-        tax=Decimal('0'),
-        transaction_id=transaction_id,
-        transaction_status='paid',
-        notes=f'PayMongo checkout link #{link.pk}',
-        api_response=api_response,
-        transaction_date=now,
-    )
+    status_lower = status.lower()
+    if status_lower in _PAYMONGO_LINK_PAID_STATUSES:
+        if link.status != BookingPaymentLink.Status.PAID:
+            link.status = BookingPaymentLink.Status.PAID
+            link.paid_at = now
+            link.save(update_fields=['status', 'paid_at', 'updated_at'])
+    elif status_lower in {'failed', 'cancelled', 'canceled'}:
+        if link.status == BookingPaymentLink.Status.PENDING:
+            link.save(update_fields=['updated_at'])
+
     return payment
 
 
@@ -107,8 +314,6 @@ def normalize_paymongo_webhook_body(body: dict) -> list[dict]:
     event_type = (attrs.get('type') or root_data.get('type') or body.get('type') or '').strip()
     nested = attrs.get('data')
     metadata: dict = {}
-    transaction_id = ''
-    payment_method = ''
     checkout_session_id = ''
 
     if isinstance(nested, dict):
@@ -117,29 +322,20 @@ def normalize_paymongo_webhook_body(body: dict) -> list[dict]:
             metadata = nested_attrs.get('metadata') or {}
             if not isinstance(metadata, dict):
                 metadata = {}
-            source = nested_attrs.get('source')
-            source_type = source.get('type') if isinstance(source, dict) else ''
-            payment_method = (
-                nested_attrs.get('payment_method_type')
-                or source_type
-                or nested.get('type')
-                or ''
-            )
-            checkout_session_id = nested_attrs.get('checkout_session_id') or ''
-        transaction_id = nested.get('id') or ''
-
-    if not metadata and isinstance(attrs.get('metadata'), dict):
-        metadata = attrs['metadata']
+            checkout_session_id = (nested_attrs.get('checkout_session_id') or '').strip()
+        elif isinstance(attrs.get('metadata'), dict):
+            metadata = attrs['metadata']
 
     events.append(
         {
             'type': event_type,
             'data': {
-                'id': transaction_id or root_data.get('id'),
+                'id': nested.get('id') if isinstance(nested, dict) else root_data.get('id'),
                 'attributes': {
+                    'type': event_type,
                     'metadata': metadata,
-                    'payment_method_type': payment_method,
                     'checkout_session_id': checkout_session_id,
+                    'data': nested,
                 },
             },
         },
@@ -150,58 +346,42 @@ def normalize_paymongo_webhook_body(body: dict) -> list[dict]:
 @transaction.atomic
 def handle_paymongo_webhook_event(event: dict) -> bool:
     """
-    Process a PayMongo webhook event dict. Returns True when handled.
+    Process a PayMongo webhook event. Always records ``booking_payments`` when a
+    payment id and status are present, regardless of outcome.
     """
-    data = event.get('data')
-    if not isinstance(data, dict):
-        return False
-    attributes = data.get('attributes')
-    if not isinstance(attributes, dict):
+    payment_info = _extract_payment_from_event(event)
+    if payment_info is None:
         return False
 
-    event_type = (event.get('type') or attributes.get('type') or '').strip()
-    metadata = attributes.get('metadata') or {}
-    if not isinstance(metadata, dict):
-        metadata = {}
-
-    link = _payment_link_from_metadata(metadata)
-    if link is None and attributes.get('checkout_session_id'):
-        link = (
-            BookingPaymentLink.objects.select_related('booking')
-            .filter(paymongo_checkout_session_id=attributes.get('checkout_session_id'))
-            .first()
-        )
+    link = _resolve_payment_link(
+        payment_info.get('metadata') or {},
+        payment_info.get('checkout_session_id') or '',
+    )
     if link is None:
         return False
 
-    paid_types = {
-        'checkout.session.completed',
-        'payment.paid',
-        'payment.succeeded',
-    }
-    if event_type not in paid_types:
-        return False
-
-    if link.status == BookingPaymentLink.Status.PAID:
-        return True
-
-    if link.expires_at and link.expires_at < timezone.now():
+    if (
+        link.expires_at
+        and link.expires_at < timezone.now()
+        and link.status == BookingPaymentLink.Status.PENDING
+        and payment_info['status'].lower() not in _PAYMONGO_LINK_PAID_STATUSES
+    ):
         link.status = BookingPaymentLink.Status.EXPIRED
         link.save(update_fields=['status', 'updated_at'])
-        return False
 
-    transaction_id = (
-        attributes.get('payment_id')
-        or attributes.get('payment_intent_id')
-        or data.get('id')
-        or ''
-    )
-    payment_method = attributes.get('payment_method_type') or attributes.get('type') or 'paymongo'
-    _mark_link_paid(
+    api_response = {
+        'event': event,
+        'payment': payment_info.get('resource'),
+        'session': payment_info.get('session_resource'),
+    }
+
+    _record_booking_payment(
         link,
-        transaction_id=str(transaction_id),
-        payment_method=str(payment_method),
-        api_response=event,
+        transaction_id=payment_info['payment_id'],
+        transaction_status=payment_info['status'],
+        payment_method=payment_info['payment_method'],
+        amount=payment_info.get('amount'),
+        api_response=api_response,
     )
     return True
 

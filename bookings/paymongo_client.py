@@ -119,3 +119,12 @@ def retrieve_checkout_session(session_id: str) -> dict:
     if not isinstance(data, dict):
         raise PayMongoError('Unexpected PayMongo checkout response.')
     return data
+
+
+def retrieve_payment(payment_id: str) -> dict:
+    """Retrieve a PayMongo payment resource (``data`` object)."""
+    response = _request('GET', f'/payments/{payment_id}')
+    data = response.get('data')
+    if not isinstance(data, dict):
+        raise PayMongoError('Unexpected PayMongo payment response.')
+    return data

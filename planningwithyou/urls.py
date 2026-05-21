@@ -19,7 +19,11 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from planningwithyou.redirects import redirect_pay_to_frontend, redirect_root_to_frontend
+
 urlpatterns = [
+    path('', redirect_root_to_frontend),
+    path('pay/<uuid:token>/', redirect_pay_to_frontend),
     path('admin/', admin.site.urls),
     path('api/', include('planningwithyou.file_urls')),
     path('api/', include('users.urls')),
