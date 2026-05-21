@@ -109,6 +109,10 @@ class EmailTemplate(models.Model):
         db_column='type',
     )
     is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(
+        default=False,
+        help_text='System-seeded templates; not deletable from the app.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)

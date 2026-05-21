@@ -18,7 +18,7 @@ class EmailLogAdmin(admin.ModelAdmin):
 class EmailTemplateAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'name', 'title', 'subject', 'template_type', 'company',
-        'is_active', 'deleted_at', 'updated_at',
+        'is_active', 'is_default', 'deleted_at', 'updated_at',
     )
-    list_filter = ('template_type', 'is_active', 'company')
+    list_filter = ('template_type', 'is_active', 'is_default', 'company')
     search_fields = ('name', 'title', 'subject', 'body')

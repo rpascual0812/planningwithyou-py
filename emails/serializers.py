@@ -64,9 +64,12 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
         model = EmailTemplate
         fields = [
             'id', 'name', 'title', 'subject', 'body', 'type', 'is_active',
+            'is_default',
             'company_id', 'created_at', 'updated_at', 'deleted_at',
         ]
-        read_only_fields = ['id', 'type', 'created_at', 'updated_at', 'deleted_at']
+        read_only_fields = [
+            'id', 'type', 'is_default', 'created_at', 'updated_at', 'deleted_at',
+        ]
 
     def validate_company_id(self, value):
         if value is None:

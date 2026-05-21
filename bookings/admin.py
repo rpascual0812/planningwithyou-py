@@ -3,6 +3,7 @@ from django.contrib import admin
 from .models import (
     BookingItem,
     BookingPayment,
+    BookingPaymentLink,
     BookingStatus,
     BookingUniqueIdSequence,
     FormTemplate,
@@ -61,6 +62,25 @@ class BookingItemAdmin(admin.ModelAdmin):
     list_filter = ['status']
     ordering = ['sort_order', 'id']
     inlines = [BookingPaymentInline]
+
+
+@admin.register(BookingPaymentLink)
+class BookingPaymentLinkAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'booking',
+        'status',
+        'charge_amount',
+        'base_amount',
+        'public_token',
+        'expires_at',
+        'paid_at',
+        'created_at',
+    ]
+    list_filter = ['status', 'company']
+    search_fields = ['public_token', 'booking__unique_id', 'paymongo_checkout_session_id']
+    readonly_fields = ['created_at', 'updated_at', 'public_token']
+    raw_id_fields = ['booking', 'company', 'account', 'created_by']
 
 
 @admin.register(BookingPayment)

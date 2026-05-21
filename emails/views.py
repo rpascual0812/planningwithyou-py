@@ -99,12 +99,28 @@ class EmailTypedTemplateViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        company_id = serializer.validated_data.get('company_id')
+        if company_id is None:
+            company_id = self.request.user.company_id
         serializer.save(
             template_type=self.template_type,
             account_id=self.request.user.account_id,
+            company_id=company_id,
+            is_default=False,
         )
 
+    def perform_update(self, serializer):
+        company_id = serializer.validated_data.get('company_id')
+        if company_id is None and self.request.user.company_id:
+            serializer.save(company_id=self.request.user.company_id)
+        else:
+            serializer.save()
+
     def perform_destroy(self, instance):
+        if instance.is_default:
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied('Default email templates cannot be deleted.')
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at', 'updated_at'])
 

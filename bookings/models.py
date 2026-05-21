@@ -127,6 +127,67 @@ class BookingPayment(models.Model):
         return f'Payment {self.pk} booking={self.booking_id}'
 
 
+class BookingPaymentLink(models.Model):
+    """Public PayMongo checkout link for a booking (platform merchant account)."""
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        PAID = 'paid', 'Paid'
+        EXPIRED = 'expired', 'Expired'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    booking = models.ForeignKey(
+        BookingItem,
+        on_delete=models.CASCADE,
+        related_name='payment_links',
+        db_column='booking_id',
+    )
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.PROTECT,
+        db_column='company_id',
+        related_name='booking_payment_links',
+    )
+    public_token = models.UUIDField(unique=True, db_index=True)
+    paymongo_checkout_session_id = models.CharField(max_length=255, blank=True, default='')
+    paymongo_checkout_url = models.URLField(max_length=2048, blank=True, default='')
+    base_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    platform_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    processing_fee_estimate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    charge_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='PHP')
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    expires_at = models.DateTimeField()
+    paid_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='booking_payment_links_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'booking_payment_links'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Payment link {self.public_token} booking={self.booking_id}'
+
+
 class BookingUniqueIdSequence(models.Model):
     """Per-company, per-year counter for ``BookingItem.unique_id`` (YY-####)."""
 

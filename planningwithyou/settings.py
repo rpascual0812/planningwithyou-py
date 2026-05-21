@@ -235,6 +235,10 @@ MAILJET_SENDER_NAME = os.environ.get('MAILJET_SENDER_NAME', 'Planning With You')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 API_PUBLIC_BASE_URL = os.environ.get('API_PUBLIC_BASE_URL', 'http://localhost:8000')
 
+# PayMongo (platform account — public booking payment links)
+PAYMONGO_SECRET_KEY = os.environ.get('PAYMONGO_SECRET_KEY', '')
+PAYMONGO_WEBHOOK_SECRET = os.environ.get('PAYMONGO_WEBHOOK_SECRET', '')
+
 PASSWORD_RESET_TOKEN_LIFETIME_HOURS = int(
     os.environ.get('PASSWORD_RESET_TOKEN_LIFETIME_HOURS', 24),
 )

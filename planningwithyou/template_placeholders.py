@@ -9,9 +9,19 @@ from __future__ import annotations
 
 # --- User email template ``EmailTemplate.name`` values referenced in code ---
 EMAIL_TEMPLATE_PASSWORD_RESET = 'password_reset'
+EMAIL_TEMPLATE_PAYMENT_LINK = 'payment_link'
+
+DEFAULT_PAYMENT_LINK_SUBJECT = 'Payment for your booking'
+
+DEFAULT_PAYMENT_LINK_BODY_HTML = (
+    '<p>Hello,</p>'
+    '<p>Please complete your payment using the link below:</p>'
+    '<p><a href="{payment_link}">{payment_link}</a></p>'
+    '<p>Thank you.</p>'
+)
 
 # --- Password-invite / reset (no DB row or empty template fields) -------------
-# Placeholders: {name}, {reset_url}, {lifetime}
+# Placeholders: {name}, {reset_url}, {lifetime}, {payment_link} (booking emails, client-side)
 DEFAULT_PASSWORD_RESET_SUBJECT = 'Set Your Password – Planning With You'
 
 DEFAULT_PASSWORD_RESET_BODY_HTML = (
