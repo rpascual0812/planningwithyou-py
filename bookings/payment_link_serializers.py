@@ -1,7 +1,29 @@
 from rest_framework import serializers
 
-from .models import BookingPaymentLink
+from .models import BookingPayment, BookingPaymentLink
 from .payment_links import public_payment_url
+
+
+class BookingPaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookingPayment
+        fields = [
+            'id',
+            'amount',
+            'charge_amount',
+            'base_amount',
+            'platform_fee',
+            'processing_fee',
+            'net_amount',
+            'tax',
+            'payment_method',
+            'transaction_id',
+            'transaction_status',
+            'transaction_date',
+            'created_at',
+            'notes',
+        ]
+        read_only_fields = fields
 
 
 class BookingPaymentLinkSerializer(serializers.ModelSerializer):

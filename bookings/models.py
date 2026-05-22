@@ -113,6 +113,36 @@ class BookingPayment(models.Model):
     )
     payment_method = models.CharField(max_length=63, blank=True, default='')
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    charge_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text='Gross amount the customer paid (PayMongo ``amount``).',
+    )
+    base_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text='Quote portion credited to the booking balance.',
+    )
+    platform_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text='Platform fee (1% of base) from the payment link.',
+    )
+    processing_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text='PayMongo processing fee (``fee`` on the payment).',
+    )
+    net_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text='Amount after PayMongo fee (``net_amount`` on the payment).',
+    )
     tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     transaction_id = models.CharField(max_length=255, blank=True, default='')
     transaction_status = models.CharField(max_length=63, blank=True, default='', db_index=True)

@@ -9,8 +9,11 @@ from django.utils.decorators import method_decorator
 
 from planningwithyou.permissions import HasAccount, HasCompany
 
-from .models import BookingPaymentLink
-from .payment_link_serializers import BookingPaymentLinkSerializer
+from .models import BookingPayment, BookingPaymentLink
+from .payment_link_serializers import (
+    BookingPaymentLinkSerializer,
+    BookingPaymentSerializer,
+)
 from .payment_links import PaymentLinkError, create_booking_payment_link, serialize_public_payment_link
 from .payment_summary import booking_payment_summary
 from .paymongo_webhook import (
@@ -28,8 +31,13 @@ class BookingPaymentLinkListCreateView(APIView):
     def get(self, request, booking_id: int):
         booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)
         links = BookingPaymentLink.objects.filter(booking=booking).order_by('-created_at')
+        payments = (
+            BookingPayment.objects.filter(booking=booking, deleted_at__isnull=True)
+            .order_by('-transaction_date', '-created_at')
+        )
         return Response({
             'links': BookingPaymentLinkSerializer(links, many=True).data,
+            'payments': BookingPaymentSerializer(payments, many=True).data,
             'summary': booking_payment_summary(booking),
         })
 

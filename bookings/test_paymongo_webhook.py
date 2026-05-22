@@ -99,7 +99,10 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
         assert info is not None
         self.assertEqual(info['payment_id'], 'pay_abc123')
         self.assertEqual(info['status'], 'paid')
-        self.assertEqual(info['amount'], Decimal('1500.00'))
+        self.assertEqual(
+            info['payment_attrs'].get('amount'),
+            150000,
+        )
 
     def test_handle_webhook_records_failed_payment(self):
         handled = handle_paymongo_webhook_event(
@@ -112,7 +115,10 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
         self.assertTrue(handled)
         payment = BookingPayment.objects.get(transaction_id='pay_failed_1')
         self.assertEqual(payment.transaction_status, 'failed')
-        self.assertEqual(payment.amount, Decimal('1500.00'))
+        self.assertEqual(payment.charge_amount, Decimal('1500.00'))
+        self.assertEqual(payment.base_amount, Decimal('500.00'))
+        self.assertEqual(payment.platform_fee, Decimal('5.00'))
+        self.assertEqual(payment.amount, Decimal('500.00'))
         self.link.refresh_from_db()
         self.assertEqual(self.link.status, BookingPaymentLink.Status.PENDING)
 
@@ -127,17 +133,27 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
         self.assertTrue(handled)
         payment = BookingPayment.objects.get(transaction_id='pay_ok_1')
         self.assertEqual(payment.transaction_status, 'paid')
+        self.assertEqual(payment.base_amount, Decimal('500.00'))
+        self.assertEqual(payment.charge_amount, Decimal('1500.00'))
+        self.assertEqual(payment.platform_fee, Decimal('5.00'))
         self.link.refresh_from_db()
         self.assertEqual(self.link.status, BookingPaymentLink.Status.PAID)
         self.assertIsNotNone(self.link.paid_at)
 
     def test_record_upserts_same_payment_id(self):
+        breakdown = {
+            'charge_amount': Decimal('120.00'),
+            'base_amount': Decimal('100.00'),
+            'platform_fee': Decimal('1.00'),
+            'processing_fee': Decimal('19.00'),
+            'net_amount': Decimal('101.00'),
+        }
         _record_booking_payment(
             self.link,
             transaction_id='pay_dup',
             transaction_status='processing',
             payment_method='card',
-            amount=Decimal('100.00'),
+            breakdown=breakdown,
             api_response={'first': True},
         )
         _record_booking_payment(
@@ -145,7 +161,7 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             transaction_id='pay_dup',
             transaction_status='paid',
             payment_method='card',
-            amount=Decimal('100.00'),
+            breakdown=breakdown,
             api_response={'second': True},
         )
         self.assertEqual(
@@ -154,3 +170,22 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
         )
         payment = BookingPayment.objects.get(transaction_id='pay_dup')
         self.assertEqual(payment.transaction_status, 'paid')
+        self.assertEqual(payment.base_amount, Decimal('100.00'))
+        self.assertEqual(payment.charge_amount, Decimal('120.00'))
+
+    def test_webhook_stores_paymongo_fee_and_net(self):
+        event = _payment_paid_event(
+            'pay_fees_1',
+            'paid',
+            {'booking_payment_link_id': str(self.link.pk)},
+        )
+        event['data']['attributes']['data']['attributes']['fee'] = 2500
+        event['data']['attributes']['data']['attributes']['net_amount'] = 147500
+        handled = handle_paymongo_webhook_event(event)
+        self.assertTrue(handled)
+        payment = BookingPayment.objects.get(transaction_id='pay_fees_1')
+        self.assertEqual(payment.charge_amount, Decimal('1500.00'))
+        self.assertEqual(payment.processing_fee, Decimal('25.00'))
+        self.assertEqual(payment.net_amount, Decimal('1475.00'))
+        self.assertEqual(payment.base_amount, Decimal('500.00'))
+        self.assertEqual(payment.platform_fee, Decimal('5.00'))

@@ -72,15 +72,51 @@ def _resolve_payment_link(
     )
 
 
-def _amount_php_from_paymongo_attributes(attrs: dict) -> Decimal | None:
-    """Convert PayMongo amount (centavos) to PHP decimal."""
-    raw = attrs.get('amount')
+def _amount_php_from_paymongo_attributes(
+    attrs: dict,
+    field: str = 'amount',
+) -> Decimal | None:
+    """Convert a PayMongo centavo field on payment attributes to PHP decimal."""
+    raw = attrs.get(field)
     if raw is None or raw == '':
         return None
     try:
         return (Decimal(str(raw)) / Decimal('100')).quantize(Decimal('0.01'))
     except Exception:
         return None
+
+
+def _payment_breakdown_for_link(
+    link: BookingPaymentLink,
+    payment_attrs: dict,
+) -> dict[str, Decimal]:
+    """
+    Build stored breakdown: quote/base and platform fee from the link; gross,
+    processing fee, and net from PayMongo when present.
+    """
+    charge = _amount_php_from_paymongo_attributes(payment_attrs, 'amount')
+    processing = _amount_php_from_paymongo_attributes(payment_attrs, 'fee')
+    net = _amount_php_from_paymongo_attributes(payment_attrs, 'net_amount')
+
+    if charge is None:
+        charge = link.charge_amount or Decimal('0')
+    if processing is None:
+        processing = link.processing_fee_estimate or Decimal('0')
+    if net is None and charge is not None and processing is not None:
+        net = (charge - processing).quantize(Decimal('0.01'))
+    if net is None:
+        net = Decimal('0')
+
+    base = link.base_amount or Decimal('0')
+    platform = link.platform_fee or Decimal('0')
+
+    return {
+        'charge_amount': charge,
+        'base_amount': base,
+        'platform_fee': platform,
+        'processing_fee': processing,
+        'net_amount': net,
+    }
 
 
 def _payment_method_from_attributes(attrs: dict, resource_type: str = '') -> str:
@@ -139,7 +175,7 @@ def _extract_payment_from_event(event: dict) -> dict | None:
         return {
             'payment_id': payment_id,
             'status': _payment_status_from_attributes(resource_attrs),
-            'amount': _amount_php_from_paymongo_attributes(resource_attrs),
+            'payment_attrs': resource_attrs,
             'payment_method': _payment_method_from_attributes(resource_attrs, 'payment'),
             'metadata': metadata,
             'checkout_session_id': checkout_session_id,
@@ -208,7 +244,7 @@ def _extract_payment_from_checkout_session(
     return {
         'payment_id': payment_id,
         'status': _payment_status_from_attributes(payment_attrs),
-        'amount': _amount_php_from_paymongo_attributes(payment_attrs),
+        'payment_attrs': payment_attrs,
         'payment_method': _payment_method_from_attributes(payment_attrs, 'payment'),
         'metadata': metadata,
         'checkout_session_id': session_id,
@@ -225,7 +261,7 @@ def _record_booking_payment(
     transaction_id: str,
     transaction_status: str,
     payment_method: str,
-    amount: Decimal | None,
+    breakdown: dict[str, Decimal],
     api_response: dict,
 ) -> BookingPayment:
     """Persist PayMongo payment details on ``booking_payments`` (upsert by payment id)."""
@@ -233,11 +269,28 @@ def _record_booking_payment(
     status = (transaction_status or 'unknown').strip()
     now = timezone.now()
 
-    charge_amount = amount if amount is not None else link.charge_amount
-    if charge_amount is None:
-        charge_amount = Decimal('0')
+    charge_amount = breakdown['charge_amount']
+    base_amount = breakdown['base_amount']
+    platform_fee = breakdown['platform_fee']
+    processing_fee = breakdown['processing_fee']
+    net_amount = breakdown['net_amount']
 
     notes = f'PayMongo payment {payment_id or "—"} (link #{link.pk})'
+
+    breakdown_fields = [
+        'transaction_status',
+        'payment_method',
+        'amount',
+        'charge_amount',
+        'base_amount',
+        'platform_fee',
+        'processing_fee',
+        'net_amount',
+        'api_response',
+        'transaction_date',
+        'notes',
+        'updated_at',
+    ]
 
     existing = None
     if payment_id:
@@ -254,21 +307,16 @@ def _record_booking_payment(
     if existing is not None:
         existing.transaction_status = status
         existing.payment_method = payment_method or existing.payment_method
-        existing.amount = charge_amount
+        existing.amount = base_amount
+        existing.charge_amount = charge_amount
+        existing.base_amount = base_amount
+        existing.platform_fee = platform_fee
+        existing.processing_fee = processing_fee
+        existing.net_amount = net_amount
         existing.api_response = api_response
         existing.transaction_date = now
         existing.notes = notes
-        existing.save(
-            update_fields=[
-                'transaction_status',
-                'payment_method',
-                'amount',
-                'api_response',
-                'transaction_date',
-                'notes',
-                'updated_at',
-            ],
-        )
+        existing.save(update_fields=breakdown_fields)
         payment = existing
     else:
         payment = BookingPayment.objects.create(
@@ -276,7 +324,12 @@ def _record_booking_payment(
             account_id=link.account_id,
             company_id=link.company_id,
             payment_method=payment_method or 'paymongo',
-            amount=charge_amount,
+            amount=base_amount,
+            charge_amount=charge_amount,
+            base_amount=base_amount,
+            platform_fee=platform_fee,
+            processing_fee=processing_fee,
+            net_amount=net_amount,
             tax=Decimal('0'),
             transaction_id=payment_id,
             transaction_status=status,
@@ -375,12 +428,17 @@ def handle_paymongo_webhook_event(event: dict) -> bool:
         'session': payment_info.get('session_resource'),
     }
 
+    payment_attrs = payment_info.get('payment_attrs')
+    if not isinstance(payment_attrs, dict):
+        payment_attrs = {}
+    breakdown = _payment_breakdown_for_link(link, payment_attrs)
+
     _record_booking_payment(
         link,
         transaction_id=payment_info['payment_id'],
         transaction_status=payment_info['status'],
         payment_method=payment_info['payment_method'],
-        amount=payment_info.get('amount'),
+        breakdown=breakdown,
         api_response=api_response,
     )
     return True

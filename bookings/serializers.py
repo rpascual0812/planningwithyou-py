@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -23,6 +25,11 @@ from .models import (
 from .downpayment import (
     sum_booking_required_downpayment,
     validate_field_value_downpayment,
+)
+from .payment_breakdown import (
+    booking_payment_fee_totals,
+    booking_payments_paid_base_total,
+    booking_remaining_balance,
 )
 from .supplier_line import (
     package_for_supplier_booking_line,
@@ -111,18 +118,49 @@ class BookingItemSerializer(serializers.ModelSerializer):
     )
     groups = BookingGroupSerializer(many=True, required=False)
     pdf_url = serializers.SerializerMethodField()
+    paid_amount = serializers.SerializerMethodField()
+    paid_charge_amount = serializers.SerializerMethodField()
+    paid_processing_fees = serializers.SerializerMethodField()
+    paid_platform_fees = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = BookingItem
         fields = [
             'id', 'unique_id', 'company', 'status', 'contact', 'title', 'date_of_event',
             'total_amount', 'required_downpayment_amount',
+            'paid_amount', 'paid_charge_amount', 'paid_processing_fees', 'paid_platform_fees',
+            'remaining_amount',
             'groups', 'field_values', 'notes', 'sort_order', 'created_by',
             'pdf_url', 'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'unique_id', 'company', 'created_by', 'pdf_url', 'created_at', 'updated_at',
+            'id', 'unique_id', 'company', 'created_by', 'pdf_url', 'paid_amount',
+            'paid_charge_amount', 'paid_processing_fees', 'paid_platform_fees',
+            'remaining_amount', 'created_at', 'updated_at',
         ]
+
+    def _fee_totals(self, obj: BookingItem) -> dict[str, Decimal]:
+        if not hasattr(self, '_fee_totals_cache'):
+            self._fee_totals_cache = {}
+        if obj.pk not in self._fee_totals_cache:
+            self._fee_totals_cache[obj.pk] = booking_payment_fee_totals(obj.pk)
+        return self._fee_totals_cache[obj.pk]
+
+    def get_paid_amount(self, obj: BookingItem) -> str:
+        return str(booking_payments_paid_base_total(obj.pk))
+
+    def get_paid_charge_amount(self, obj: BookingItem) -> str:
+        return str(self._fee_totals(obj)['charge_total'])
+
+    def get_paid_processing_fees(self, obj: BookingItem) -> str:
+        return str(self._fee_totals(obj)['processing_total'])
+
+    def get_paid_platform_fees(self, obj: BookingItem) -> str:
+        return str(self._fee_totals(obj)['platform_total'])
+
+    def get_remaining_amount(self, obj: BookingItem) -> str:
+        return str(booking_remaining_balance(obj))
 
     def get_pdf_url(self, obj):
         pdf = (obj.pdf or '').strip()
