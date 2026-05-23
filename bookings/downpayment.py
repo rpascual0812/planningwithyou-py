@@ -52,7 +52,7 @@ def sum_booking_required_downpayment(booking: BookingItem) -> Decimal:
 
 
 def validate_field_value_downpayment(field_value: dict) -> None:
-    """Raise ``ValidationError`` when downpayment is not less than the line amount."""
+    """Raise ``ValidationError`` when downpayment exceeds the line amount."""
     from rest_framework.exceptions import ValidationError
 
     field_type = field_value.get('field_type')
@@ -75,11 +75,11 @@ def validate_field_value_downpayment(field_value: dict) -> None:
                 {'required_downpayment': 'Set a field amount before entering a downpayment.'},
             )
         price_dec = Decimal(str(price))
-        if down >= price_dec:
+        if down > price_dec:
             raise ValidationError(
                 {
                     'required_downpayment': (
-                        'Downpayment must be less than the field amount.'
+                        'Downpayment cannot exceed the field amount.'
                     ),
                 },
             )
@@ -94,11 +94,11 @@ def validate_field_value_downpayment(field_value: dict) -> None:
             {'required_downpayment': 'Set a field amount before entering a downpayment.'},
         )
     price_dec = Decimal(str(price))
-    if down >= price_dec:
+    if down > price_dec:
         raise ValidationError(
             {
                 'required_downpayment': (
-                    'Downpayment must be less than the field amount.'
+                    'Downpayment cannot exceed the field amount.'
                 ),
             },
         )

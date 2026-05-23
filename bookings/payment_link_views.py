@@ -22,7 +22,7 @@ from .paymongo_webhook import (
     parse_webhook_body,
     verify_paymongo_signature,
 )
-from .scope import bookings_for_user
+from .scope import assert_booking_editable, bookings_for_user
 
 
 class BookingPaymentLinkListCreateView(APIView):
@@ -43,6 +43,7 @@ class BookingPaymentLinkListCreateView(APIView):
 
     def post(self, request, booking_id: int):
         booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)
+        assert_booking_editable(booking, request.user)
         amount = request.data.get('amount')
         try:
             link = create_booking_payment_link(
@@ -65,6 +66,7 @@ class BookingPaymentLinkDetailView(APIView):
 
     def delete(self, request, booking_id: int, link_id: int):
         booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)
+        assert_booking_editable(booking, request.user)
         link = get_object_or_404(BookingPaymentLink, pk=link_id, booking_id=booking.pk)
         if link.status == BookingPaymentLink.Status.PAID:
             return Response(

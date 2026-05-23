@@ -10,7 +10,7 @@ from planningwithyou.permissions import HasAccount, HasCompany
 
 from .models import BookingGroup, BookingItem, BookingStatus, FormTemplate
 from .supplier_capacity import supplier_booking_capacity_status
-from .scope import bookings_for_user
+from .scope import assert_booking_editable, bookings_for_user
 from .serializers import (
     BookingItemSerializer,
     BookingStatusSerializer,
@@ -55,7 +55,10 @@ class BookingItemViewSet(viewsets.ModelViewSet):
     serializer_class = BookingItemSerializer
 
     def get_queryset(self):
-        qs = bookings_for_user(self.request.user).prefetch_related(
+        qs = bookings_for_user(self.request.user).select_related(
+            'company',
+            'status',
+        ).prefetch_related(
             'groups',
             'lines__booking_group',
             'lines__company',
@@ -64,6 +67,18 @@ class BookingItemViewSet(viewsets.ModelViewSet):
         if status_id:
             qs = qs.filter(status_id=status_id)
         return qs
+
+    def update(self, request, *args, **kwargs):
+        assert_booking_editable(self.get_object(), request.user)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        assert_booking_editable(self.get_object(), request.user)
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        assert_booking_editable(self.get_object(), request.user)
+        return super().destroy(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         booking_status = serializer.validated_data['status']
@@ -86,6 +101,7 @@ class BookingItemViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def move(self, request, pk=None):
         item = self.get_object()
+        assert_booking_editable(item, request.user)
         status_id = request.data.get('status')
         sort_order = request.data.get('sort_order', 0)
         if status_id is None:
@@ -111,6 +127,7 @@ class BookingItemViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['delete'], url_path=r'groups/(?P<group_id>[0-9]+)')
     def delete_group(self, request, pk=None, group_id=None):
         item = self.get_object()
+        assert_booking_editable(item, request.user)
         group = get_object_or_404(BookingGroup, pk=group_id, booking=item)
         group.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -129,7 +146,10 @@ class BookingItemViewSet(viewsets.ModelViewSet):
             item_id = entry.get('id')
             if item_id is None:
                 continue
-            if not base_qs.filter(pk=item_id).exists():
+            booking = base_qs.filter(pk=item_id).first()
+            if booking is None:
+                continue
+            if not booking.company_id == request.user.company_id:
                 continue
             fields = {}
             if 'status' in entry:

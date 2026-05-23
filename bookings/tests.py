@@ -712,15 +712,22 @@ class BookingRequiredDownpaymentTests(TestCase):
         total = sum_booking_required_downpayment(booking)
         self.assertEqual(total, Decimal('325.00'))
 
-    def test_validate_line_downpayment_must_be_less_than_price(self):
+    def test_validate_line_downpayment_may_equal_price(self):
+        validate_field_value_downpayment({
+            'field_type': 'text',
+            'price': '100.00',
+            'required_downpayment': '100.00',
+        })
+
+    def test_validate_line_downpayment_must_not_exceed_price(self):
         with self.assertRaises(ValidationError):
             validate_field_value_downpayment({
                 'field_type': 'text',
                 'price': '100.00',
-                'required_downpayment': '100.00',
+                'required_downpayment': '100.01',
             })
 
-    def test_validate_supplier_package_downpayment_must_be_less_than_price(self):
+    def test_validate_supplier_package_downpayment_must_not_exceed_price(self):
         with self.assertRaises(ValidationError):
             validate_field_value_downpayment({
                 'field_type': 'supplier',
@@ -729,3 +736,153 @@ class BookingRequiredDownpaymentTests(TestCase):
                 'package_version_id': self.version.id,
                 'price': '200.00',
             })
+
+
+class BookingCompanyVisibilityTests(TestCase):
+    """Visibility via booking_items.company_id; edit only when bookings.company_id matches."""
+
+    def setUp(self):
+        country = Country.objects.create(
+            name='Testland',
+            iso_code='TLD',
+            iso2_code='TL',
+            currency='Peso',
+            currency_symbol='₱',
+            currency_code='PHP',
+        )
+        supplier_type = SupplierType.objects.create(name='General')
+        self.account = Account.objects.create(name='Tenant', country=country)
+        self.owner = Company.objects.create(
+            account=self.account,
+            name='Owner Co',
+            supplier_type=supplier_type,
+            is_main=True,
+        )
+        self.supplier = Company.objects.create(
+            account=self.account,
+            name='Supplier Co',
+            supplier_type=supplier_type,
+        )
+        self.other = Company.objects.create(
+            account=self.account,
+            name='Other Co',
+            supplier_type=supplier_type,
+        )
+        self.status = BookingStatus.objects.create(account=self.account, title='New')
+        self.booking = BookingItem.objects.create(
+            account=self.account,
+            company=self.owner,
+            status=self.status,
+            unique_id='26-0500',
+            title='Wedding',
+        )
+        group = BookingGroup.objects.create(booking=self.booking, name='Suppliers')
+        BookingLine.objects.create(
+            account=self.account,
+            booking=self.booking,
+            booking_group=group,
+            label='Florist',
+            field_type='supplier',
+            company=self.supplier,
+            value='',
+        )
+
+    def _user_for(self, company):
+        from users.models import User
+
+        return User(
+            account=self.account,
+            company=company,
+            company_id=company.id,
+            email=f'user-{company.id}@test.com',
+            username=f'user-{company.id}@test.com',
+        )
+
+    def test_owner_sees_booking_via_bookings_company_id(self):
+        from bookings.scope import bookings_for_user
+
+        user = self._user_for(self.owner)
+        ids = set(bookings_for_user(user).values_list('pk', flat=True))
+        self.assertIn(self.booking.pk, ids)
+
+    def test_supplier_sees_booking_when_line_company_matches(self):
+        from bookings.scope import bookings_for_user
+
+        user = self._user_for(self.supplier)
+        ids = set(bookings_for_user(user).values_list('pk', flat=True))
+        self.assertIn(self.booking.pk, ids)
+
+    def test_unrelated_company_does_not_see_booking(self):
+        from bookings.scope import bookings_for_user
+
+        user = self._user_for(self.other)
+        ids = set(bookings_for_user(user).values_list('pk', flat=True))
+        self.assertNotIn(self.booking.pk, ids)
+
+    def test_supplier_can_view_but_not_edit(self):
+        from bookings.scope import assert_booking_editable, booking_user_can_edit
+        from rest_framework.exceptions import PermissionDenied
+
+        supplier_user = self._user_for(self.supplier)
+        owner_user = self._user_for(self.owner)
+
+        self.assertFalse(booking_user_can_edit(self.booking, supplier_user))
+        self.assertTrue(booking_user_can_edit(self.booking, owner_user))
+
+        with self.assertRaises(PermissionDenied):
+            assert_booking_editable(self.booking, supplier_user)
+
+    def test_supplier_sees_booking_on_different_account(self):
+        """Supplier company on a tenant booking (cross-account)."""
+        from bookings.scope import bookings_for_user
+        from users.models import User
+
+        tenant_account = Account.objects.create(
+            name='Tenant Account',
+            country=self.owner.country,
+        )
+        tenant_owner = Company.objects.create(
+            account=tenant_account,
+            name='Tenant Planner',
+            supplier_type=self.owner.supplier_type,
+            is_main=True,
+        )
+        supplier_account = Account.objects.create(
+            name='Supplier Account',
+            country=self.owner.country,
+        )
+        supplier_co = Company.objects.create(
+            account=supplier_account,
+            name='External Supplier',
+            supplier_type=self.owner.supplier_type,
+        )
+        tenant_status = BookingStatus.objects.create(
+            account=tenant_account,
+            title='Confirmed',
+        )
+        tenant_booking = BookingItem.objects.create(
+            account=tenant_account,
+            company=tenant_owner,
+            status=tenant_status,
+            unique_id='26-0999',
+            title='Cross-account wedding',
+        )
+        group = BookingGroup.objects.create(booking=tenant_booking, name='Suppliers')
+        BookingLine.objects.create(
+            account=tenant_account,
+            booking=tenant_booking,
+            booking_group=group,
+            label='Coordinator',
+            field_type='supplier',
+            company=supplier_co,
+            value='',
+        )
+        supplier_user = User(
+            account=supplier_account,
+            company=supplier_co,
+            company_id=supplier_co.id,
+            email='supplier-cross@test.com',
+            username='supplier-cross@test.com',
+        )
+        ids = set(bookings_for_user(supplier_user).values_list('pk', flat=True))
+        self.assertIn(tenant_booking.pk, ids)

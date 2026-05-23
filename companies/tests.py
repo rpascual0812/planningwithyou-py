@@ -103,3 +103,82 @@ class CompanyKybVerifiedTests(TestCase):
 
         self.company.refresh_from_db()
         self.assertFalse(self.company.kyb_verified)
+
+
+class CompanyKybAdminApiTests(TestCase):
+    def setUp(self):
+        country = Country.objects.create(
+            name='Testland',
+            iso_code='TLD',
+            iso2_code='TL',
+            currency='Peso',
+            currency_symbol='₱',
+            currency_code='PHP',
+        )
+        supplier_type = SupplierType.objects.create(name='General')
+        self.account = Account.objects.create(name='Tenant', country=country)
+        self.company = Company.objects.create(
+            account=self.account,
+            name='Verify Me Co',
+            supplier_type=supplier_type,
+            is_main=True,
+        )
+        self.kyb = CompanyKybVerification.objects.create(
+            company=self.company,
+            status=CompanyKybVerification.Status.SUBMITTED,
+            business_type=CompanyKybVerification.BusinessType.SOLE_PROPRIETOR,
+        )
+        from users.models import User
+
+        self.admin = User.objects.create_user(
+            username='admin@test.com',
+            email='admin@test.com',
+            password='test-pass',
+            account=self.account,
+            company=self.company,
+            is_admin=True,
+        )
+        self.user = User.objects.create_user(
+            username='user@test.com',
+            email='user@test.com',
+            password='test-pass',
+            account=self.account,
+            company=self.company,
+        )
+
+    def test_admin_lists_submitted_kyb(self):
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        res = client.get(
+            '/api/admin/kyb-verifications/',
+            {'status': CompanyKybVerification.Status.SUBMITTED},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['company_name'], 'Verify Me Co')
+
+    def test_non_admin_cannot_list_kyb(self):
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+        res = client.get('/api/admin/kyb-verifications/')
+        self.assertEqual(res.status_code, 403)
+
+    def test_admin_approves_kyb(self):
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        res = client.patch(
+            f'/api/admin/kyb-verifications/{self.kyb.pk}/',
+            {'status': CompanyKybVerification.Status.APPROVED},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200)
+        self.kyb.refresh_from_db()
+        self.assertEqual(self.kyb.status, CompanyKybVerification.Status.APPROVED)
+        self.company.refresh_from_db()
+        self.assertTrue(self.company.kyb_verified)

@@ -31,6 +31,7 @@ from .payment_breakdown import (
     booking_payments_paid_base_total,
     booking_remaining_balance,
 )
+from .scope import booking_user_can_edit
 from .supplier_line import (
     package_for_supplier_booking_line,
     prepare_supplier_field_dict,
@@ -123,22 +124,31 @@ class BookingItemSerializer(serializers.ModelSerializer):
     paid_processing_fees = serializers.SerializerMethodField()
     paid_platform_fees = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+    status_title = serializers.CharField(source='status.title', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
 
     class Meta:
         model = BookingItem
         fields = [
-            'id', 'unique_id', 'company', 'status', 'contact', 'title', 'date_of_event',
+            'id', 'unique_id', 'company', 'company_name', 'status', 'status_title', 'contact', 'title', 'date_of_event',
             'total_amount', 'required_downpayment_amount',
             'paid_amount', 'paid_charge_amount', 'paid_processing_fees', 'paid_platform_fees',
-            'remaining_amount',
+            'remaining_amount', 'can_edit',
             'groups', 'field_values', 'notes', 'sort_order', 'created_by',
             'pdf_url', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'unique_id', 'company', 'created_by', 'pdf_url', 'paid_amount',
             'paid_charge_amount', 'paid_processing_fees', 'paid_platform_fees',
-            'remaining_amount', 'created_at', 'updated_at',
+            'remaining_amount', 'can_edit', 'created_at', 'updated_at',
         ]
+
+    def get_can_edit(self, obj: BookingItem) -> bool:
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+            return False
+        return booking_user_can_edit(obj, request.user)
 
     def _fee_totals(self, obj: BookingItem) -> dict[str, Decimal]:
         if not hasattr(self, '_fee_totals_cache'):

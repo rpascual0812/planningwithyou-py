@@ -5,7 +5,26 @@ from .kyb import missing_kyb_fields
 from .models import Company, CompanyKybVerification
 
 
+class CompanyKybVerificationListSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+
+    class Meta:
+        model = CompanyKybVerification
+        fields = [
+            'id',
+            'company',
+            'company_name',
+            'business_type',
+            'status',
+            'submitted_at',
+            'reviewed_at',
+            'created_at',
+            'updated_at',
+        ]
+
+
 class CompanyKybVerificationSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
     live_payments_allowed = serializers.SerializerMethodField()
     missing_fields = serializers.SerializerMethodField()
 
@@ -14,6 +33,7 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'company',
+            'company_name',
             'business_type',
             'status',
             'government_id_file',
@@ -41,6 +61,7 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id',
             'company',
+            'company_name',
             'submitted_at',
             'reviewed_at',
             'reviewed_by',

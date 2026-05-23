@@ -208,12 +208,12 @@ class PackageSerializer(serializers.ModelSerializer):
         if (
             total_price is not None
             and downpayment is not None
-            and downpayment >= total_price
+            and downpayment > total_price
         ):
             raise serializers.ValidationError(
                 {
                     'required_downpayment_amount': (
-                        'Downpayment must be less than total price.'
+                        'Downpayment cannot exceed total price.'
                     ),
                 },
             )

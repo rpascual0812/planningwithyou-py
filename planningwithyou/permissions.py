@@ -15,6 +15,18 @@ class HasAccount(permissions.BasePermission):
         return getattr(user, 'account_id', None) is not None
 
 
+class IsAdmin(permissions.BasePermission):
+    """Require an authenticated platform administrator."""
+
+    message = 'Admin access required.'
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user.is_authenticated and getattr(user, 'is_admin', False),
+        )
+
+
 class HasCompany(permissions.BasePermission):
     """Require an authenticated user with a company in their account."""
 
