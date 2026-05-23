@@ -1,4 +1,4 @@
-"""Minimal PayMongo REST client (platform or per-company secret key)."""
+"""Minimal PayMongo REST client (platform parent secret key)."""
 
 from __future__ import annotations
 
@@ -8,11 +8,14 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from payments.paymongo_config import get_paymongo_config, paymongo_configured as _paymongo_configured
+from payments.paymongo_config import (
+    get_paymongo_company_context,
+    paymongo_configured as _paymongo_configured,
+    platform_secret_key,
+)
 
 PAYMONGO_API_BASE = 'https://api.paymongo.com/v1'
 
-# All standard checkout methods (merchant must have them enabled in PayMongo).
 CHECKOUT_PAYMENT_METHOD_TYPES = [
     'card',
     'gcash',
@@ -41,10 +44,10 @@ def paymongo_configured(company_id: int | None = None) -> bool:
 
 
 def _secret_key(company_id: int | None = None) -> str:
-    cfg = get_paymongo_config(company_id)
-    if cfg is None or not cfg.secret_key:
-        raise PayMongoError('PayMongo is not configured (secret key missing).')
-    return cfg.secret_key
+    key = platform_secret_key()
+    if not key:
+        raise PayMongoError('PayMongo is not configured (PAYMONGO_SECRET_KEY).')
+    return key
 
 
 def _request(
@@ -54,6 +57,7 @@ def _request(
     *,
     company_id: int | None = None,
     secret_key: str | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> dict:
     key = (secret_key or '').strip() or _secret_key(company_id)
     url = f'{PAYMONGO_API_BASE}{path}'
@@ -63,6 +67,8 @@ def _request(
         'Content-Type': 'application/json',
         'Accept': 'application/json',
     }
+    if extra_headers:
+        headers.update(extra_headers)
     if body is not None:
         data = json.dumps(body).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
@@ -101,8 +107,9 @@ def create_checkout_session(
     send_email_receipt: bool = False,
     company_id: int | None = None,
     secret_key: str | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> dict:
-    """Create a hosted checkout session; returns PayMongo ``data`` object."""
+    """Create checkout; prefer ``payments.paymongo_platform_client`` for Platforms split."""
     attributes: dict[str, Any] = {
         'line_items': line_items,
         'payment_method_types': CHECKOUT_PAYMENT_METHOD_TYPES,
@@ -122,6 +129,7 @@ def create_checkout_session(
         payload,
         company_id=company_id,
         secret_key=secret_key,
+        extra_headers=extra_headers,
     )
     data = response.get('data')
     if not isinstance(data, dict):
@@ -134,12 +142,14 @@ def retrieve_checkout_session(
     *,
     company_id: int | None = None,
     secret_key: str | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> dict:
     response = _request(
         'GET',
         f'/checkout_sessions/{session_id}',
         company_id=company_id,
         secret_key=secret_key,
+        extra_headers=extra_headers,
     )
     data = response.get('data')
     if not isinstance(data, dict):
@@ -152,15 +162,30 @@ def retrieve_payment(
     *,
     company_id: int | None = None,
     secret_key: str | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> dict:
-    """Retrieve a PayMongo payment resource (``data`` object)."""
     response = _request(
         'GET',
         f'/payments/{payment_id}',
         company_id=company_id,
         secret_key=secret_key,
+        extra_headers=extra_headers,
     )
     data = response.get('data')
     if not isinstance(data, dict):
         raise PayMongoError('Unexpected PayMongo payment response.')
     return data
+
+
+def child_account_headers(child_account_id: str | None) -> dict[str, str] | None:
+    from django.conf import settings
+
+    child_id = (child_account_id or '').strip()
+    if not child_id:
+        return None
+    header = (
+        getattr(settings, 'PAYMONGO_CHILD_ACCOUNT_HEADER', None) or 'Paymongo-Account-Id'
+    ).strip()
+    if not header:
+        return None
+    return {header: child_id}

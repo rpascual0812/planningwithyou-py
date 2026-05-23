@@ -36,13 +36,40 @@ class PaymentIntegration(models.Model):
         max_length=63,
         choices=PaymentGateway.choices,
     )
+    paymongo_account_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text='PayMongo linked child account id (org_…).',
+    )
+    activation_status = models.CharField(
+        max_length=63,
+        blank=True,
+        default='not_started',
+        help_text='PayMongo child account activation_status.',
+    )
+    identity_verification_status = models.CharField(
+        max_length=63,
+        blank=True,
+        default='',
+        help_text='PayMongo identity_verification_status for the representative.',
+    )
+    identity_verification_url = models.URLField(
+        max_length=2048,
+        blank=True,
+        default='',
+        help_text='Hosted URL for the representative to complete PayMongo KYC.',
+    )
+    api_response = models.JSONField(null=True, blank=True, default=None)
     key = models.TextField(
-        help_text='PayMongo secret API key (sk_live_… / sk_test_…).',
+        blank=True,
+        default='',
+        help_text='Deprecated: use PayMongo Platforms child account instead.',
     )
     secret = models.TextField(
         blank=True,
         default='',
-        help_text='PayMongo webhook signing secret.',
+        help_text='Deprecated: platform webhook secret is used.',
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

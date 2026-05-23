@@ -11,7 +11,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import BookingPayment, BookingPaymentLink
-from payments.paymongo_config import get_paymongo_config, webhook_secrets_to_try
+from payments.paymongo_config import webhook_secrets_to_try
+
+from payments.paymongo_config import platform_secret_key
+
+from .paymongo_client import child_account_headers
 
 from .paymongo_client import PayMongoError, retrieve_checkout_session, retrieve_payment
 
@@ -177,16 +181,20 @@ def _payment_status_from_attributes(attrs: dict, *, fallback: str = '') -> str:
     return status or 'unknown'
 
 
-def _paymongo_secret_key_for_metadata(metadata: dict) -> str | None:
+def _paymongo_headers_for_metadata(metadata: dict) -> tuple[str, dict[str, str] | None]:
+    key = platform_secret_key()
     raw_company = metadata.get('company_id')
-    if raw_company is None:
-        return None
-    try:
-        company_id = int(raw_company)
-    except (TypeError, ValueError):
-        return None
-    cfg = get_paymongo_config(company_id)
-    return cfg.secret_key if cfg else None
+    child_id = None
+    if raw_company is not None:
+        try:
+            from payments.paymongo_config import get_company_paymongo_integration
+
+            integration = get_company_paymongo_integration(int(raw_company))
+            if integration is not None:
+                child_id = (integration.paymongo_account_id or '').strip() or None
+        except (TypeError, ValueError):
+            child_id = None
+    return key, child_account_headers(child_id)
 
 
 def _extract_payment_from_event(
@@ -253,13 +261,14 @@ def _extract_payment_from_event(
                 'resource': resource,
             }
         session_id = _payment_id_from_resource(resource)
-        secret_key = _paymongo_secret_key_for_metadata(metadata)
+        secret_key, extra_headers = _paymongo_headers_for_metadata(metadata)
         return _extract_payment_from_checkout_session(
             session_id,
             metadata=metadata,
             event_type=event_type,
             session_resource=resource,
             secret_key=secret_key,
+            extra_headers=extra_headers,
         )
 
     return None
@@ -272,14 +281,19 @@ def _extract_payment_from_checkout_session(
     event_type: str = '',
     session_resource: dict | None = None,
     secret_key: str | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> dict | None:
     """Resolve payment id/status via checkout session (PayMongo API)."""
     if not session_id:
         return None
     if secret_key is None:
-        secret_key = _paymongo_secret_key_for_metadata(metadata)
+        secret_key, extra_headers = _paymongo_headers_for_metadata(metadata)
     try:
-        session = retrieve_checkout_session(session_id, secret_key=secret_key)
+        session = retrieve_checkout_session(
+            session_id,
+            secret_key=secret_key,
+            extra_headers=extra_headers,
+        )
     except PayMongoError:
         return None
 
@@ -306,7 +320,11 @@ def _extract_payment_from_checkout_session(
         return None
 
     try:
-        payment = retrieve_payment(payment_id, secret_key=secret_key)
+        payment = retrieve_payment(
+            payment_id,
+            secret_key=secret_key,
+            extra_headers=extra_headers,
+        )
     except PayMongoError:
         return None
 

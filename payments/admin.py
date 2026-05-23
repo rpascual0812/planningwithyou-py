@@ -9,6 +9,9 @@ class PaymentIntegrationAdmin(admin.ModelAdmin):
         'id',
         'company',
         'payment_gateway',
+        'paymongo_account_id',
+        'activation_status',
+        'identity_verification_status',
         'created_at',
         'deleted_at',
     ]

@@ -239,6 +239,15 @@ API_PUBLIC_BASE_URL = os.environ.get('API_PUBLIC_BASE_URL', 'http://localhost:80
 # PayMongo (platform account — public booking payment links)
 PAYMONGO_SECRET_KEY = os.environ.get('PAYMONGO_SECRET_KEY', '')
 PAYMONGO_WEBHOOK_SECRET = os.environ.get('PAYMONGO_WEBHOOK_SECRET', '')
+# PayMongo Platforms: parent wallet id for split (1% platform fee to this merchant).
+PAYMONGO_PLATFORM_MERCHANT_ID = os.environ.get('PAYMONGO_PLATFORM_MERCHANT_ID', '')
+# Basis points taken by platform on net (100 = 1%).
+PAYMONGO_PLATFORM_FEE_BPS = int(os.environ.get('PAYMONGO_PLATFORM_FEE_BPS', '100') or '100')
+# Optional header to scope v1 API calls to a linked child account (confirm with PayMongo).
+PAYMONGO_CHILD_ACCOUNT_HEADER = os.environ.get(
+    'PAYMONGO_CHILD_ACCOUNT_HEADER',
+    'Paymongo-Account-Id',
+)
 
 PASSWORD_RESET_TOKEN_LIFETIME_HOURS = int(
     os.environ.get('PASSWORD_RESET_TOKEN_LIFETIME_HOURS', 24),

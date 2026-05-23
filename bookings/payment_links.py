@@ -15,7 +15,14 @@ from companies.models import Company
 from .models import BookingItem, BookingPaymentLink
 from .payment_pricing import PaymentLinkPricing, amount_to_centavos, compute_payment_link_pricing
 from .payment_summary import booking_is_fully_paid, booking_remaining_balance
-from .paymongo_client import PayMongoError, create_checkout_session, paymongo_configured
+from payments.paymongo_config import company_can_accept_paymongo_payments, get_paymongo_company_context
+
+from payments.paymongo_platform_client import (
+    PayMongoError,
+    create_checkout_session_for_company,
+)
+
+from .paymongo_client import paymongo_configured
 
 
 class PaymentLinkError(Exception):
@@ -41,6 +48,14 @@ def create_booking_payment_link(
 ) -> BookingPaymentLink:
     if not paymongo_configured(booking.company_id):
         raise PaymentLinkError('PayMongo is not configured on the server.')
+    if not company_can_accept_paymongo_payments(booking.company_id):
+        raise PaymentLinkError(
+            'PayMongo is not connected for this company. Complete PayMongo onboarding '
+            'under Company Settings → Integrations.',
+        )
+    paymongo_ctx = get_paymongo_company_context(booking.company_id)
+    if paymongo_ctx is None:
+        raise PaymentLinkError('PayMongo child account is not ready for payments.')
 
     company = Company.all_objects.select_related('kyb_verification').filter(
         pk=booking.company_id,
@@ -123,14 +138,16 @@ def create_booking_payment_link(
 
         link.save()
         metadata['booking_payment_link_id'] = str(link.pk)
-        session = create_checkout_session(
+        session = create_checkout_session_for_company(
+            child_account_id=paymongo_ctx.child_account_id,
+            platform_merchant_id=paymongo_ctx.platform_merchant_id,
+            platform_fee_bps=paymongo_ctx.platform_fee_bps,
             line_items=line_items,
             success_url=success_url,
             cancel_url=cancel_url,
             description=f'Payment for booking {booking.unique_id or booking.title}',
             reference_number=str(booking.unique_id or booking.pk),
             metadata=metadata,
-            company_id=booking.company_id,
         )
     except PayMongoError as exc:
         link.delete()

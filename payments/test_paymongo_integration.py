@@ -3,12 +3,16 @@ from django.test import TestCase, override_settings
 from companies.models import Company
 from config.models import Country
 from payments.models import PaymentIntegration
-from payments.paymongo_config import get_paymongo_config, paymongo_configured
+from payments.paymongo_config import (
+    company_can_accept_paymongo_payments,
+    get_paymongo_company_context,
+    paymongo_configured,
+)
 from suppliers.models import SupplierType
 from users.models import Account, User
 
 
-class PayMongoConfigTests(TestCase):
+class PayMongoPlatformConfigTests(TestCase):
     def setUp(self):
         country = Country.objects.create(
             name='Testland',
@@ -28,29 +32,34 @@ class PayMongoConfigTests(TestCase):
             kyb_verified=True,
         )
 
-    @override_settings(PAYMONGO_SECRET_KEY='sk_platform', PAYMONGO_WEBHOOK_SECRET='wh_platform')
-    def test_platform_defaults_when_no_integration(self):
-        cfg = get_paymongo_config(self.company.pk)
-        self.assertIsNotNone(cfg)
-        assert cfg is not None
-        self.assertTrue(cfg.uses_platform_defaults)
-        self.assertEqual(cfg.secret_key, 'sk_platform')
-        self.assertTrue(paymongo_configured(self.company.pk))
-
-    @override_settings(PAYMONGO_SECRET_KEY='sk_platform', PAYMONGO_WEBHOOK_SECRET='wh_platform')
-    def test_company_integration_overrides_platform(self):
+    @override_settings(
+        PAYMONGO_SECRET_KEY='sk_platform',
+        PAYMONGO_WEBHOOK_SECRET='wh_platform',
+        PAYMONGO_PLATFORM_MERCHANT_ID='org_parent',
+    )
+    def test_payments_ready_when_child_activated(self):
         PaymentIntegration.objects.create(
             company=self.company,
             account=self.account,
             payment_gateway=PaymentIntegration.PaymentGateway.PAYMONGO,
-            key='sk_company',
-            secret='wh_company',
+            paymongo_account_id='org_child_1',
+            activation_status='activated',
         )
-        cfg = get_paymongo_config(self.company.pk)
-        assert cfg is not None
-        self.assertFalse(cfg.uses_platform_defaults)
-        self.assertEqual(cfg.secret_key, 'sk_company')
-        self.assertEqual(cfg.webhook_secret, 'wh_company')
+        self.assertTrue(paymongo_configured(self.company.pk))
+        self.assertTrue(company_can_accept_paymongo_payments(self.company.pk))
+        ctx = get_paymongo_company_context(self.company.pk)
+        assert ctx is not None
+        self.assertEqual(ctx.child_account_id, 'org_child_1')
+        self.assertEqual(ctx.platform_merchant_id, 'org_parent')
+        self.assertEqual(ctx.platform_fee_bps, 100)
+
+    @override_settings(
+        PAYMONGO_SECRET_KEY='sk_platform',
+        PAYMONGO_PLATFORM_MERCHANT_ID='org_parent',
+    )
+    def test_not_ready_without_child_account(self):
+        self.assertTrue(paymongo_configured(self.company.pk))
+        self.assertFalse(company_can_accept_paymongo_payments(self.company.pk))
 
 
 class CompanyPayMongoIntegrationApiTests(TestCase):
@@ -86,7 +95,8 @@ class CompanyPayMongoIntegrationApiTests(TestCase):
             company=self.company,
         )
 
-    def test_get_shows_platform_default(self):
+    @override_settings(PAYMONGO_SECRET_KEY='sk_platform')
+    def test_get_shows_not_connected(self):
         from rest_framework.test import APIClient
 
         client = APIClient()
@@ -95,24 +105,8 @@ class CompanyPayMongoIntegrationApiTests(TestCase):
             f'/api/companies/{self.company.pk}/payment-integrations/paymongo/',
         )
         self.assertEqual(res.status_code, 200)
-        self.assertTrue(res.data['uses_platform_defaults'])
-        self.assertFalse(res.data['has_custom_credentials'])
-
-    def test_put_saves_custom_credentials(self):
-        from rest_framework.test import APIClient
-
-        client = APIClient()
-        client.force_authenticate(user=self.user)
-        res = client.put(
-            f'/api/companies/{self.company.pk}/payment-integrations/paymongo/',
-            {'key': 'sk_test_abc', 'secret': 'whsec_test'},
-            format='json',
-        )
-        self.assertEqual(res.status_code, 200)
-        self.assertTrue(res.data['has_custom_credentials'])
-        self.assertFalse(res.data['uses_platform_defaults'])
-        integration = PaymentIntegration.objects.get(company=self.company)
-        self.assertEqual(integration.key, 'sk_test_abc')
+        self.assertEqual(res.data['activation_status'], 'not_started')
+        self.assertFalse(res.data['payments_ready'])
 
     def test_cannot_access_other_account_company(self):
         from rest_framework.test import APIClient
