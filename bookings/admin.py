@@ -95,10 +95,11 @@ class BookingPaymentAdmin(admin.ModelAdmin):
         'platform_fee',
         'transaction_status',
         'transaction_date',
+        'payout_sent_at',
         'company',
         'created_at',
     ]
-    list_filter = ['transaction_status', 'payment_method', 'company']
+    list_filter = ['transaction_status', 'payment_method', 'company', 'payout_sent_at']
     search_fields = ['transaction_id', 'booking__unique_id', 'booking__title']
     readonly_fields = ['created_at', 'updated_at']
     raw_id_fields = ['booking', 'company', 'account']

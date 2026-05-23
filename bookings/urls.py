@@ -7,6 +7,7 @@ from .payment_link_views import (
     PayMongoWebhookView,
     PublicPaymentLinkView,
 )
+from .payout_admin_views import BookingPaymentPayoutAdminViewSet
 from .views import (
     BookingItemViewSet,
     BookingStatusViewSet,
@@ -18,6 +19,11 @@ router = DefaultRouter()
 router.register('booking-statuses', BookingStatusViewSet, basename='booking-status')
 router.register('booking-items', BookingItemViewSet, basename='booking-item')
 router.register('form-templates', FormTemplateViewSet, basename='form-template')
+router.register(
+    'admin/booking-payments',
+    BookingPaymentPayoutAdminViewSet,
+    basename='admin-booking-payment',
+)
 
 urlpatterns = [
     path(

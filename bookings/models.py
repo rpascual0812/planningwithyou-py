@@ -149,6 +149,11 @@ class BookingPayment(models.Model):
     notes = models.TextField(blank=True, default='')
     api_response = models.JSONField(null=True, blank=True, default=None)
     transaction_date = models.DateTimeField(null=True, blank=True)
+    payout_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the platform marked this payment as paid out to the company.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)

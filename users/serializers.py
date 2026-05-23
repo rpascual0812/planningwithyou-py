@@ -2,12 +2,15 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from subscriptions.account_plan import active_subscription_plan_for_account
+
 from .models import Account
 
 User = get_user_model()
 
 
 class AccountSerializer(serializers.ModelSerializer):
+    subscription_plan = serializers.SerializerMethodField()
     country_name = serializers.CharField(source='country.name', read_only=True)
     country_iso_code = serializers.CharField(source='country.iso_code', read_only=True)
     country_iso2_code = serializers.CharField(source='country.iso2_code', read_only=True)
@@ -38,11 +41,13 @@ class AccountSerializer(serializers.ModelSerializer):
             'country_currency',
             'country_currency_symbol',
             'country_currency_code',
+            'subscription_plan',
             'created_at',
             'updated_at',
         ]
         read_only_fields = [
             'id',
+            'subscription_plan',
             'created_at',
             'updated_at',
             'country_name',
@@ -52,6 +57,9 @@ class AccountSerializer(serializers.ModelSerializer):
             'country_currency_symbol',
             'country_currency_code',
         ]
+
+    def get_subscription_plan(self, obj: Account) -> str:
+        return active_subscription_plan_for_account(obj.pk)
 
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):

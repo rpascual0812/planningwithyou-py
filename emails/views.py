@@ -22,8 +22,23 @@ class EmailLogViewSet(viewsets.ModelViewSet):
     ordering_fields = ['id', 'status', 'created_at', 'sent_at']
     ordering = ['-created_at']
 
+    def _company_id_filter(self):
+        raw = self.request.query_params.get('company_id', '').strip()
+        if not raw:
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
     def get_queryset(self):
-        qs = email_logs_for_user(self.request.user)
+        user = self.request.user
+        company_id = (
+            self._company_id_filter()
+            if getattr(user, 'is_admin', False)
+            else None
+        )
+        qs = email_logs_for_user(user, company_id=company_id)
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
