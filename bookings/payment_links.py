@@ -39,7 +39,7 @@ def create_booking_payment_link(
     created_by=None,
     expires_in_days: int = 14,
 ) -> BookingPaymentLink:
-    if not paymongo_configured():
+    if not paymongo_configured(booking.company_id):
         raise PaymentLinkError('PayMongo is not configured on the server.')
 
     company = Company.all_objects.select_related('kyb_verification').filter(
@@ -130,6 +130,7 @@ def create_booking_payment_link(
             description=f'Payment for booking {booking.unique_id or booking.title}',
             reference_number=str(booking.unique_id or booking.pk),
             metadata=metadata,
+            company_id=booking.company_id,
         )
     except PayMongoError as exc:
         link.delete()

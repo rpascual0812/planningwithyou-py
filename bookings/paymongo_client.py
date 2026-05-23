@@ -1,4 +1,4 @@
-"""Minimal PayMongo REST client (platform secret key)."""
+"""Minimal PayMongo REST client (platform or per-company secret key)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from django.conf import settings
+from payments.paymongo_config import get_paymongo_config, paymongo_configured as _paymongo_configured
 
 PAYMONGO_API_BASE = 'https://api.paymongo.com/v1'
 
@@ -36,22 +36,30 @@ class PayMongoError(Exception):
         self.payload = payload
 
 
-def paymongo_configured() -> bool:
-    return bool((getattr(settings, 'PAYMONGO_SECRET_KEY', None) or '').strip())
+def paymongo_configured(company_id: int | None = None) -> bool:
+    return _paymongo_configured(company_id)
 
 
-def _secret_key() -> str:
-    key = (getattr(settings, 'PAYMONGO_SECRET_KEY', None) or '').strip()
-    if not key:
-        raise PayMongoError('PayMongo is not configured (PAYMONGO_SECRET_KEY).')
-    return key
+def _secret_key(company_id: int | None = None) -> str:
+    cfg = get_paymongo_config(company_id)
+    if cfg is None or not cfg.secret_key:
+        raise PayMongoError('PayMongo is not configured (secret key missing).')
+    return cfg.secret_key
 
 
-def _request(method: str, path: str, body: dict | None = None) -> dict:
+def _request(
+    method: str,
+    path: str,
+    body: dict | None = None,
+    *,
+    company_id: int | None = None,
+    secret_key: str | None = None,
+) -> dict:
+    key = (secret_key or '').strip() or _secret_key(company_id)
     url = f'{PAYMONGO_API_BASE}{path}'
     data = None
     headers = {
-        'Authorization': f'Basic {base64.b64encode(f"{_secret_key()}:".encode()).decode()}',
+        'Authorization': f'Basic {base64.b64encode(f"{key}:".encode()).decode()}',
         'Content-Type': 'application/json',
         'Accept': 'application/json',
     }
@@ -91,6 +99,8 @@ def create_checkout_session(
     reference_number: str,
     metadata: dict[str, str],
     send_email_receipt: bool = False,
+    company_id: int | None = None,
+    secret_key: str | None = None,
 ) -> dict:
     """Create a hosted checkout session; returns PayMongo ``data`` object."""
     attributes: dict[str, Any] = {
@@ -106,24 +116,50 @@ def create_checkout_session(
         'show_line_items': True,
     }
     payload = {'data': {'attributes': attributes}}
-    response = _request('POST', '/checkout_sessions', payload)
+    response = _request(
+        'POST',
+        '/checkout_sessions',
+        payload,
+        company_id=company_id,
+        secret_key=secret_key,
+    )
     data = response.get('data')
     if not isinstance(data, dict):
         raise PayMongoError('Unexpected PayMongo checkout response.')
     return data
 
 
-def retrieve_checkout_session(session_id: str) -> dict:
-    response = _request('GET', f'/checkout_sessions/{session_id}')
+def retrieve_checkout_session(
+    session_id: str,
+    *,
+    company_id: int | None = None,
+    secret_key: str | None = None,
+) -> dict:
+    response = _request(
+        'GET',
+        f'/checkout_sessions/{session_id}',
+        company_id=company_id,
+        secret_key=secret_key,
+    )
     data = response.get('data')
     if not isinstance(data, dict):
         raise PayMongoError('Unexpected PayMongo checkout response.')
     return data
 
 
-def retrieve_payment(payment_id: str) -> dict:
+def retrieve_payment(
+    payment_id: str,
+    *,
+    company_id: int | None = None,
+    secret_key: str | None = None,
+) -> dict:
     """Retrieve a PayMongo payment resource (``data`` object)."""
-    response = _request('GET', f'/payments/{payment_id}')
+    response = _request(
+        'GET',
+        f'/payments/{payment_id}',
+        company_id=company_id,
+        secret_key=secret_key,
+    )
     data = response.get('data')
     if not isinstance(data, dict):
         raise PayMongoError('Unexpected PayMongo payment response.')

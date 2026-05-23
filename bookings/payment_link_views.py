@@ -17,6 +17,7 @@ from .payment_link_serializers import (
 from .payment_links import PaymentLinkError, create_booking_payment_link, serialize_public_payment_link
 from .payment_summary import booking_payment_summary
 from .paymongo_webhook import (
+    company_id_from_webhook_body,
     handle_paymongo_webhook_event,
     normalize_paymongo_webhook_body,
     parse_webhook_body,
@@ -113,12 +114,13 @@ class PayMongoWebhookView(APIView):
         signature = request.headers.get('Paymongo-Signature') or request.headers.get(
             'paymongo-signature',
         )
-        if not verify_paymongo_signature(raw, signature):
-            return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             body = parse_webhook_body(raw)
         except ValueError:
             return Response({'detail': 'Invalid JSON.'}, status=status.HTTP_400_BAD_REQUEST)
+        company_id = company_id_from_webhook_body(body)
+        if not verify_paymongo_signature(raw, signature, company_id=company_id):
+            return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
 
         handled = False
         for event in normalize_paymongo_webhook_body(body):

@@ -7,19 +7,23 @@ import hmac
 import json
 from decimal import Decimal
 
-from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
 from .models import BookingPayment, BookingPaymentLink
+from payments.paymongo_config import get_paymongo_config, webhook_secrets_to_try
+
 from .paymongo_client import PayMongoError, retrieve_checkout_session, retrieve_payment
 
 # PayMongo payment ``attributes.status`` values that mark the link as collected.
 _PAYMONGO_LINK_PAID_STATUSES = frozenset({'paid', 'succeeded'})
 
 
-def verify_paymongo_signature(payload: bytes, signature_header: str | None) -> bool:
-    secret = (getattr(settings, 'PAYMONGO_WEBHOOK_SECRET', None) or '').strip()
+def _verify_paymongo_signature_with_secret(
+    payload: bytes,
+    signature_header: str | None,
+    secret: str,
+) -> bool:
     if not secret or not signature_header:
         return False
     parts: dict[str, str] = {}
@@ -38,6 +42,43 @@ def verify_paymongo_signature(payload: bytes, signature_header: str | None) -> b
         hashlib.sha256,
     ).hexdigest()
     return hmac.compare_digest(expected, signature)
+
+
+def verify_paymongo_signature(
+    payload: bytes,
+    signature_header: str | None,
+    *,
+    company_id: int | None = None,
+) -> bool:
+    secrets = webhook_secrets_to_try(company_id)
+    if not secrets:
+        return False
+    return any(
+        _verify_paymongo_signature_with_secret(payload, signature_header, secret)
+        for secret in secrets
+    )
+
+
+def company_id_from_webhook_body(body: dict) -> int | None:
+    """Best-effort company id from webhook metadata (before signature verification)."""
+    for event in normalize_paymongo_webhook_body(body):
+        payment_info = _extract_payment_from_event(event, resolve_api=False)
+        if payment_info is None:
+            continue
+        metadata = payment_info.get('metadata') or {}
+        raw_company = metadata.get('company_id')
+        if raw_company is not None:
+            try:
+                return int(raw_company)
+            except (TypeError, ValueError):
+                pass
+        link = _resolve_payment_link(
+            metadata,
+            payment_info.get('checkout_session_id') or '',
+        )
+        if link is not None:
+            return link.company_id
+    return None
 
 
 def _payment_link_from_metadata(metadata: dict) -> BookingPaymentLink | None:
@@ -136,7 +177,23 @@ def _payment_status_from_attributes(attrs: dict, *, fallback: str = '') -> str:
     return status or 'unknown'
 
 
-def _extract_payment_from_event(event: dict) -> dict | None:
+def _paymongo_secret_key_for_metadata(metadata: dict) -> str | None:
+    raw_company = metadata.get('company_id')
+    if raw_company is None:
+        return None
+    try:
+        company_id = int(raw_company)
+    except (TypeError, ValueError):
+        return None
+    cfg = get_paymongo_config(company_id)
+    return cfg.secret_key if cfg else None
+
+
+def _extract_payment_from_event(
+    event: dict,
+    *,
+    resolve_api: bool = True,
+) -> dict | None:
     """
     Parse PayMongo payment id and status from a webhook event.
 
@@ -184,12 +241,25 @@ def _extract_payment_from_event(event: dict) -> dict | None:
         }
 
     if resource_type == 'checkout_session' and event_type == 'checkout.session.completed':
+        if not resolve_api:
+            return {
+                'payment_id': '',
+                'status': 'unknown',
+                'payment_attrs': {},
+                'payment_method': 'paymongo',
+                'metadata': metadata,
+                'checkout_session_id': _payment_id_from_resource(resource),
+                'event_type': event_type,
+                'resource': resource,
+            }
         session_id = _payment_id_from_resource(resource)
+        secret_key = _paymongo_secret_key_for_metadata(metadata)
         return _extract_payment_from_checkout_session(
             session_id,
             metadata=metadata,
             event_type=event_type,
             session_resource=resource,
+            secret_key=secret_key,
         )
 
     return None
@@ -201,12 +271,15 @@ def _extract_payment_from_checkout_session(
     metadata: dict,
     event_type: str = '',
     session_resource: dict | None = None,
+    secret_key: str | None = None,
 ) -> dict | None:
     """Resolve payment id/status via checkout session (PayMongo API)."""
     if not session_id:
         return None
+    if secret_key is None:
+        secret_key = _paymongo_secret_key_for_metadata(metadata)
     try:
-        session = retrieve_checkout_session(session_id)
+        session = retrieve_checkout_session(session_id, secret_key=secret_key)
     except PayMongoError:
         return None
 
@@ -233,7 +306,7 @@ def _extract_payment_from_checkout_session(
         return None
 
     try:
-        payment = retrieve_payment(payment_id)
+        payment = retrieve_payment(payment_id, secret_key=secret_key)
     except PayMongoError:
         return None
 
