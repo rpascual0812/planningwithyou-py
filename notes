@@ -83,3 +83,7 @@ Admin menu
 
 
 
+in Reports > Payouts, copy Admin > Payouts and display payouts filtered by logged in user's company_id and account_id. 
+There will be no companies dropdown. 
+Instead of Payment Breakdown rename it to "Amount" and display the Booking Credit only. No breakdown.
+Remove the Action column but allow the user to export the list in csv format.

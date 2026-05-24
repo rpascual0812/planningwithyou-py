@@ -8,6 +8,7 @@ from .payment_link_views import (
     PublicPaymentLinkView,
 )
 from .payout_admin_views import BookingPaymentPayoutAdminViewSet
+from .payout_report_views import BookingPaymentPayoutReportViewSet
 from .views import (
     BookingItemViewSet,
     BookingStatusViewSet,
@@ -23,6 +24,11 @@ router.register(
     'admin/booking-payments',
     BookingPaymentPayoutAdminViewSet,
     basename='admin-booking-payment',
+)
+router.register(
+    'booking-payouts',
+    BookingPaymentPayoutReportViewSet,
+    basename='booking-payout',
 )
 
 urlpatterns = [

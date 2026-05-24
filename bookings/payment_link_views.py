@@ -23,6 +23,7 @@ from .paymongo_webhook import (
     parse_webhook_body,
     verify_paymongo_signature,
 )
+from subscriptions.paymongo_webhook import handle_paymongo_subscription_webhook_event
 from .scope import assert_booking_editable, bookings_for_user
 
 
@@ -125,6 +126,8 @@ class PayMongoWebhookView(APIView):
         handled = False
         for event in normalize_paymongo_webhook_body(body):
             if handle_paymongo_webhook_event(event):
+                handled = True
+            elif handle_paymongo_subscription_webhook_event(event):
                 handled = True
 
         return Response({'received': True, 'handled': handled})

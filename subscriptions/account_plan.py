@@ -16,6 +16,7 @@ def active_subscription_plan_for_account(account_id: int) -> str:
     row = (
         AccountSubscription.objects.filter(
             account_id=account_id,
+            status=AccountSubscription.Status.ACTIVE,
             deleted_at__isnull=True,
         )
         .filter(Q(end_date__isnull=True) | Q(end_date__gte=today))

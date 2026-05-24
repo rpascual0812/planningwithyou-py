@@ -117,3 +117,66 @@ class CompanyPayMongoIntegrationApiTests(TestCase):
             f'/api/companies/{self.other_company.pk}/payment-integrations/paymongo/',
         )
         self.assertEqual(res.status_code, 404)
+
+    @override_settings(
+        PAYMONGO_SECRET_KEY='sk_platform',
+        PAYMONGO_PLATFORM_MERCHANT_ID='org_parent',
+    )
+    def test_disconnect_clears_stored_child_account(self):
+        from payments.paymongo_onboarding import disconnect_paymongo_integration
+
+        integration = PaymentIntegration.all_objects.create(
+            company=self.company,
+            account=self.account,
+            payment_gateway=PaymentIntegration.PaymentGateway.PAYMONGO,
+            paymongo_account_id='org_stale_test',
+            activation_status='activated',
+            identity_verification_status='passed',
+        )
+        disconnect_paymongo_integration(self.company.pk)
+        integration.refresh_from_db()
+        self.assertIsNotNone(integration.deleted_at)
+        self.assertEqual(integration.paymongo_account_id, '')
+        self.assertEqual(integration.activation_status, 'not_started')
+
+    @override_settings(
+        PAYMONGO_SECRET_KEY='sk_platform',
+        PAYMONGO_PLATFORM_MERCHANT_ID='org_parent',
+    )
+    def test_onboarding_replaces_stale_child_on_404(self):
+        from unittest.mock import patch
+
+        from payments.paymongo_onboarding import start_paymongo_onboarding
+
+        PaymentIntegration.all_objects.create(
+            company=self.company,
+            account=self.account,
+            payment_gateway=PaymentIntegration.PaymentGateway.PAYMONGO,
+            paymongo_account_id='org_stale_test',
+            activation_status='activated',
+            identity_verification_status='passed',
+        )
+        new_account = {
+            'id': 'org_live_new',
+            'activation_status': 'pending',
+            'person': {'identity_verification_status': 'pending'},
+        }
+
+        with patch(
+            'payments.paymongo_onboarding.get_child_account',
+            side_effect=__import__(
+                'bookings.paymongo_client', fromlist=['PayMongoError']
+            ).PayMongoError('Account not found', status_code=404),
+        ), patch(
+            'payments.paymongo_onboarding.create_child_merchant_account',
+            return_value=new_account,
+        ), patch(
+            'payments.paymongo_onboarding.create_identity_verification_session',
+            return_value={'url': 'https://verify.example/kyc'},
+        ), patch(
+            'payments.paymongo_onboarding.activate_child_account',
+        ) as mock_activate:
+            result = start_paymongo_onboarding(self.company)
+
+        self.assertEqual(result.paymongo_account_id, 'org_live_new')
+        mock_activate.assert_not_called()

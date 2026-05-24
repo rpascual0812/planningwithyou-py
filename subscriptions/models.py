@@ -41,6 +41,13 @@ class Subscription(models.Model):
 
 
 class AccountSubscription(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        ACTIVE = 'active', 'Active'
+        PAST_DUE = 'past_due', 'Past due'
+        UNPAID = 'unpaid', 'Unpaid'
+        CANCELLED = 'cancelled', 'Cancelled'
+
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
     account = models.ForeignKey(
         'users.Account',
@@ -55,6 +62,12 @@ class AccountSubscription(models.Model):
         related_name='account_subscriptions',
     )
     reference_id = models.CharField(max_length=255, blank=True, default='')
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    team_seats = models.PositiveIntegerField(default=1)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     base_price = models.DecimalField(max_digits=10, decimal_places=2)

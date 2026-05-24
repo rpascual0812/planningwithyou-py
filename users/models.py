@@ -35,6 +35,7 @@ class Account(models.Model):
         db_column='country_id',
         related_name='accounts',
     )
+    paymongo_customer_id = models.CharField(max_length=255, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
