@@ -9,6 +9,7 @@ from .payment_link_views import (
 )
 from .payout_admin_views import BookingPaymentPayoutAdminViewSet
 from .payout_report_views import BookingPaymentPayoutReportViewSet
+from .dashboard_views import DashboardSummaryView
 from .views import (
     BookingItemViewSet,
     BookingStatusViewSet,
@@ -32,6 +33,11 @@ router.register(
 )
 
 urlpatterns = [
+    path(
+        'dashboard/summary/',
+        DashboardSummaryView.as_view(),
+        name='dashboard-summary',
+    ),
     path(
         'supplier-booking-capacity/',
         SupplierBookingCapacityView.as_view(),
