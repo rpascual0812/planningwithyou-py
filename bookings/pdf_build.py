@@ -17,7 +17,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from companies.models import Company
-from packages.models import Package, PackageItem
+from packages.models import Package
+
+from .package_items import flat_package_item_rows
 from suppliers.models import Tier
 
 from planningwithyou.file_storage import (
@@ -212,42 +214,11 @@ def _package_item_text_max_width(depth: int) -> float:
     return PAGE_W - MARGIN_R - text_x
 
 
-def _unordered_package_item_rows(
-    package: Package,
-    *,
-    include_inactive: bool = False,
-) -> list[tuple[int, str]]:
-    """Package item rows as ``(depth, title)`` for PDF (tree order). Depth 0 = root."""
-    item_qs = PackageItem.objects.filter(
-        package_id=package.pk,
-        deleted_at__isnull=True,
-    )
-    if not include_inactive:
-        item_qs = item_qs.filter(is_active=True)
-    package_items = list(item_qs)
-    by_parent: dict[int | None, list[PackageItem]] = {}
-    for item in package_items:
-        by_parent.setdefault(item.parent_id, []).append(item)
-    for children in by_parent.values():
-        children.sort(key=lambda x: (x.sort_order, x.id, x.title))
-
-    rows: list[tuple[int, str]] = []
-
-    def walk(parent_id: int | None, depth: int) -> None:
-        for item in by_parent.get(parent_id, []):
-            title = (item.title or '').strip() or '—'
-            rows.append((depth, title))
-            walk(item.pk, depth + 1)
-
-    walk(None, 0)
-    return rows
-
-
 def _package_item_lines_for_supplier_line(line: BookingLine) -> list[tuple[int, str]]:
     package = package_for_supplier_booking_line(line)
     if package is None:
         return []
-    return _unordered_package_item_rows(package, include_inactive=True)
+    return flat_package_item_rows(package, include_inactive=True)
 
 
 def _line_spec_text(

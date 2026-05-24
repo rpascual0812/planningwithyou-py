@@ -321,11 +321,32 @@ def get_supplier_company_tier_options(
         if supplier_account_id is not None
         else {}
     )
+    active_version = (
+        _current_package_version_for_company(
+            company_id=supplier_company_id,
+            account_id=supplier_account_id,
+        )
+        if supplier_account_id is not None
+        else None
+    )
+    active_version_id = active_version.id if active_version is not None else None
+    package_by_tier: dict[int, dict] = {}
+    if active_version_id is not None:
+        package_by_tier = {
+            row['tier_id']: row
+            for row in Package.objects.filter(
+                company_id=supplier_company_id,
+                package_version_id=active_version_id,
+                is_active=True,
+                deleted_at__isnull=True,
+            ).values('id', 'tier_id')
+        }
     result = []
     for row in rows:
         tier = row.tier
         if not tier.is_active or tier.deleted_at is not None:
             continue
+        pkg = package_by_tier.get(tier.id)
         result.append({
             'id': tier.id,
             'name': tier.name,
@@ -340,6 +361,8 @@ def get_supplier_company_tier_options(
             'required_downpayment_amount': _decimal_to_api(
                 downpayment_by_tier.get(tier.id),
             ),
+            'package_id': pkg['id'] if pkg is not None else None,
+            'package_version_id': active_version_id,
         })
     return result
 

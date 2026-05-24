@@ -69,9 +69,6 @@ Settings
 
 TODO
 
-- When supplier 1 adds supplier 2 to a quotation, supplier 2 should be able to see the quotation and 
-  let supplier 1 know that they have accepted/declined the quotation.
-- Add payout page so that suppliers can see their earnings and withdraw their earnings.
 - support page
 
 
@@ -81,9 +78,13 @@ Admin menu
   - Know Your Business
 
 
-
-
-in Reports > Payouts, copy Admin > Payouts and display payouts filtered by logged in user's company_id and account_id. 
-There will be no companies dropdown. 
-Instead of Payment Breakdown rename it to "Amount" and display the Booking Credit only. No breakdown.
-Remove the Action column but allow the user to export the list in csv format.
+in the dashboard component, display the following:
+- number of bookings
+- number of users
+- number of companies
+- number of bookings
+- number of users
+- number of companies
+- number of bookings
+- number of users
+- number of companies

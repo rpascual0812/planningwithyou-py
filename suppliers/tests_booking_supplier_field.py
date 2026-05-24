@@ -1,9 +1,12 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.test import TestCase
+from django.utils import timezone
 
 from companies.models import Company
 from countries.models import Country
+from packages.models import Package, PackageVersion
 from suppliers.models import (
     SupplierSetting,
     SupplierSettingTier,
@@ -76,6 +79,21 @@ class BookingSupplierFieldOptionsTests(TestCase):
             tier=self.tier,
             price=Decimal('250.00'),
         )
+        past = timezone.now() - timedelta(days=1)
+        self.package_version = PackageVersion.objects.create(
+            title='Current',
+            effectivity_date=past,
+            company=self.active_supplier,
+            account=self.tenant_account,
+        )
+        self.package = Package.objects.create(
+            package_version=self.package_version,
+            tier=self.tier,
+            company=self.active_supplier,
+            account=self.tenant_account,
+            total_price=Decimal('100.00'),
+            is_active=True,
+        )
 
     def test_booking_supplier_options_only_active_settings(self):
         options = get_booking_supplier_options(self.tenant_account.id)
@@ -102,6 +120,8 @@ class BookingSupplierFieldOptionsTests(TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['name'], 'Gold')
         self.assertEqual(rows[0]['price'], '250')
+        self.assertEqual(rows[0]['package_id'], self.package.id)
+        self.assertEqual(rows[0]['package_version_id'], self.package_version.id)
 
     def test_tier_options_empty_when_setting_inactive(self):
         rows = get_supplier_company_tier_options(

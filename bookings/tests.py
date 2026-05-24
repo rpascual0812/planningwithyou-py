@@ -14,12 +14,12 @@ from bookings.models import (
 )
 from bookings.payment_validity import booking_has_valid_payment, is_valid_booking_payment
 from companies.models import Company
+from bookings.package_items import flat_package_item_rows
 from bookings.pdf_build import (
     _currency_for_account,
     _ensure_pdf_unicode_fonts,
     _format_money,
     _group_into_blocks,
-    _unordered_package_item_rows,
     _package_item_lines_for_supplier_line,
 )
 from bookings.pricing import resolve_booking_line_price
@@ -350,7 +350,7 @@ class BookingPdfPackageItemsTests(TestCase):
             is_active=True,
         )
 
-    def test_unordered_package_item_rows_nested(self):
+    def test_flat_package_item_rows_nested(self):
         root_a = PackageItem.objects.create(
             package=self.package,
             parent=None,
@@ -375,7 +375,7 @@ class BookingPdfPackageItemsTests(TestCase):
             account=self.account,
             sort_order=1,
         )
-        rows = _unordered_package_item_rows(self.package)
+        rows = flat_package_item_rows(self.package)
         self.assertEqual(
             rows,
             [(0, 'Main service'), (1, 'Sub A'), (0, 'Second')],
