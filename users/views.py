@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import filters, status, viewsets
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -21,6 +22,15 @@ from planningwithyou.template_placeholders import (
     apply_template_placeholders,
     company_template_context,
     user_template_context,
+)
+
+from subscriptions.account_plan import active_subscription_plan_for_account
+
+from .seat_usage import (
+    SEAT_LIMIT_MESSAGE,
+    account_at_user_seat_limit,
+    active_user_count_for_account,
+    team_seats_for_account,
 )
 
 from emails.mail import create_and_queue_email
@@ -207,8 +217,20 @@ class UserViewSet(viewsets.ModelViewSet):
             return UserCreateSerializer
         return UserSerializer
 
+    def _company_id_filter(self) -> int | None:
+        raw = self.request.query_params.get('company_id', '').strip()
+        if not raw:
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
     def get_queryset(self):
-        qs = users_for_user(self.request.user)
+        qs = users_for_user(
+            self.request.user,
+            company_id=self._company_id_filter(),
+        )
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
@@ -219,12 +241,37 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    @action(detail=False, methods=['get'], url_path='seat-usage')
+    def seat_usage(self, request):
+        account_id = request.user.account_id
+        active_count = active_user_count_for_account(account_id)
+        team_seats = team_seats_for_account(account_id)
+        return Response(
+            {
+                'active_users_count': active_count,
+                'team_seats': team_seats,
+                'at_seat_limit': active_count >= team_seats,
+            },
+        )
+
     def perform_create(self, serializer):
+        account_id = self.request.user.account_id
+        if active_subscription_plan_for_account(account_id) == 'free':
+            raise PermissionDenied(
+                'Adding users requires a paid subscription plan.',
+            )
+        if account_at_user_seat_limit(account_id):
+            raise PermissionDenied(SEAT_LIMIT_MESSAGE)
         user = serializer.save()
         _send_reset_email(user)
 
     def perform_update(self, serializer):
-        old_email = serializer.instance.email
+        instance = serializer.instance
+        new_is_active = serializer.validated_data.get('is_active', instance.is_active)
+        if not instance.is_active and new_is_active:
+            if account_at_user_seat_limit(self.request.user.account_id):
+                raise PermissionDenied(SEAT_LIMIT_MESSAGE)
+        old_email = instance.email
         user = serializer.save()
         if user.email != old_email:
             _send_reset_email(user)

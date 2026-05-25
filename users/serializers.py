@@ -2,9 +2,13 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from subscriptions.account_plan import active_subscription_plan_for_account
+from subscriptions.account_plan import (
+    active_subscription_plan_for_account,
+    current_subscription_plan_for_account,
+)
 
 from companies.models import Company
+from companies.scope import company_belongs_to_account
 
 from .models import Account
 
@@ -154,6 +158,8 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    subscription_plan = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -166,6 +172,7 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'is_active',
             'is_admin',
+            'subscription_plan',
             'last_login',
             'created_at',
             'updated_at',
@@ -175,17 +182,39 @@ class UserSerializer(serializers.ModelSerializer):
             'id',
             'account',
             'company',
+            'subscription_plan',
             'last_login',
             'created_at',
             'updated_at',
             'deleted_at',
         ]
 
-    def _users_in_company(self):
+    def get_subscription_plan(self, obj: User) -> str:
+        return current_subscription_plan_for_account(obj.account_id)
+
+    def _target_company_id(self) -> int | None:
         request = self.context.get('request')
         if request is None or not request.user.is_authenticated:
-            return User.objects.all()
-        return User.objects.filter(company_id=request.user.company_id)
+            return None
+        if self.instance is not None:
+            return self.instance.company_id
+        initial = getattr(self, 'initial_data', None) or {}
+        raw = initial.get('company')
+        if raw is not None and raw != '':
+            try:
+                company_id = int(raw)
+            except (TypeError, ValueError):
+                return request.user.company_id
+            if company_belongs_to_account(company_id, request.user.account_id):
+                if getattr(request.user, 'is_admin', False) or company_id == request.user.company_id:
+                    return company_id
+        return request.user.company_id
+
+    def _users_in_company(self):
+        company_id = self._target_company_id()
+        if company_id is None:
+            return User.objects.none()
+        return User.objects.filter(company_id=company_id)
 
     def validate_email(self, value):
         qs = self._users_in_company().filter(email__iexact=value)
@@ -217,10 +246,47 @@ class UserCreateSerializer(UserSerializer):
     """Creates a user with an unusable password. A password-setup email is
     sent separately by the view after the user is saved."""
 
+    company = serializers.PrimaryKeyRelatedField(
+        queryset=Company.objects.none(),
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta(UserSerializer.Meta):
+        read_only_fields = [
+            f
+            for f in UserSerializer.Meta.read_only_fields
+            if f != 'company'
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            self.fields['company'].queryset = Company.objects.filter(
+                account_id=request.user.account_id,
+                deleted_at__isnull=True,
+            )
+
+    def validate_company(self, company):
+        request = self.context['request']
+        if company is None:
+            return company
+        if not company_belongs_to_account(company.pk, request.user.account_id):
+            raise serializers.ValidationError('Invalid company for this account.')
+        if not getattr(request.user, 'is_admin', False) and company.pk != request.user.company_id:
+            raise serializers.ValidationError(
+                'You may only add users to your own company.',
+            )
+        return company
+
     def create(self, validated_data):
         request = self.context['request']
+        company = validated_data.pop('company', None)
         validated_data['account_id'] = request.user.account_id or 1
-        validated_data.setdefault('company_id', request.user.company_id)
+        validated_data['company_id'] = (
+            company.pk if company is not None else request.user.company_id
+        )
         validated_data['is_verified'] = True
         user = User(**validated_data)
         user.set_unusable_password()

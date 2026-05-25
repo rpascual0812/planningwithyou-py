@@ -1,5 +1,3 @@
-from django.db.models import Q
-from django.utils import timezone
 from rest_framework import filters, status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,6 +7,7 @@ from bookings.paymongo_client import PayMongoError
 from planningwithyou.permissions import HasAccount
 from users.models import Account
 
+from .account_plan import current_account_subscription
 from .checkout import SubscriptionCheckoutError, start_subscription_checkout
 from .models import AccountSubscription, Subscription
 from .serializers import (
@@ -41,24 +40,7 @@ class AccountSubscriptionCurrentView(APIView):
     permission_classes = [IsAuthenticated, HasAccount]
 
     def get(self, request):
-        account_id = request.user.account_id
-        today = timezone.localdate()
-        row = (
-            AccountSubscription.objects.filter(
-                account_id=account_id,
-                deleted_at__isnull=True,
-            )
-            .filter(
-                Q(status=AccountSubscription.Status.PENDING)
-                | (
-                    Q(status=AccountSubscription.Status.ACTIVE)
-                    & (Q(end_date__isnull=True) | Q(end_date__gte=today))
-                ),
-            )
-            .select_related('subscription')
-            .order_by('-status', '-start_date', '-id')
-            .first()
-        )
+        row = current_account_subscription(request.user.account_id)
         if row is None:
             return Response(None)
         return Response(AccountSubscriptionSerializer(row).data)
