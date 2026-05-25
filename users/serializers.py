@@ -106,7 +106,7 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
         password = attrs.get('password')
         if not email or not password:
             raise serializers.ValidationError(
-                {'detail': 'Must include email and password.'},
+                {'detail': 'Must include username or email and password.'},
             )
 
         user = (

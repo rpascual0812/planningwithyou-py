@@ -59,6 +59,30 @@ class LoginTokenApiTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn('access', res.data)
 
+    def test_login_succeeds_with_username_when_distinct_from_email(self):
+        self.user.username = 'planner_jane'
+        self.user.email = 'jane.doe@example.com'
+        self.user.save(update_fields=['username', 'email'])
+        res = self.client.post(
+            '/api/token/',
+            {'username': 'planner_jane', 'password': self.password},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('access', res.data)
+
+    def test_login_succeeds_with_email_when_distinct_from_username(self):
+        self.user.username = 'planner_jane'
+        self.user.email = 'jane.doe@example.com'
+        self.user.save(update_fields=['username', 'email'])
+        res = self.client.post(
+            '/api/token/',
+            {'email': 'jane.doe@example.com', 'password': self.password},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('access', res.data)
+
     def test_login_fails_when_account_inactive(self):
         self.account.is_active = False
         self.account.save(update_fields=['is_active'])
