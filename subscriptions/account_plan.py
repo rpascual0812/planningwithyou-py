@@ -41,6 +41,26 @@ def current_subscription_plan_for_account(account_id: int) -> str:
     return row.subscription.plan
 
 
+def active_paid_account_subscription(account_id: int) -> AccountSubscription | None:
+    """Active non-free subscription with a PayMongo reference."""
+    if not account_id:
+        return None
+    today = timezone.localdate()
+    return (
+        AccountSubscription.objects.filter(
+            account_id=account_id,
+            status=AccountSubscription.Status.ACTIVE,
+            deleted_at__isnull=True,
+        )
+        .exclude(subscription__plan='free')
+        .exclude(reference_id='')
+        .filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
+        .select_related('subscription')
+        .order_by('-start_date', '-id')
+        .first()
+    )
+
+
 def active_subscription_plan_for_account(account_id: int) -> str:
     """Return ``subscriptions.plan`` for the account's current subscription, else ``free``."""
     today = timezone.localdate()

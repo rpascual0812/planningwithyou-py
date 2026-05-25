@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     AccountSubscriptionCurrentView,
+    SubscriptionCheckoutPreviewView,
     SubscriptionCheckoutView,
     SubscriptionViewSet,
 )
@@ -15,6 +16,11 @@ urlpatterns = [
         'account-subscription/current/',
         AccountSubscriptionCurrentView.as_view(),
         name='account-subscription-current',
+    ),
+    path(
+        'subscriptions/checkout/preview/',
+        SubscriptionCheckoutPreviewView.as_view(),
+        name='subscription-checkout-preview',
     ),
     path(
         'subscriptions/checkout/',

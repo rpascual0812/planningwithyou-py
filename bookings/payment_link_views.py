@@ -23,6 +23,9 @@ from .paymongo_webhook import (
     parse_webhook_body,
     verify_paymongo_signature,
 )
+from subscriptions.paymongo_checkout_webhook import (
+    handle_subscription_checkout_webhook_body,
+)
 from subscriptions.paymongo_webhook import handle_paymongo_subscription_webhook_event
 from .scope import assert_booking_editable, bookings_for_user
 
@@ -123,7 +126,7 @@ class PayMongoWebhookView(APIView):
         if not verify_paymongo_signature(raw, signature, company_id=company_id):
             return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        handled = False
+        handled = handle_subscription_checkout_webhook_body(body)
         for event in normalize_paymongo_webhook_body(body):
             if handle_paymongo_webhook_event(event):
                 handled = True

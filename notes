@@ -26,8 +26,10 @@ http://localhost:5555
 When adding a new account, add defaults:
 
 upon saving the registration form, create the following records:
+
 accounts table 
   name as Company Name from form
+  status as 'active'
   is_active as True
   country as 173 (Philippines)
   contact_person as First Name & Last Name from form
@@ -48,7 +50,6 @@ account_subscriptions table
   subscription_id as 1
   status as 'pending'
   team_seats as 1
-
 
 companies table 
   name as Company Name from form
@@ -166,3 +167,7 @@ Admin menu
 in the dashboard component, suggest reports to display based on available data.
 
 in the dashboard component, display the following:
+
+
+
+let us change the proration computation, when paying for the first time, straight up bill the entire total amount. If the customer already exists, calculate the remaining value of their subscription by getting the account_subscriptions.total_price and the remaining days left by comparing the date today and account_subscriptions.end_date. Substract the prorated value to the total amount computed by the form. The difference will be the 

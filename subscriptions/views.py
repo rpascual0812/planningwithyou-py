@@ -8,7 +8,11 @@ from planningwithyou.permissions import HasAccount
 from users.models import Account
 
 from .account_plan import current_account_subscription
-from .checkout import SubscriptionCheckoutError, start_subscription_checkout
+from .checkout import (
+    SubscriptionCheckoutError,
+    preview_subscription_checkout,
+    start_subscription_checkout,
+)
 from .models import AccountSubscription, Subscription
 from .serializers import (
     AccountSubscriptionSerializer,
@@ -44,6 +48,47 @@ class AccountSubscriptionCurrentView(APIView):
         if row is None:
             return Response(None)
         return Response(AccountSubscriptionSerializer(row).data)
+
+
+class SubscriptionCheckoutPreviewView(APIView):
+    """Quote amounts due now and on the next billing cycle before checkout."""
+
+    permission_classes = [IsAuthenticated, HasAccount]
+
+    def post(self, request):
+        serializer = SubscriptionCheckoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        subscription = Subscription.objects.filter(
+            plan=data['plan'],
+            billing_cycle=data['billing_cycle'],
+            is_active=True,
+            is_selectable=True,
+        ).first()
+        if subscription is None:
+            return Response(
+                {'detail': 'Subscription plan not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        account = Account.objects.filter(pk=request.user.account_id).first()
+        if account is None:
+            return Response(
+                {'detail': 'Account not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            payload = preview_subscription_checkout(
+                account=account,
+                subscription=subscription,
+                team_seats=data.get('team_seats') or 1,
+            )
+        except SubscriptionCheckoutError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(payload)
 
 
 class SubscriptionCheckoutView(APIView):
