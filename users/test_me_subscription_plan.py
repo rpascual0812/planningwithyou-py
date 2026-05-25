@@ -61,6 +61,8 @@ class MeSubscriptionPlanTests(TestCase):
         res = self.client.get('/api/users/me/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['subscription_plan'], 'free')
+        self.assertEqual(res.data['company_name'], 'Main Co')
+        self.assertEqual(res.data['company_logo_url'], '')
 
     def test_me_returns_subscriptions_plan_via_account_subscriptions(self):
         AccountSubscription.objects.create(

@@ -9,6 +9,7 @@ from subscriptions.account_plan import (
 
 from companies.models import Company
 from companies.scope import company_belongs_to_account
+from planningwithyou.file_storage import company_logo_public_url
 
 from .models import Account
 
@@ -159,6 +160,8 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     subscription_plan = serializers.SerializerMethodField()
+    company_name = serializers.SerializerMethodField()
+    company_logo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -166,6 +169,8 @@ class UserSerializer(serializers.ModelSerializer):
             'id',
             'account',
             'company',
+            'company_name',
+            'company_logo_url',
             'username',
             'email',
             'first_name',
@@ -182,6 +187,8 @@ class UserSerializer(serializers.ModelSerializer):
             'id',
             'account',
             'company',
+            'company_name',
+            'company_logo_url',
             'subscription_plan',
             'last_login',
             'created_at',
@@ -191,6 +198,22 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_subscription_plan(self, obj: User) -> str:
         return current_subscription_plan_for_account(obj.account_id)
+
+    def get_company_name(self, obj: User) -> str:
+        company = getattr(obj, 'company', None)
+        if company is None:
+            return ''
+        return company.name
+
+    def get_company_logo_url(self, obj: User) -> str:
+        company = getattr(obj, 'company', None)
+        if company is None:
+            return ''
+        return company_logo_public_url(
+            company.logo,
+            company.pk,
+            request=self.context.get('request'),
+        )
 
     def _target_company_id(self) -> int | None:
         request = self.context.get('request')
