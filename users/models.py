@@ -97,6 +97,12 @@ class User(AbstractBaseUser):
     email = models.EmailField(unique=True, db_index=True)
     first_name = models.CharField(max_length=150, blank=True, default='')
     last_name = models.CharField(max_length=150, blank=True, default='')
+    photo = models.CharField(
+        max_length=512,
+        blank=True,
+        default='',
+        help_text='Secured API URL for the user profile photo download route.',
+    )
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)

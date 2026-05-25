@@ -18,4 +18,9 @@ urlpatterns = [
         file_views.CompanyLogoFileView.as_view(),
         name='secured-file-company-logo',
     ),
+    path(
+        'files/u/<int:user_id>/photo/',
+        file_views.UserPhotoFileView.as_view(),
+        name='secured-file-user-photo',
+    ),
 ]

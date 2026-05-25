@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework import filters, status, viewsets
+from rest_framework import filters, parsers, status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
@@ -208,6 +208,7 @@ class AccountViewSet(viewsets.ModelViewSet):
 
 class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'username', 'email', 'created_at']
     ordering = ['id']

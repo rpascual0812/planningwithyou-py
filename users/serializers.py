@@ -9,7 +9,9 @@ from subscriptions.account_plan import (
 
 from companies.models import Company
 from companies.scope import company_belongs_to_account
-from planningwithyou.file_storage import company_logo_public_url
+from planningwithyou.file_storage import company_logo_public_url, user_photo_public_url
+
+from .user_photo import delete_user_photo, save_user_photo
 
 from .models import Account
 
@@ -162,6 +164,8 @@ class UserSerializer(serializers.ModelSerializer):
     subscription_plan = serializers.SerializerMethodField()
     company_name = serializers.SerializerMethodField()
     company_logo_url = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
+    photo_upload = serializers.FileField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -171,6 +175,9 @@ class UserSerializer(serializers.ModelSerializer):
             'company',
             'company_name',
             'company_logo_url',
+            'photo',
+            'photo_url',
+            'photo_upload',
             'username',
             'email',
             'first_name',
@@ -189,6 +196,8 @@ class UserSerializer(serializers.ModelSerializer):
             'company',
             'company_name',
             'company_logo_url',
+            'photo',
+            'photo_url',
             'subscription_plan',
             'last_login',
             'created_at',
@@ -214,6 +223,56 @@ class UserSerializer(serializers.ModelSerializer):
             company.pk,
             request=self.context.get('request'),
         )
+
+    def get_photo_url(self, obj: User) -> str:
+        return user_photo_public_url(
+            obj.photo,
+            obj.pk,
+            request=self.context.get('request'),
+        )
+
+    def to_internal_value(self, data):
+        if hasattr(data, 'copy'):
+            payload = data.copy()
+        else:
+            payload = dict(data)
+        photo_val = payload.get('photo')
+        if photo_val is not None and hasattr(photo_val, 'read'):
+            payload['photo_upload'] = photo_val
+            del payload['photo']
+        return super().to_internal_value(payload)
+
+    def _apply_photo_upload(self, instance, photo_upload) -> None:
+        if photo_upload is serializers.empty:
+            return
+        request = self.context.get('request')
+        if request is None or not request.user.is_authenticated:
+            raise serializers.ValidationError(
+                {'photo_upload': 'Authentication required.'},
+            )
+        if instance.pk != request.user.pk:
+            raise serializers.ValidationError(
+                {'photo_upload': 'You can only change your own profile photo.'},
+            )
+        try:
+            if photo_upload:
+                instance.photo = save_user_photo(
+                    instance.account_id,
+                    instance.pk,
+                    photo_upload,
+                    old_photo=instance.photo or '',
+                    request=request,
+                )
+            else:
+                delete_user_photo(
+                    instance.photo,
+                    account_id=instance.account_id,
+                    user_id=instance.pk,
+                )
+                instance.photo = ''
+        except ValueError as exc:
+            raise serializers.ValidationError({'photo_upload': str(exc)}) from exc
+        instance.save(update_fields=['photo', 'updated_at'])
 
     def _target_company_id(self) -> int | None:
         request = self.context.get('request')
@@ -256,12 +315,14 @@ class UserSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
+        photo_upload = validated_data.pop('photo_upload', serializers.empty)
         instance = super().update(instance, validated_data)
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             instance.account_id = request.user.account_id or 1
             instance.company_id = request.user.company_id
             instance.save(update_fields=['account_id', 'company_id'])
+        self._apply_photo_upload(instance, photo_upload)
         return instance
 
 

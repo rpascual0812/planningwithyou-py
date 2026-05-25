@@ -13,12 +13,14 @@ from django.urls import reverse
 from bookings.models import BookingItem
 from documents.models import Document
 from companies.models import Company
+from users.models import User
 
 MAX_FILE_BYTES = 15 * 1024 * 1024
 
 DOCUMENT_PROXY_RE = re.compile(r'/files/d/(\d+)/?', re.IGNORECASE)
 BOOKING_PDF_PROXY_RE = re.compile(r'/files/b/(\d+)/pdf/?', re.IGNORECASE)
 COMPANY_LOGO_PROXY_RE = re.compile(r'/files/c/(\d+)/logo/?', re.IGNORECASE)
+USER_PHOTO_PROXY_RE = re.compile(r'/files/u/(\d+)/photo/?', re.IGNORECASE)
 
 LOGO_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
 
@@ -37,6 +39,9 @@ def parse_proxy_file_url(url: str) -> tuple[str, int] | None:
     match = COMPANY_LOGO_PROXY_RE.search(path)
     if match:
         return 'company_logo', int(match.group(1))
+    match = USER_PHOTO_PROXY_RE.search(path)
+    if match:
+        return 'user_photo', int(match.group(1))
     return None
 
 
@@ -72,6 +77,10 @@ def company_logo_download_path(company_id: int) -> str:
     return reverse('secured-file-company-logo', kwargs={'company_id': company_id})
 
 
+def user_photo_download_path(user_id: int) -> str:
+    return reverse('secured-file-user-photo', kwargs={'user_id': user_id})
+
+
 def company_logo_file_url(company_id: int, request=None) -> str:
     return absolute_file_url(request, company_logo_download_path(company_id))
 
@@ -81,6 +90,16 @@ def company_logo_api_url(company_id: int, request=None) -> str:
     if request is not None:
         return company_logo_file_url(company_id, request=request)
     return f'{api_public_base_url()}{company_logo_download_path(company_id)}'
+
+
+def user_photo_file_url(user_id: int, request=None) -> str:
+    return absolute_file_url(request, user_photo_download_path(user_id))
+
+
+def user_photo_api_url(user_id: int, request=None) -> str:
+    if request is not None:
+        return user_photo_file_url(user_id, request=request)
+    return f'{api_public_base_url()}{user_photo_download_path(user_id)}'
 
 
 def api_public_base_url() -> str:
@@ -189,6 +208,75 @@ def read_company_logo_file(
     suffix = Path(storage_key).suffix.lower() or '.png'
     filename = f'logo{suffix}'
     content_type = mimetypes.guess_type(filename)[0] or 'image/png'
+    return data, filename, content_type
+
+
+def user_photo_storage_key(account_id: int, user_id: int, filename: str) -> str:
+    ext = Path(filename).suffix.lower() or '.jpg'
+    if ext not in LOGO_EXTENSIONS:
+        ext = '.jpg'
+    return f'user_photos/{account_id}/{user_id}/photo{ext}'
+
+
+def find_user_photo_storage_key(account_id: int, user_id: int) -> str:
+    for ext in LOGO_EXTENSIONS:
+        key = f'user_photos/{account_id}/{user_id}/photo{ext}'
+        if default_storage.exists(key):
+            return key
+    return ''
+
+
+def delete_user_photo_storage(account_id: int, user_id: int) -> None:
+    for ext in LOGO_EXTENSIONS:
+        key = f'user_photos/{account_id}/{user_id}/photo{ext}'
+        try:
+            if default_storage.exists(key):
+                default_storage.delete(key)
+        except OSError:
+            pass
+
+
+def user_photo_public_url(stored: str, user_id: int, request=None) -> str:
+    value = (stored or '').strip()
+    if value.startswith(('http://', 'https://')):
+        return value
+    if value.startswith('/'):
+        return absolute_file_url(request, value)
+    if value:
+        try:
+            return default_storage.url(value)
+        except OSError:
+            pass
+    user = User.objects.filter(pk=user_id, deleted_at__isnull=True).first()
+    if user and find_user_photo_storage_key(user.account_id, user_id):
+        return user_photo_file_url(user_id, request=request)
+    return ''
+
+
+def read_user_photo_file(
+    user_id: int,
+    *,
+    account_id: int | None = None,
+) -> tuple[bytes, str, str]:
+    qs = User.objects.filter(pk=user_id, deleted_at__isnull=True)
+    if account_id is not None:
+        qs = qs.filter(account_id=account_id)
+    user = qs.first()
+    if user is None:
+        raise FileNotFoundError('User not found')
+
+    storage_key = find_user_photo_storage_key(user.account_id, user_id)
+    if not storage_key:
+        legacy = (user.photo or '').strip()
+        if legacy and not legacy.startswith(('http://', 'https://', '/')):
+            storage_key = legacy
+        else:
+            raise FileNotFoundError('User photo not found')
+
+    data = _read_storage_key_bytes(storage_key)
+    suffix = Path(storage_key).suffix.lower() or '.jpg'
+    filename = f'photo{suffix}'
+    content_type = mimetypes.guess_type(filename)[0] or 'image/jpeg'
     return data, filename, content_type
 
 
