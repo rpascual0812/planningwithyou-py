@@ -4,9 +4,28 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from subscriptions.account_plan import active_subscription_plan_for_account
 
+from companies.models import Company
+
 from .models import Account
 
 User = get_user_model()
+
+
+def user_may_login(user) -> bool:
+    """True when the user and linked account/company are active and not soft-deleted."""
+    if user is None or not user.is_active or user.deleted_at is not None:
+        return False
+    account = getattr(user, 'account', None)
+    if account is None or not account.is_active or account.deleted_at is not None:
+        return False
+    company = (
+        Company.all_objects.filter(pk=user.company_id).first()
+        if user.company_id
+        else None
+    )
+    if company is None or not company.is_active or company.deleted_at is not None:
+        return False
+    return True
 
 
 class AccountSerializer(serializers.ModelSerializer):
@@ -28,7 +47,6 @@ class AccountSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'status',
             'is_active',
             'contact_person',
             'contact_email',
@@ -82,11 +100,19 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
                 {'detail': 'Must include email and password.'},
             )
 
-        user = User.objects.filter(email__iexact=email).first()
+        user = (
+            User.objects.filter(email__iexact=email)
+            .select_related('account')
+            .first()
+        )
         if user is None:
-            user = User.objects.filter(username__iexact=email).first()
+            user = (
+                User.objects.filter(username__iexact=email)
+                .select_related('account')
+                .first()
+            )
 
-        if user is None or not user.is_active or user.deleted_at is not None:
+        if not user_may_login(user):
             raise serializers.ValidationError(
                 {'detail': self.error_messages['no_active_account']},
             )

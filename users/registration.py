@@ -151,7 +151,6 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
 
     account = Account.objects.create(
         name=data.company_name.strip(),
-        status='active',
         is_active=True,
         country_id=PHILIPPINES_COUNTRY_ID,
         contact_person=contact_person,

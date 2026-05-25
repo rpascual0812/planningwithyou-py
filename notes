@@ -28,7 +28,6 @@ When adding a new account, add defaults:
 upon saving the registration form, create the following records:
 accounts table 
   name as Company Name from form
-  status as 'active'
   is_active as True
   country as 173 (Philippines)
   contact_person as First Name & Last Name from form

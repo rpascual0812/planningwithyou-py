@@ -51,7 +51,6 @@ class RegisterApiTests(TestCase):
         self.assertIn('refresh', response.data)
 
         account = Account.objects.get(name='Acme Events')
-        self.assertEqual(account.status, 'active')
         self.assertTrue(account.is_active)
         self.assertEqual(account.country_id, 173)
         self.assertEqual(account.contact_person, 'Jane Doe')

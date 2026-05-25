@@ -23,7 +23,6 @@ class AccountAllManager(models.Manager.from_queryset(AccountQuerySet)):
 
 class Account(models.Model):
     name = models.CharField(max_length=255)
-    status = models.CharField(max_length=64, default='active')
     is_active = models.BooleanField(default=True)
     contact_person = models.CharField(max_length=255, blank=True, default='')
     contact_email = models.EmailField(blank=True, default='')

@@ -107,16 +107,14 @@ class AccountViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = AccountSerializer
     filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['id', 'name', 'status', 'created_at', 'updated_at']
+    ordering_fields = ['id', 'name', 'is_active', 'created_at', 'updated_at']
     ordering = ['name']
 
     def get_queryset(self):
         qs = Account.objects.select_related('country')
         search = self.request.query_params.get('search', '').strip()
         if search:
-            qs = qs.filter(
-                Q(name__icontains=search) | Q(status__icontains=search),
-            )
+            qs = qs.filter(name__icontains=search)
         return qs
 
     def perform_destroy(self, instance):

@@ -35,7 +35,6 @@ class AccountAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'name',
-        'status',
         'is_active',
         'contact_person',
         'contact_email',
@@ -44,7 +43,7 @@ class AccountAdmin(admin.ModelAdmin):
         'created_at',
         'deleted_at',
     )
-    list_filter = ('is_active', 'country', 'status')
+    list_filter = ('is_active', 'country')
     search_fields = ('name',)
     readonly_fields = ('created_at', 'updated_at')
 
