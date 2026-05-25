@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import (
 from .views import (
     AccountViewSet,
     EmailTokenObtainPairView,
+    EmailVerifyView,
     PasswordResetConfirmView,
     RegisterView,
     UserViewSet,
@@ -19,6 +20,7 @@ router.register('users', UserViewSet, basename='user')
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
+    path('verify-email/', EmailVerifyView.as_view(), name='verify_email'),
     path('token/', EmailTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path(

@@ -14,7 +14,10 @@ from planningwithyou.permissions import HasAccount, HasCompany
 from planningwithyou.template_placeholders import (
     DEFAULT_PASSWORD_RESET_BODY_HTML,
     DEFAULT_PASSWORD_RESET_SUBJECT,
+    DEFAULT_VERIFY_EMAIL_BODY_HTML,
+    DEFAULT_VERIFY_EMAIL_SUBJECT,
     EMAIL_TEMPLATE_PASSWORD_RESET,
+    EMAIL_TEMPLATE_VERIFY_EMAIL,
     apply_template_placeholders,
     company_template_context,
     user_template_context,
@@ -24,12 +27,13 @@ from emails.mail import create_and_queue_email
 from emails.models import EmailTemplate
 from emails.tasks import send_email_task
 
-from .models import Account, PasswordResetToken
+from .models import Account, EmailVerificationToken, PasswordResetToken
 from .scope import users_for_user
 from .registration_serializers import RegisterSerializer
 from .serializers import (
     AccountSerializer,
     EmailTokenObtainPairSerializer,
+    EmailVerifySerializer,
     PasswordResetConfirmSerializer,
     UserCreateSerializer,
     UserSerializer,
@@ -97,6 +101,56 @@ def _send_reset_email(user):
         body=body,
         account=getattr(user, 'account', None),
         created_by=user,
+    )
+    send_email_task.delay(log.pk)
+
+
+def _send_verification_email(user):
+    EmailVerificationToken.objects.filter(user=user, used=False).update(used=True)
+    verification = EmailVerificationToken.objects.create(user=user)
+    verify_url = f'{settings.FRONTEND_URL}/verify-email/{verification.token}'
+    lifetime = getattr(settings, 'EMAIL_VERIFICATION_TOKEN_LIFETIME_HOURS', 72)
+    company = getattr(user, 'company', None)
+    if company is None and user.company_id:
+        from companies.models import Company
+
+        company = Company.objects.filter(pk=user.company_id).first()
+    context = {
+        **user_template_context(user),
+        **company_template_context(company),
+        'verify_url': verify_url,
+        'lifetime': str(lifetime),
+    }
+
+    tmpl = (
+        EmailTemplate.objects.filter(
+            name=EMAIL_TEMPLATE_VERIFY_EMAIL,
+            account_id=user.account_id,
+            template_type=EmailTemplate.TemplateType.USERS,
+            is_active=True,
+            deleted_at__isnull=True,
+        )
+        .order_by('id')
+        .first()
+    )
+    if tmpl and (tmpl.subject.strip() or tmpl.body.strip()):
+        subject = apply_template_placeholders(
+            tmpl.subject.strip() or DEFAULT_VERIFY_EMAIL_SUBJECT,
+            context,
+        )
+        body = apply_template_placeholders(tmpl.body, context)
+        if not body.strip():
+            body = apply_template_placeholders(DEFAULT_VERIFY_EMAIL_BODY_HTML, context)
+    else:
+        subject = apply_template_placeholders(DEFAULT_VERIFY_EMAIL_SUBJECT, context)
+        body = apply_template_placeholders(DEFAULT_VERIFY_EMAIL_BODY_HTML, context)
+
+    log = create_and_queue_email(
+        to=[user.email],
+        subject=subject,
+        body=body,
+        account=getattr(user, 'account', None),
+        created_by=None,
     )
     send_email_task.delay(log.pk)
 
@@ -202,17 +256,37 @@ class RegisterView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        _send_verification_email(user)
+        return Response(
+            {
+                'detail': (
+                    'Registration successful. Please check your email to verify '
+                    'your account before signing in.'
+                ),
+                'email': user.email,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class EmailVerifyView(GenericAPIView):
+    """POST /api/verify-email/ with { token } — verify email and return JWT."""
+
+    permission_classes = [AllowAny]
+    serializer_class = EmailVerifySerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
         refresh = RefreshToken.for_user(user)
-        result = serializer.context['registration_result']
         return Response(
             {
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
-                'account_id': result.account.id,
-                'company_id': result.company.id,
-                'user_id': user.id,
+                'detail': 'Email verified successfully.',
             },
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_200_OK,
         )
 
 

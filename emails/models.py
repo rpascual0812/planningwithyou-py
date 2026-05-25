@@ -12,6 +12,8 @@ class EmailLog(models.Model):
     company = models.ForeignKey(
         'companies.Company',
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='email_logs',
         db_column='company_id',
     )

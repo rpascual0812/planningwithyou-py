@@ -25,6 +25,8 @@ def user_may_login(user) -> bool:
     )
     if company is None or not company.is_active or company.deleted_at is not None:
         return False
+    if not getattr(user, 'is_verified', False):
+        return False
     return True
 
 
@@ -112,13 +114,36 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
                 .first()
             )
 
-        if not user_may_login(user):
+        if user is None or not user.is_active or user.deleted_at is not None:
             raise serializers.ValidationError(
                 {'detail': self.error_messages['no_active_account']},
             )
         if not user.check_password(password):
             raise serializers.ValidationError(
                 {'detail': self.error_messages['no_active_account']},
+            )
+        account = getattr(user, 'account', None)
+        if account is None or not account.is_active or account.deleted_at is not None:
+            raise serializers.ValidationError(
+                {'detail': self.error_messages['no_active_account']},
+            )
+        company = (
+            Company.all_objects.filter(pk=user.company_id).first()
+            if user.company_id
+            else None
+        )
+        if company is None or not company.is_active or company.deleted_at is not None:
+            raise serializers.ValidationError(
+                {'detail': self.error_messages['no_active_account']},
+            )
+        if not user.is_verified:
+            raise serializers.ValidationError(
+                {
+                    'detail': (
+                        'Please verify your email address before logging in. '
+                        'Check your inbox for the verification link.'
+                    ),
+                },
             )
 
         refresh = self.get_token(user)
@@ -196,9 +221,39 @@ class UserCreateSerializer(UserSerializer):
         request = self.context['request']
         validated_data['account_id'] = request.user.account_id or 1
         validated_data.setdefault('company_id', request.user.company_id)
+        validated_data['is_verified'] = True
         user = User(**validated_data)
         user.set_unusable_password()
         user.save()
+        return user
+
+
+class EmailVerifySerializer(serializers.Serializer):
+    token = serializers.UUIDField()
+
+    def validate_token(self, value):
+        from .models import EmailVerificationToken
+
+        try:
+            verification = EmailVerificationToken.objects.select_related(
+                'user',
+                'user__account',
+            ).get(token=value)
+        except EmailVerificationToken.DoesNotExist:
+            raise serializers.ValidationError('Invalid or expired verification link.')
+        if not verification.is_valid:
+            raise serializers.ValidationError('Invalid or expired verification link.')
+        self.context['verification'] = verification
+        return value
+
+    def save(self):
+        verification = self.context['verification']
+        user = verification.user
+        if not user.is_verified:
+            user.is_verified = True
+            user.save(update_fields=['is_verified', 'updated_at'])
+        verification.used = True
+        verification.save(update_fields=['used'])
         return user
 
 

@@ -69,6 +69,20 @@ EMAIL_TEMPLATES = [
         ),
     },
     {
+        'name': 'verify_email',
+        'template_type': EmailTemplate.TemplateType.USERS,
+        'title': 'Verify your email',
+        'subject': 'Verify your email – {company_name}',
+        'body': (
+            '<h3>Hello {first_name},</h3>\n'
+            '<p>Thank you for registering with {company_name}.</p>\n'
+            '<p>Please click the link below to verify your email address and sign in:</p>\n'
+            '<p><a href="{verify_url}">{verify_url}</a></p>\n'
+            '<p>This link expires in {lifetime} hours.</p>\n'
+            '<p>If you did not create this account, you can safely ignore this email.</p>'
+        ),
+    },
+    {
         'name': 'password_reset',
         'template_type': EmailTemplate.TemplateType.USERS,
         'title': 'Password Reset',
@@ -162,7 +176,7 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
         uuid=uuid.uuid4(),
         account=account,
         subscription_id=DEFAULT_SUBSCRIPTION_ID,
-        status=AccountSubscription.Status.PENDING,
+        status=AccountSubscription.Status.ACTIVE,
         team_seats=1,
         start_date=today,
         end_date=_add_one_month(today),
@@ -252,6 +266,7 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
         first_name=data.first_name.strip(),
         last_name=data.last_name.strip(),
         is_active=True,
+        is_verified=False,
         is_admin=False,
     )
 

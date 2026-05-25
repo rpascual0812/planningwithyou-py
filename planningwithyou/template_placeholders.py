@@ -9,6 +9,7 @@ from __future__ import annotations
 
 # --- User email template ``EmailTemplate.name`` values referenced in code ---
 EMAIL_TEMPLATE_PASSWORD_RESET = 'password_reset'
+EMAIL_TEMPLATE_VERIFY_EMAIL = 'verify_email'
 EMAIL_TEMPLATE_PAYMENT_LINK = 'payment_link'
 
 DEFAULT_PAYMENT_LINK_SUBJECT = 'Payment for your booking'
@@ -24,7 +25,18 @@ DEFAULT_PAYMENT_LINK_BODY_HTML = (
 # User: {name}, {first_name}, {last_name}, {email_address}, {mobile_number}
 # Company: {company_name}, {company_contact_person}, {company_phone_number},
 #          {company_mobile_number}, {company_address}
-# Other: {reset_url}, {lifetime}, {payment_link} (booking emails, client-side)
+# Other: {reset_url}, {verify_url}, {lifetime}, {payment_link} (booking emails)
+DEFAULT_VERIFY_EMAIL_SUBJECT = 'Verify your email – {company_name}'
+
+DEFAULT_VERIFY_EMAIL_BODY_HTML = (
+    '<h3>Hello {first_name},</h3>'
+    '<p>Thank you for registering with Planning With You.</p>'
+    '<p>Please click the link below to verify your email address and sign in:</p>'
+    '<p><a href="{verify_url}">{verify_url}</a></p>'
+    '<p>This link expires in {lifetime} hours.</p>'
+    '<p>If you did not create this account, you can safely ignore this email.</p>'
+)
+
 DEFAULT_PASSWORD_RESET_SUBJECT = 'Set Your Password – Planning With You'
 
 DEFAULT_PASSWORD_RESET_BODY_HTML = (

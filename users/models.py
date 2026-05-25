@@ -98,6 +98,7 @@ class User(AbstractBaseUser):
     first_name = models.CharField(max_length=150, blank=True, default='')
     last_name = models.CharField(max_length=150, blank=True, default='')
     is_active = models.BooleanField(default=True)
+    is_verified = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -129,6 +130,33 @@ class User(AbstractBaseUser):
 
     def has_perm(self, perm, obj=None):
         return self.is_admin
+
+
+class EmailVerificationToken(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='email_verification_tokens',
+    )
+    token = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'email_verification_tokens'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user} – {self.token}'
+
+    @property
+    def is_expired(self):
+        lifetime = getattr(settings, 'EMAIL_VERIFICATION_TOKEN_LIFETIME_HOURS', 72)
+        return timezone.now() > self.created_at + timedelta(hours=lifetime)
+
+    @property
+    def is_valid(self):
+        return not self.used and not self.is_expired
 
 
 class PasswordResetToken(models.Model):

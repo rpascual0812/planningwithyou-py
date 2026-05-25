@@ -44,6 +44,7 @@ class LoginTokenApiTests(TestCase):
             password=self.password,
             account=self.account,
             company=self.company,
+            is_verified=True,
         )
 
     def _token_payload(self):

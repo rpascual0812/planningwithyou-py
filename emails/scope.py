@@ -18,6 +18,8 @@ def email_logs_for_user(user, *, company_id=None):
         if company_id is not None:
             qs = qs.filter(company_id=company_id)
         return qs
+    if user.company_id is None:
+        return qs.filter(company_id__isnull=True)
     effective_company_id = user.company_id
     if company_id is not None and company_id == user.company_id:
         effective_company_id = company_id

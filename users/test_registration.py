@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -44,11 +46,13 @@ class RegisterApiTests(TestCase):
         data.update(overrides)
         return data
 
-    def test_register_creates_tenant_records(self):
+    @patch('users.views.send_email_task.delay')
+    def test_register_creates_tenant_records(self, _mock_delay):
         response = self.client.post('/api/register/', self._payload(), format='json')
         self.assertEqual(response.status_code, 201)
-        self.assertIn('access', response.data)
-        self.assertIn('refresh', response.data)
+        self.assertIn('detail', response.data)
+        self.assertNotIn('access', response.data)
+        self.assertEqual(response.data['email'], 'jane@acme.test')
 
         account = Account.objects.get(name='Acme Events')
         self.assertTrue(account.is_active)
@@ -126,7 +130,10 @@ class RegisterApiTests(TestCase):
                 flat=True,
             ),
         )
-        self.assertEqual(template_names, {'welcome', 'password_reset', 'payment_link'})
+        self.assertEqual(
+            template_names,
+            {'welcome', 'verify_email', 'password_reset', 'payment_link'},
+        )
 
         folder = DocumentFolder.objects.get(account=account, company=company)
         self.assertEqual(folder.name, 'General')
@@ -135,6 +142,7 @@ class RegisterApiTests(TestCase):
         self.assertEqual(user.account_id, account.id)
         self.assertEqual(user.company_id, company.id)
         self.assertTrue(user.is_admin)
+        self.assertFalse(user.is_verified)
         self.assertTrue(user.check_password('secret12'))
 
     def test_register_rejects_duplicate_email(self):
