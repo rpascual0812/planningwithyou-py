@@ -25,23 +25,108 @@ http://localhost:5555
 
 When adding a new account, add defaults:
 
-company
-booking_statuses
-calendar_statuses
-config  
-  - account,booking_view:list
-  - account,bookings_group_name:Group
-  - list of tiers (Tier 1, Tier 2, Tier 3)
-  - 
-bookings
-  -
+upon saving the registration form, create the following records:
+accounts table 
+  name as Company Name from form
+  status as 'active'
+  is_active as True
+  country as 173 (Philippines)
+  contact_person as First Name & Last Name from form
+  contact_email as Email Address from form
+  mobile_number as Mobile Number from form
+
+account_subscriptions table
+  uuid as generated new uuid
+  start_date as today's date
+  end_date as today's date + 1 month
+  base_price as 0
+  total_per_users as 0
+  total_price as 0
+  discount_code as ''
+  created_at as today's date
+  updated_at as today's date
+  account_id as newly created account id
+  subscription_id as 1
+  status as 'pending'
+  team_seats as 1
+
+
+companies table 
+  name as Company Name from form
+  timezone as 'Asia/Manila'
+  is_active as True
+  is_main as True
+  sort_order as 0
+  account_id as newly created account id
+  supplier_type_id as the company type from form
+  contact_person as First Name & Last Name from form
+  phone_number as Phone Number from form
+  mobile_number as Mobile Number from form
+  kyb_verified as False
+  max_bookings_per_day as 1
+
+booking_statuses table - New|Confirmed|In-progress|Cancelled|Completed
+calendar_statuses table - Pending|Confirmed|Follow-up|No Answer|On Hold|Completed|Declined
+config table
+  - account,booking_view,list
+  - account,bookings_group_name,Group
+tiers table - Bronze|Silver|Gold
+
+email_templates table
+  - name as 'welcome'
+  - type as 'users'
+  - is_active as True
+  - body as '<h3>Hello {first_name},</h3>
+<p>An account has been created for you at Planning With You.</p>
+<div>
+<div>You will receive a separate email with your login details.</div>
+</div>'
+  - subject as 'Welcome to {company_name}!'
+  - title as 'Welcome!'
+  - account_id as newly created account id
+  - company_id as newly created company id
+  - is_default as True
+
+  - name as 'password_reset'
+  - type as 'users'
+  - is_active as True
+  - body as '<h3>Hello {first_name},</h3>
+<p>An account has been created for you at Planning With You.</p>
+<p>Please click the link below to set your password:</p>
+<p><a href="{reset_url}">{reset_url}</a></p>
+<p>This link expires in {lifetime} hours.</p>
+<p>If you did not expect this email, you can safely ignore it.</p>'
+  - subject as 'Set Your Password – {company_name}'
+  - title as 'Password Reset'
+  - account_id as newly created account id
+  - company_id as newly created company id
+  - is_default as True
+
+  - name as 'payment_link'
+  - type as 'bookings'
+  - is_active as True
+  - body as '<p>Hello,</p><p>Please complete your payment using the link below:</p><p><a href="{payment_link}">{payment_link}</a></p><p>Thank you.</p>'
+  - subject as 'Payment for your booking'
+  - title as 'Payment Link'
+  - account_id as newly created account id
+  - company_id as newly created company id
+  - is_default as True
+
+document_folders table
+  - name as 'General'
+  - account_id as newly created account id
+  - company_id as newly created company id
+  - created_at as today's date
+  - updated_at as today's date
+
+
+
+
+
 
 When adding a new company, add defaults:
 
-form template
 document folder
-default booking board columns
-email templates
 
 
 Pro Plan - Add the ff:
@@ -78,13 +163,7 @@ Admin menu
   - Know Your Business
 
 
+
+in the dashboard component, suggest reports to display based on available data.
+
 in the dashboard component, display the following:
-- number of bookings
-- number of users
-- number of companies
-- number of bookings
-- number of users
-- number of companies
-- number of bookings
-- number of users
-- number of companies

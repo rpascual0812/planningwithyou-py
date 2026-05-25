@@ -32,13 +32,10 @@ class EmailLogViewSet(viewsets.ModelViewSet):
             return None
 
     def get_queryset(self):
-        user = self.request.user
-        company_id = (
-            self._company_id_filter()
-            if getattr(user, 'is_admin', False)
-            else None
+        qs = email_logs_for_user(
+            self.request.user,
+            company_id=self._company_id_filter(),
         )
-        qs = email_logs_for_user(user, company_id=company_id)
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(

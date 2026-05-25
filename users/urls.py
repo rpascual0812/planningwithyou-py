@@ -9,6 +9,7 @@ from .views import (
     AccountViewSet,
     EmailTokenObtainPairView,
     PasswordResetConfirmView,
+    RegisterView,
     UserViewSet,
 )
 
@@ -17,6 +18,7 @@ router.register('accounts', AccountViewSet, basename='account')
 router.register('users', UserViewSet, basename='user')
 
 urlpatterns = [
+    path('register/', RegisterView.as_view(), name='register'),
     path('token/', EmailTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path(

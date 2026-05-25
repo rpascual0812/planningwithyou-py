@@ -21,7 +21,10 @@ DEFAULT_PAYMENT_LINK_BODY_HTML = (
 )
 
 # --- Password-invite / reset (no DB row or empty template fields) -------------
-# Placeholders: {name}, {reset_url}, {lifetime}, {payment_link} (booking emails, client-side)
+# User: {name}, {first_name}, {last_name}, {email_address}, {mobile_number}
+# Company: {company_name}, {company_contact_person}, {company_phone_number},
+#          {company_mobile_number}, {company_address}
+# Other: {reset_url}, {lifetime}, {payment_link} (booking emails, client-side)
 DEFAULT_PASSWORD_RESET_SUBJECT = 'Set Your Password – Planning With You'
 
 DEFAULT_PASSWORD_RESET_BODY_HTML = (
@@ -32,6 +35,39 @@ DEFAULT_PASSWORD_RESET_BODY_HTML = (
     '<p>This link expires in {lifetime} hours.</p>'
     '<p>If you did not expect this email, you can safely ignore it.</p>'
 )
+
+
+def company_template_context(company) -> dict[str, str]:
+    """Placeholder values from a ``companies.Company`` (or None)."""
+    if company is None:
+        return {
+            'company_name': '',
+            'company_contact_person': '',
+            'company_phone_number': '',
+            'company_mobile_number': '',
+            'company_address': '',
+        }
+    return {
+        'company_name': (company.name or '').strip(),
+        'company_contact_person': (company.contact_person or '').strip(),
+        'company_phone_number': (company.phone_number or '').strip(),
+        'company_mobile_number': (company.mobile_number or '').strip(),
+        'company_address': (company.address or '').strip(),
+    }
+
+
+def user_template_context(user) -> dict[str, str]:
+    """Common user/recipient placeholders for email templates."""
+    first = (getattr(user, 'first_name', None) or '').strip()
+    last = (getattr(user, 'last_name', None) or '').strip()
+    name = f'{first} {last}'.strip() or (getattr(user, 'username', None) or '').strip()
+    return {
+        'name': name,
+        'first_name': first,
+        'last_name': last,
+        'email_address': (getattr(user, 'email', None) or '').strip(),
+        'mobile_number': '',
+    }
 
 
 def apply_template_placeholders(template: str, context: dict[str, str]) -> str:

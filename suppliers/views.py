@@ -1,6 +1,6 @@
 from django.utils import timezone
 from rest_framework import filters, status, viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -15,6 +15,20 @@ from .serializers import (
     SupplierTypeSerializer,
     TierSerializer,
 )
+
+
+class PublicSupplierTypeListView(APIView):
+    """Active supplier types for registration (no authentication)."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        qs = SupplierType.objects.filter(is_active=True).order_by('name')
+        search = request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(name__icontains=search)
+        serializer = SupplierTypeSerializer(qs, many=True)
+        return Response(serializer.data)
 
 
 class SupplierTypeViewSet(viewsets.ReadOnlyModelViewSet):

@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from planningwithyou.permissions import HasAccount, HasCompany
@@ -15,6 +16,8 @@ from planningwithyou.template_placeholders import (
     DEFAULT_PASSWORD_RESET_SUBJECT,
     EMAIL_TEMPLATE_PASSWORD_RESET,
     apply_template_placeholders,
+    company_template_context,
+    user_template_context,
 )
 
 from emails.mail import create_and_queue_email
@@ -23,6 +26,7 @@ from emails.tasks import send_email_task
 
 from .models import Account, PasswordResetToken
 from .scope import users_for_user
+from .registration_serializers import RegisterSerializer
 from .serializers import (
     AccountSerializer,
     EmailTokenObtainPairSerializer,
@@ -41,14 +45,16 @@ class EmailTokenObtainPairView(TokenObtainPairView):
 def _send_reset_email(user):
     PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
     reset = PasswordResetToken.objects.create(user=user)
-    name = (
-        f'{user.first_name} {user.last_name}'.strip()
-        or user.username
-    )
     reset_url = f'{settings.FRONTEND_URL}/reset-password/{reset.token}'
     lifetime = settings.PASSWORD_RESET_TOKEN_LIFETIME_HOURS
+    company = getattr(user, 'company', None)
+    if company is None and user.company_id:
+        from companies.models import Company
+
+        company = Company.objects.filter(pk=user.company_id).first()
     context = {
-        'name': name,
+        **user_template_context(user),
+        **company_template_context(company),
         'reset_url': reset_url,
         'lifetime': str(lifetime),
     }
@@ -186,6 +192,30 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         serializer = UserSerializer(user)
         return Response(serializer.data)
+
+
+class RegisterView(GenericAPIView):
+    """POST /api/register/ — self-service tenant signup."""
+
+    permission_classes = [AllowAny]
+    serializer_class = RegisterSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        result = serializer.context['registration_result']
+        return Response(
+            {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'account_id': result.account.id,
+                'company_id': result.company.id,
+                'user_id': user.id,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class PasswordResetConfirmView(GenericAPIView):
