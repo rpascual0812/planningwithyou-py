@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     'subscriptions',
     'packages',
     'payments',
+    'system_notifications',
 ]
 
 MIDDLEWARE = [
