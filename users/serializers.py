@@ -11,6 +11,7 @@ from companies.models import Company
 from companies.scope import company_belongs_to_account
 from planningwithyou.file_storage import company_logo_public_url, user_photo_public_url
 
+from .jwt import issue_tokens_for_user
 from .user_photo import delete_user_photo, save_user_photo
 
 from .models import Account
@@ -153,11 +154,7 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
                 },
             )
 
-        refresh = self.get_token(user)
-        return {
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }
+        return issue_tokens_for_user(user)
 
 
 class UserSerializer(serializers.ModelSerializer):

@@ -8,7 +8,6 @@ from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from planningwithyou.permissions import HasAccount, HasCompany
@@ -40,6 +39,7 @@ from emails.tasks import send_email_task
 from .models import Account, EmailVerificationToken, PasswordResetToken
 from .scope import users_for_user
 from .registration_serializers import RegisterSerializer
+from .jwt import issue_tokens_for_user
 from .serializers import (
     AccountSerializer,
     EmailTokenObtainPairSerializer,
@@ -327,11 +327,10 @@ class EmailVerifyView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        refresh = RefreshToken.for_user(user)
+        tokens = issue_tokens_for_user(user)
         return Response(
             {
-                'access': str(refresh.access_token),
-                'refresh': str(refresh),
+                **tokens,
                 'detail': 'Email verified successfully.',
             },
             status=status.HTTP_200_OK,

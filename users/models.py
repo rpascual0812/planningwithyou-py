@@ -106,6 +106,10 @@ class User(AbstractBaseUser):
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
+    token_version = models.PositiveIntegerField(
+        default=0,
+        help_text='Incremented on each login to invalidate JWTs from previous sessions.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
