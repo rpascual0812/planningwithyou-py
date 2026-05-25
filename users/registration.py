@@ -252,7 +252,7 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
         first_name=data.first_name.strip(),
         last_name=data.last_name.strip(),
         is_active=True,
-        is_admin=True,
+        is_admin=False,
     )
 
     return RegistrationResult(account=account, company=company, user=user)
