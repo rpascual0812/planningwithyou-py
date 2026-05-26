@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from users.models import RolePermission
-from users.roles import PLATFORM_ADMIN_KEY, ensure_owner_role
+from users.roles import ADMIN_FEATURE_KEYS, ensure_owner_role
 
 
 def assign_owner_role(user) -> None:
@@ -15,8 +15,9 @@ def assign_owner_role(user) -> None:
 def grant_platform_admin(user) -> None:
     if user.role_id is None:
         assign_owner_role(user)
-    RolePermission.objects.update_or_create(
-        role_id=user.role_id,
-        feature_key=PLATFORM_ADMIN_KEY,
-        defaults={'access': 'write'},
-    )
+    for feature_key in ADMIN_FEATURE_KEYS:
+        RolePermission.objects.update_or_create(
+            role_id=user.role_id,
+            feature_key=feature_key,
+            defaults={'access': 'write'},
+        )

@@ -25,7 +25,7 @@ class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
     """Subscription plans for Settings → Subscription."""
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'subscription'
+    feature_key = 'account_settings'
     serializer_class = SubscriptionSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['sort_order', 'plan', 'base_price']
@@ -43,7 +43,7 @@ class AccountSubscriptionCurrentView(APIView):
     """Active or pending account subscription for Settings → Subscription."""
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'subscription'
+    feature_key = 'account_settings'
 
     def get(self, request):
         row = current_account_subscription(request.user.account_id)
@@ -56,7 +56,7 @@ class SubscriptionCheckoutPreviewView(APIView):
     """Quote amounts due now and on the next billing cycle before checkout."""
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'subscription'
+    feature_key = 'account_settings'
 
     def post(self, request):
         serializer = SubscriptionCheckoutSerializer(data=request.data)
@@ -98,7 +98,7 @@ class SubscriptionCheckoutView(APIView):
     """Start PayMongo subscription checkout; returns redirect URL."""
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'subscription'
+    feature_key = 'account_settings'
 
     def post(self, request):
         serializer = SubscriptionCheckoutSerializer(data=request.data)

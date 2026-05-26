@@ -18,15 +18,24 @@ TENANT_FEATURE_KEYS = (
     'companies_settings',
     'supplier_settings',
     'booking_settings_statuses',
-    'booking_settings_form_templates',
     'email_templates',
-    'subscription',
+    'roles_permissions',
+    'calendar_settings',
 )
 
-# Cross-tenant staff tools (not shown in tenant role editor).
-PLATFORM_FEATURE_KEYS = ('platform_admin',)
+# Cross-tenant staff tools (shown in role editor only to users with Admin read).
+ADMIN_FEATURE_KEYS = (
+    'platform_admin',
+    'admin_company_verification',
+    'admin_emails',
+    'admin_payouts',
+    'admin_system_notifications',
+    'admin_support',
+)
 
-FEATURE_KEYS = TENANT_FEATURE_KEYS + PLATFORM_FEATURE_KEYS
+PLATFORM_FEATURE_KEYS = ADMIN_FEATURE_KEYS
+
+FEATURE_KEYS = TENANT_FEATURE_KEYS + ADMIN_FEATURE_KEYS
 
 PLATFORM_ADMIN_KEY = 'platform_admin'
 
@@ -34,8 +43,8 @@ PLATFORM_ADMIN_KEY = 'platform_admin'
 # user has read or write on any of the listed grant keys (first match wins).
 GET_READ_GRANTS: dict[str, tuple[str, ...]] = {
     'booking_settings_statuses': ('bookings',),
-    'booking_settings_form_templates': ('bookings',),
     'email_templates': ('emails',),
+    'calendar_settings': ('calendar',),
 }
 
 
@@ -129,6 +138,23 @@ def has_feature_read(user, feature_key: str) -> bool:
     return feature_access_level(user, feature_key) in ('read', 'write')
 
 
+def has_platform_admin_read(user) -> bool:
+    """Can access the Admin area and see admin features in the role editor."""
+    return has_feature_read(user, PLATFORM_ADMIN_KEY)
+
+
 def is_platform_admin(user) -> bool:
-    """Cross-tenant staff (KYB review, payouts, system notifications, etc.)."""
+    """Cross-tenant staff with full admin write (legacy helper)."""
     return has_feature_write(user, PLATFORM_ADMIN_KEY)
+
+
+def feature_catalog_keys_for_user(user) -> tuple[str, ...]:
+    """Tenant features plus admin features when the editor has Admin read."""
+    if has_platform_admin_read(user):
+        return TENANT_FEATURE_KEYS + ADMIN_FEATURE_KEYS
+    return TENANT_FEATURE_KEYS
+
+
+def assignable_feature_keys() -> tuple[str, ...]:
+    """All feature keys that may be stored on a role."""
+    return FEATURE_KEYS

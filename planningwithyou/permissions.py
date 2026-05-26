@@ -16,7 +16,11 @@ class HasAccount(permissions.BasePermission):
 
 
 class IsAdmin(permissions.BasePermission):
-    """Require an authenticated platform administrator (``platform_admin`` write)."""
+    """
+    Require ``platform_admin`` write (legacy).
+
+    Prefer ``FeatureAccess`` with a specific ``admin_*`` feature_key on new views.
+    """
 
     message = 'Admin access required.'
 

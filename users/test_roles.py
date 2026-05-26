@@ -4,7 +4,12 @@ from rest_framework.test import APIClient
 
 from companies.models import Company
 from users.models import Account, Role, RolePermission
-from users.roles import FEATURE_KEYS, TENANT_FEATURE_KEYS, ensure_owner_role
+from users.roles import (
+    ADMIN_FEATURE_KEYS,
+    FEATURE_KEYS,
+    TENANT_FEATURE_KEYS,
+    ensure_owner_role,
+)
 
 User = get_user_model()
 
@@ -60,12 +65,32 @@ class RoleApiTests(TestCase):
         response = self.client.delete(f'/api/roles/{self.owner.pk}/')
         self.assertEqual(response.status_code, 400)
 
-    def test_feature_catalog_excludes_platform_admin(self):
+    def test_feature_catalog_excludes_admin_without_admin_read(self):
+        reader = Role.objects.create(account=self.account, name='NoAdmin')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='roles_permissions',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
         response = self.client.get('/api/roles/feature-catalog/')
         self.assertEqual(response.status_code, 200)
         keys = {row['key'] for row in response.json()}
-        self.assertNotIn('platform_admin', keys)
         self.assertEqual(keys, set(TENANT_FEATURE_KEYS))
+        for admin_key in ADMIN_FEATURE_KEYS:
+            self.assertNotIn(admin_key, keys)
+
+    def test_feature_catalog_includes_admin_with_admin_read(self):
+        from users.test_support import grant_platform_admin
+
+        grant_platform_admin(self.user)
+
+        response = self.client.get('/api/roles/feature-catalog/')
+        self.assertEqual(response.status_code, 200)
+        keys = {row['key'] for row in response.json()}
+        self.assertEqual(keys, set(TENANT_FEATURE_KEYS) | set(ADMIN_FEATURE_KEYS))
 
     def test_me_returns_full_permissions_map(self):
         reader = Role.objects.create(
@@ -159,3 +184,106 @@ class RoleApiTests(TestCase):
             format='json',
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_read_calendar_can_get_calendar_statuses(self):
+        reader = Role.objects.create(account=self.account, name='CalReader')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='calendar',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        response = self.client.get('/api/calendar-statuses/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_read_calendar_cannot_post_calendar_status(self):
+        reader = Role.objects.create(account=self.account, name='CalReader')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='calendar',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        response = self.client.post(
+            '/api/calendar-statuses/',
+            {
+                'title': 'Blocked',
+                'description': '',
+                'text_color': '#fff',
+                'background_color': '#000',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_roles_permissions_read_can_list_roles(self):
+        reader = Role.objects.create(account=self.account, name='RoleReader')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='roles_permissions',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        response = self.client.get('/api/roles/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_roles_permissions_read_cannot_create_role(self):
+        reader = Role.objects.create(account=self.account, name='RoleReader')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='roles_permissions',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        response = self.client.post(
+            '/api/roles/',
+            {
+                'name': 'Blocked',
+                'is_default': False,
+                'permissions': {'bookings': 'read'},
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_platform_admin_read_alone_cannot_list_kyb(self):
+        reader = Role.objects.create(account=self.account, name='AdminShell')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='platform_admin',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        response = self.client.get('/api/admin/kyb-verifications/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_kyb_read_can_list_kyb(self):
+        from companies.models import CompanyKybVerification
+
+        reader = Role.objects.create(account=self.account, name='KybReader')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='admin_company_verification',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+        CompanyKybVerification.objects.create(
+            company=self.company,
+            status=CompanyKybVerification.Status.SUBMITTED,
+            company_email_domain='acme.com',
+            business_description='Test',
+        )
+
+        response = self.client.get('/api/admin/kyb-verifications/')
+        self.assertEqual(response.status_code, 200)

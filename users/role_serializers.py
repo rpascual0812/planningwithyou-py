@@ -3,7 +3,14 @@ from django.db.models import Count
 from rest_framework import serializers
 
 from .models import Role, RolePermission
-from .roles import TENANT_FEATURE_KEYS
+from .roles import (
+    ADMIN_FEATURE_KEYS,
+    FEATURE_KEYS,
+    TENANT_FEATURE_KEYS,
+    assignable_feature_keys,
+    feature_catalog_keys_for_user,
+    has_platform_admin_read,
+)
 
 
 FEATURE_LABELS = {
@@ -15,15 +22,20 @@ FEATURE_LABELS = {
     'emails': 'Emails',
     'file_manager': 'File Manager',
     'reports': 'Reports',
-    'settings': 'Settings',
-    'account_settings': 'Account Settings',
-    'companies_settings': 'Company Settings',
-    'supplier_settings': 'Supplier Settings',
-    'booking_settings_statuses': 'Booking Statuses',
-    'booking_settings_form_templates': 'Form Templates',
-    'email_templates': 'Email Templates',
-    'subscription': 'Subscription',
-    'platform_admin': 'Platform admin',
+    'settings': 'Settings > Integrations',
+    'account_settings': 'Settings > Account Settings',
+    'companies_settings': 'Settings > Company Settings',
+    'supplier_settings': 'Settings > Supplier Settings',
+    'booking_settings_statuses': 'Settings > Booking Settings',
+    'email_templates': 'Settings > Email Templates',
+    'roles_permissions': 'Settings > Roles and Permissions',
+    'calendar_settings': 'Settings > Calendar Settings',
+    'platform_admin': 'Admin',
+    'admin_company_verification': 'Admin > Company Verification',
+    'admin_emails': 'Admin > Emails',
+    'admin_payouts': 'Admin > Payouts',
+    'admin_system_notifications': 'Admin > System Notifications',
+    'admin_support': 'Admin > Support',
 }
 
 
@@ -83,7 +95,11 @@ class RoleWriteSerializer(serializers.ModelSerializer):
         return name
 
     def validate_permissions(self, value: dict) -> dict:
-        unknown = set(value.keys()) - set(TENANT_FEATURE_KEYS)
+        request = self.context.get('request')
+        allowed = set(assignable_feature_keys())
+        if request is not None and not has_platform_admin_read(request.user):
+            allowed -= set(ADMIN_FEATURE_KEYS)
+        unknown = set(value.keys()) - allowed
         if unknown:
             raise serializers.ValidationError(
                 f'Unknown feature keys: {", ".join(sorted(unknown))}',
@@ -91,7 +107,11 @@ class RoleWriteSerializer(serializers.ModelSerializer):
         return value
 
     def _normalized_permissions(self, value: dict) -> dict[str, str]:
-        return {key: value.get(key, 'none') for key in TENANT_FEATURE_KEYS}
+        request = self.context.get('request')
+        keys = assignable_feature_keys()
+        if request is not None and not has_platform_admin_read(request.user):
+            keys = TENANT_FEATURE_KEYS
+        return {key: value.get(key, 'none') for key in keys}
 
     def _sync_permissions(self, role: Role, perms: dict[str, str]) -> None:
         for key, access in perms.items():

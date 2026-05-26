@@ -13,7 +13,7 @@ from .serializers import CalendarSerializer, CalendarStatusSerializer
 
 class CalendarStatusViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'calendar'
+    feature_key = 'calendar_settings'
     serializer_class = CalendarStatusSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'title', 'sort_order', 'created_at']

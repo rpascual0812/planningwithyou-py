@@ -17,7 +17,7 @@ BOOKINGS_GROUP_NAME_MAX_LENGTH = 255
 
 
 class BookingViewConfigView(APIView):
-    feature_key = 'booking_settings_form_templates'
+    feature_key = 'booking_settings_statuses'
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
 
     def get(self, request):
@@ -56,7 +56,7 @@ class BookingViewConfigView(APIView):
 
 
 class BookingsGroupNameConfigView(APIView):
-    feature_key = 'booking_settings_form_templates'
+    feature_key = 'booking_settings_statuses'
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
 
     def get(self, request):

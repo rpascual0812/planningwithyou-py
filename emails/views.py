@@ -22,19 +22,52 @@ from planningwithyou.history.snapshots import (
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import EmailLog, EmailTemplate
-from .scope import email_logs_for_user
+from .scope import email_logs_for_platform_admin, email_logs_for_user
 from .serializers import EmailLogSerializer, EmailTemplateSerializer
 from .tasks import send_email_task
 
 
 class EmailLogViewSet(viewsets.ModelViewSet):
     """CRUD + resend for email logs."""
-    feature_key = 'emails'
+
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
     serializer_class = EmailLogSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'status', 'created_at', 'sent_at']
     ordering = ['-created_at']
+
+    def _is_platform_scope(self) -> bool:
+        return self.request.query_params.get('platform_scope', '').lower() in (
+            '1',
+            'true',
+            'yes',
+        )
+
+    def _uses_admin_emails(self) -> bool:
+        if self._is_platform_scope():
+            return True
+        pk = self.kwargs.get('pk')
+        if not pk:
+            return False
+        account_id = getattr(self.request.user, 'account_id', None)
+        if account_id is None:
+            return False
+        log_account_id = (
+            EmailLog.objects.filter(pk=pk)
+            .values_list('account_id', flat=True)
+            .first()
+        )
+        return log_account_id is not None and log_account_id != account_id
+
+    def get_feature_key(self, request):
+        if self._uses_admin_emails():
+            return 'admin_emails'
+        return 'emails'
+
+    def get_permissions(self):
+        if self._uses_admin_emails():
+            return [IsAuthenticated(), FeatureAccess()]
+        return super().get_permissions()
 
     def _company_id_filter(self):
         raw = self.request.query_params.get('company_id', '').strip()
@@ -46,10 +79,16 @@ class EmailLogViewSet(viewsets.ModelViewSet):
             return None
 
     def get_queryset(self):
-        qs = email_logs_for_user(
-            self.request.user,
-            company_id=self._company_id_filter(),
-        )
+        if self._is_platform_scope():
+            qs = email_logs_for_platform_admin(
+                self.request.user,
+                company_id=self._company_id_filter(),
+            )
+        else:
+            qs = email_logs_for_user(
+                self.request.user,
+                company_id=self._company_id_filter(),
+            )
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(

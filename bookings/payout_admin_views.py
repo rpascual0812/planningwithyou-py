@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from planningwithyou.permissions import IsAdmin
+from planningwithyou.permissions import FeatureAccess
 
 from .models import BookingPayment
 from .payment_validity import valid_booking_payments_queryset
@@ -21,7 +21,8 @@ class BookingPaymentPayoutAdminViewSet(
 ):
     """Admin list of successful booking payments and payout-sent tracking."""
 
-    permission_classes = [IsAuthenticated, IsAdmin]
+    feature_key = 'admin_payouts'
+    permission_classes = [IsAuthenticated, FeatureAccess]
     serializer_class = BookingPaymentPayoutAdminSerializer
 
     def get_queryset(self):

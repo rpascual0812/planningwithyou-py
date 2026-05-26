@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from planningwithyou.permissions import IsAdmin
+from planningwithyou.permissions import FeatureAccess
 
 from .models import SystemNotification
 from .serializers import SystemNotificationSerializer
@@ -12,7 +12,8 @@ from .serializers import SystemNotificationSerializer
 class SystemNotificationAdminViewSet(viewsets.ModelViewSet):
     """Platform admin CRUD for system-wide header notifications."""
 
-    permission_classes = [IsAuthenticated, IsAdmin]
+    feature_key = 'admin_system_notifications'
+    permission_classes = [IsAuthenticated, FeatureAccess]
     serializer_class = SystemNotificationSerializer
 
     def get_queryset(self):

@@ -485,7 +485,7 @@ class EmailVerifyView(GenericAPIView):
 class RoleViewSet(viewsets.ModelViewSet):
     """Per-account roles and feature permissions (Settings → Roles)."""
 
-    feature_key = 'settings'
+    feature_key = 'roles_permissions'
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'name', 'created_at']
@@ -510,10 +510,12 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='feature-catalog')
     def feature_catalog(self, request):
+        from .roles import feature_catalog_keys_for_user
+
         return Response(
             [
                 {'key': key, 'label': FEATURE_LABELS.get(key, key)}
-                for key in TENANT_FEATURE_KEYS
+                for key in feature_catalog_keys_for_user(request.user)
             ],
         )
 

@@ -2,7 +2,7 @@ from django.db.models import Q
 from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from planningwithyou.permissions import IsAdmin
+from planningwithyou.permissions import FeatureAccess
 
 from .kyb_serializers import (
     CompanyKybVerificationListSerializer,
@@ -19,7 +19,8 @@ class CompanyKybVerificationAdminViewSet(
 ):
     """Admin list/review of KYB verifications across all companies."""
 
-    permission_classes = [IsAuthenticated, IsAdmin]
+    feature_key = 'admin_company_verification'
+    permission_classes = [IsAuthenticated, FeatureAccess]
     def get_serializer_class(self):
         if self.action == 'list':
             return CompanyKybVerificationListSerializer

@@ -314,7 +314,7 @@ class SupplierBookingCapacityView(APIView):
 
 class FormTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
     history_resource_type = 'form_template'
-    feature_key = 'booking_settings_form_templates'
+    feature_key = 'booking_settings_statuses'
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     serializer_class = FormTemplateSerializer
 
