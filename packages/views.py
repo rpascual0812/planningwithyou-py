@@ -4,7 +4,7 @@ from rest_framework import filters, viewsets
 from rest_framework.permissions import IsAuthenticated
 
 from companies.models import Company
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import Package, PackageItem, PackageVersion
 from .serializers import PackageSerializer, PackageVersionSerializer
@@ -13,7 +13,8 @@ from .serializers import PackageSerializer, PackageVersionSerializer
 class PackageViewSet(viewsets.ModelViewSet):
     """CRUD for packages (soft-delete on destroy)."""
 
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'bookings'
     serializer_class = PackageSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'tier', 'total_price', 'created_at']
@@ -102,7 +103,8 @@ class PackageViewSet(viewsets.ModelViewSet):
 class PackageVersionViewSet(viewsets.ModelViewSet):
     """CRUD for package versions (soft-delete on destroy)."""
 
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'bookings'
     serializer_class = PackageVersionSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'title', 'created_at']

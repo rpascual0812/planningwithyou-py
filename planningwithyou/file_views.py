@@ -9,7 +9,7 @@ from planningwithyou.file_storage import (
     read_user_photo_file,
 )
 from users.scope import users_for_user
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 
 def _as_attachment(request) -> bool:
@@ -38,7 +38,8 @@ def _file_response(
 class DocumentFileView(APIView):
     """Download a document by id (hides underlying S3/storage path)."""
 
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'file_manager'
 
     def get(self, request, document_id: int):
         try:
@@ -63,7 +64,8 @@ class DocumentFileView(APIView):
 class BookingPdfFileView(APIView):
     """Download a booking quote PDF by booking id."""
 
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'bookings'
 
     def get(self, request, booking_id: int):
         try:

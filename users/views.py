@@ -4,7 +4,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.db import transaction
 from rest_framework import filters, parsers, status, viewsets
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -25,7 +25,15 @@ from planningwithyou.history.snapshots import (
     snapshot_account,
     snapshot_user,
 )
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
+
+from .role_serializers import (
+    FEATURE_LABELS,
+    RoleSerializer,
+    RoleWriteSerializer,
+    roles_queryset_for_account,
+)
+from .roles import TENANT_FEATURE_KEYS, default_role_for_account
 from planningwithyou.template_placeholders import (
     DEFAULT_PASSWORD_RESET_BODY_HTML,
     DEFAULT_PASSWORD_RESET_SUBJECT,
@@ -184,7 +192,8 @@ class AccountViewSet(HistoryListMixin, viewsets.ModelViewSet):
     """Accounts (tenant organizations), filterable by supplier type."""
 
     history_resource_type = 'account'
-    permission_classes = [IsAuthenticated]
+    feature_key = 'account_settings'
+    permission_classes = [IsAuthenticated, FeatureAccess]
     serializer_class = AccountSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'name', 'is_active', 'created_at', 'updated_at']
@@ -253,11 +262,17 @@ class AccountViewSet(HistoryListMixin, viewsets.ModelViewSet):
 
 class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
     history_resource_type = 'user'
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    feature_key = 'users'
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'username', 'email', 'created_at']
     ordering = ['id']
+
+    def get_permissions(self):
+        if self.action == 'me':
+            return [IsAuthenticated(), HasAccount()]
+        return [IsAuthenticated(), HasAccount(), HasCompany(), FeatureAccess()]
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -286,7 +301,7 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
                 | Q(first_name__icontains=search)
                 | Q(last_name__icontains=search)
             )
-        return qs
+        return qs.select_related('role')
 
     @action(detail=False, methods=['get'], url_path='seat-usage')
     def seat_usage(self, request):
@@ -310,6 +325,11 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
         if account_at_user_seat_limit(account_id):
             raise PermissionDenied(SEAT_LIMIT_MESSAGE)
         user = serializer.save()
+        if user.role_id is None:
+            role = default_role_for_account(account_id)
+            if role is not None:
+                user.role = role
+                user.save(update_fields=['role'])
         record_resource_create(
             account_id=account_id,
             resource_type='user',
@@ -361,12 +381,13 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
 
         transaction.on_commit(_record)
 
-    @action(detail=False, methods=['get'], url_path='me')
+    @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
         # Always load from the `users` table (not a stale JWT user instance).
         user = (
             User.objects.filter(pk=request.user.pk)
-            .select_related('account', 'company')
+            .select_related('account', 'company', 'role')
+            .prefetch_related('role__permissions')
             .first()
         )
         if user is None:
@@ -374,8 +395,48 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
                 {'detail': 'User not found.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        serializer = UserSerializer(user)
-        return Response(serializer.data)
+        if request.method == 'GET':
+            return Response(UserSerializer(user, context={'request': request}).data)
+
+        allowed_keys = {
+            'first_name',
+            'last_name',
+            'username',
+            'email',
+            'photo',
+            'photo_upload',
+        }
+        if hasattr(request.data, 'keys'):
+            payload = {k: request.data[k] for k in request.data.keys() if k in allowed_keys}
+        else:
+            payload = dict(request.data)
+
+        serializer = UserSerializer(
+            user,
+            data=payload,
+            partial=True,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        before = snapshot_user(user)
+        updated = serializer.save()
+        changes = diff_simple(before, snapshot_user(updated), USER_FIELDS)
+        if changes:
+
+            def _record():
+                record_resource_update(
+                    account_id=updated.account_id,
+                    resource_type='user',
+                    resource_id=updated.pk,
+                    changes=changes,
+                    actor=request.user,
+                    metadata=request_metadata(request),
+                )
+
+            transaction.on_commit(_record)
+        return Response(
+            UserSerializer(updated, context={'request': request}).data,
+        )
 
 
 class RegisterView(GenericAPIView):
@@ -418,6 +479,42 @@ class EmailVerifyView(GenericAPIView):
                 'detail': 'Email verified successfully.',
             },
             status=status.HTTP_200_OK,
+        )
+
+
+class RoleViewSet(viewsets.ModelViewSet):
+    """Per-account roles and feature permissions (Settings → Roles)."""
+
+    feature_key = 'settings'
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['id', 'name', 'created_at']
+    ordering = ['name']
+
+    def get_queryset(self):
+        return roles_queryset_for_account(self.request.user.account_id)
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return RoleWriteSerializer
+        return RoleSerializer
+
+    def perform_destroy(self, instance):
+        if instance.name == 'Owner':
+            raise ValidationError({'detail': 'The Owner role cannot be deleted.'})
+        if instance.users.filter(deleted_at__isnull=True).exists():
+            raise ValidationError(
+                {'detail': 'Reassign users before deleting this role.'},
+            )
+        instance.delete()
+
+    @action(detail=False, methods=['get'], url_path='feature-catalog')
+    def feature_catalog(self, request):
+        return Response(
+            [
+                {'key': key, 'label': FEATURE_LABELS.get(key, key)}
+                for key in TENANT_FEATURE_KEYS
+            ],
         )
 
 

@@ -7,6 +7,7 @@ from companies.models import Company
 from countries.models import Country
 from suppliers.models import SupplierType
 from users.models import Account
+from users.test_support import assign_owner_role
 
 User = get_user_model()
 
@@ -45,8 +46,8 @@ class UserHistoryTests(TestCase):
             account=self.account,
             company=self.company,
             is_verified=True,
-            is_admin=True,
         )
+        assign_owner_role(self.admin)
         self.target = User.objects.create_user(
             username='member@test.example',
             email='member@test.example',

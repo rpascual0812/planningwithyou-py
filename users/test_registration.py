@@ -141,7 +141,7 @@ class RegisterApiTests(TestCase):
         user = User.objects.get(email='jane@acme.test')
         self.assertEqual(user.account_id, account.id)
         self.assertEqual(user.company_id, company.id)
-        self.assertTrue(user.is_admin)
+        self.assertEqual(user.role.name, 'Owner')
         self.assertFalse(user.is_verified)
         self.assertTrue(user.check_password('secret12'))
 

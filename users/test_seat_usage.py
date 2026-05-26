@@ -10,6 +10,7 @@ from countries.models import Country
 from subscriptions.models import AccountSubscription, Subscription
 from suppliers.models import SupplierType
 from users.models import Account
+from users.test_support import assign_owner_role
 
 User = get_user_model()
 
@@ -55,9 +56,9 @@ class UserSeatUsageTests(TestCase):
             password='secret12',
             account=self.account,
             company=self.company,
-            is_admin=True,
             is_verified=True,
         )
+        assign_owner_role(self.admin)
         AccountSubscription.objects.create(
             account=self.account,
             subscription=self.paid_sub,
@@ -102,7 +103,6 @@ class UserSeatUsageTests(TestCase):
             'first_name': 'New',
             'last_name': 'User',
             'is_active': True,
-            'is_admin': False,
         }
         res = self.client.post('/api/users/', payload, format='json')
         self.assertEqual(res.status_code, 403)

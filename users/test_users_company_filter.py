@@ -6,6 +6,7 @@ from companies.models import Company
 from countries.models import Country
 from suppliers.models import SupplierType
 from users.models import Account
+from users.test_support import assign_owner_role
 
 User = get_user_model()
 
@@ -50,9 +51,9 @@ class UsersCompanyFilterTests(TestCase):
             password='secret12',
             account=self.account,
             company=self.company_a,
-            is_admin=True,
             is_verified=True,
         )
+        assign_owner_role(self.admin)
         self.user_a = User.objects.create_user(
             username='usera',
             email='usera@test.example',

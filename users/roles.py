@@ -1,0 +1,134 @@
+"""Role helpers for tenant RBAC."""
+
+from __future__ import annotations
+
+from users.models import Account, Role, RolePermission
+
+TENANT_FEATURE_KEYS = (
+    'dashboard',
+    'calendar',
+    'bookings',
+    'contacts',
+    'users',
+    'emails',
+    'file_manager',
+    'reports',
+    'settings',
+    'account_settings',
+    'companies_settings',
+    'supplier_settings',
+    'booking_settings_statuses',
+    'booking_settings_form_templates',
+    'email_templates',
+    'subscription',
+)
+
+# Cross-tenant staff tools (not shown in tenant role editor).
+PLATFORM_FEATURE_KEYS = ('platform_admin',)
+
+FEATURE_KEYS = TENANT_FEATURE_KEYS + PLATFORM_FEATURE_KEYS
+
+PLATFORM_ADMIN_KEY = 'platform_admin'
+
+# Safe (GET/HEAD/OPTIONS) requests on these features may also be allowed when the
+# user has read or write on any of the listed grant keys (first match wins).
+GET_READ_GRANTS: dict[str, tuple[str, ...]] = {
+    'booking_settings_statuses': ('bookings',),
+    'booking_settings_form_templates': ('bookings',),
+    'email_templates': ('emails',),
+}
+
+
+def ensure_owner_role(account: Account) -> Role:
+    """Ensure the account has an Owner role with write on all features."""
+    role, _created = Role.objects.get_or_create(
+        account=account,
+        name='Owner',
+        defaults={'is_default': True},
+    )
+    if not role.is_default:
+        role.is_default = True
+        role.save(update_fields=['is_default'])
+
+    for key in TENANT_FEATURE_KEYS:
+        RolePermission.objects.update_or_create(
+            role=role,
+            feature_key=key,
+            defaults={'access': 'write'},
+        )
+    return role
+
+
+def default_role_for_account(account_id: int) -> Role | None:
+    """Return the account's default role, falling back to Owner."""
+    return (
+        Role.objects.filter(account_id=account_id, is_default=True).first()
+        or Role.objects.filter(account_id=account_id, name='Owner').first()
+    )
+
+
+def effective_feature_permissions(user) -> dict[str, str]:
+    """
+    Map feature_key -> access level for a user.
+
+    Users without a role receive ``none`` on every feature. Missing role rows
+    default to ``none``.
+    """
+    role_id = getattr(user, 'role_id', None)
+    if not role_id:
+        return {key: 'none' for key in FEATURE_KEYS}
+
+    perms: dict[str, str] = {}
+    role = getattr(user, 'role', None)
+    if role is not None:
+        rows = role.permissions.all()
+        perms = {p.feature_key: p.access for p in rows}
+    else:
+        perms = {
+            p.feature_key: p.access
+            for p in RolePermission.objects.filter(role_id=role_id)
+        }
+
+    return {key: perms.get(key, 'none') for key in FEATURE_KEYS}
+
+
+def feature_access_level(user, feature_key: str) -> str:
+    return effective_feature_permissions(user).get(feature_key, 'none')
+
+
+def feature_access_level_for_request(
+    user,
+    feature_key: str,
+    *,
+    safe_method: bool,
+) -> str:
+    """
+    Effective access for a feature, optionally honoring GET read grants.
+
+    Unsafe methods only use the declared feature (write required).
+    Safe methods also accept read/write on keys listed in ``GET_READ_GRANTS``.
+    """
+    access = effective_feature_permissions(user)
+    level = access.get(feature_key, 'none')
+    if not safe_method:
+        return level if level == 'write' else 'none'
+    if level in ('read', 'write'):
+        return level
+    for grant_key in GET_READ_GRANTS.get(feature_key, ()):
+        grant_level = access.get(grant_key, 'none')
+        if grant_level in ('read', 'write'):
+            return grant_level
+    return 'none'
+
+
+def has_feature_write(user, feature_key: str) -> bool:
+    return feature_access_level(user, feature_key) == 'write'
+
+
+def has_feature_read(user, feature_key: str) -> bool:
+    return feature_access_level(user, feature_key) in ('read', 'write')
+
+
+def is_platform_admin(user) -> bool:
+    """Cross-tenant staff (KYB review, payouts, system notifications, etc.)."""
+    return has_feature_write(user, PLATFORM_ADMIN_KEY)

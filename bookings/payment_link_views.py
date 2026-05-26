@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import BookingPayment, BookingPaymentLink
 from .payment_link_serializers import (
@@ -31,7 +31,8 @@ from .scope import assert_booking_editable, bookings_for_user
 
 
 class BookingPaymentLinkListCreateView(APIView):
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'bookings'
 
     def get(self, request, booking_id: int):
         booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)
@@ -67,7 +68,8 @@ class BookingPaymentLinkListCreateView(APIView):
 class BookingPaymentLinkDetailView(APIView):
     """Cancel a pending payment link (soft status change)."""
 
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'bookings'
 
     def delete(self, request, booking_id: int, link_id: int):
         booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)

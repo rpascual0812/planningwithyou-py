@@ -11,11 +11,13 @@ from .views import (
     EmailVerifyView,
     PasswordResetConfirmView,
     RegisterView,
+    RoleViewSet,
     UserViewSet,
 )
 
 router = DefaultRouter()
 router.register('accounts', AccountViewSet, basename='account')
+router.register('roles', RoleViewSet, basename='role')
 router.register('users', UserViewSet, basename='user')
 
 urlpatterns = [

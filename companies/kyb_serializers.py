@@ -152,7 +152,9 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
             CompanyKybVerification.Status.APPROVED,
             CompanyKybVerification.Status.REJECTED,
         ):
-            if user is None or not getattr(user, 'is_admin', False):
+            from users.roles import is_platform_admin
+
+            if user is None or not is_platform_admin(user):
                 raise serializers.ValidationError(
                     {'status': ['Only administrators can approve or reject KYB.']},
                 )

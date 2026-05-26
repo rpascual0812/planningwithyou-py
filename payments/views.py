@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from companies.models import Company
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import FeatureAccess, HasAccount
 
 from .models import PaymentIntegration
 from .paymongo_onboarding import (
@@ -20,7 +20,8 @@ from .serializers import PayMongoIntegrationSerializer
 class CompanyPayMongoIntegrationView(APIView):
     """PayMongo Platforms child account for a company on the user's account."""
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'companies_settings'
 
     def _company(self, request, company_id: int) -> Company | None:
         return Company.objects.filter(
@@ -66,7 +67,8 @@ class CompanyPayMongoIntegrationView(APIView):
 class CompanyPayMongoIntegrationRefreshView(APIView):
     """POST — sync child account status from PayMongo."""
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'companies_settings'
 
     def post(self, request, company_id: int):
         company = Company.objects.filter(

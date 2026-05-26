@@ -130,14 +130,16 @@ class CompanyKybAdminApiTests(TestCase):
         )
         from users.models import User
 
+        from users.test_support import grant_platform_admin
+
         self.admin = User.objects.create_user(
             username='admin@test.com',
             email='admin@test.com',
             password='test-pass',
             account=self.account,
             company=self.company,
-            is_admin=True,
         )
+        grant_platform_admin(self.admin)
         self.user = User.objects.create_user(
             username='user@test.com',
             email='user@test.com',

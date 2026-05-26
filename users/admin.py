@@ -57,20 +57,20 @@ class UserAdmin(admin.ModelAdmin):
         'username',
         'email',
         'account',
-        'is_admin',
+        'role',
         'is_active',
         'created_at',
         'deleted_at',
     )
-    list_filter = ('is_admin', 'is_active', 'account')
+    list_filter = ('is_active', 'account', 'role')
     search_fields = ('username', 'email', 'first_name', 'last_name')
     readonly_fields = ('last_login', 'created_at', 'updated_at', 'password')
 
     fieldsets = (
         (None, {'fields': ('username', 'new_password', 'password')}),
         ('Personal', {'fields': ('first_name', 'last_name', 'email')}),
-        ('Organization', {'fields': ('account',)}),
-        ('Permissions', {'fields': ('is_admin', 'is_active')}),
+        ('Organization', {'fields': ('account', 'company', 'role')}),
+        ('Permissions', {'fields': ('is_active',)}),
         ('Important dates', {'fields': ('last_login', 'created_at', 'updated_at', 'deleted_at')}),
     )
 

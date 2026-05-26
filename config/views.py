@@ -2,7 +2,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import FeatureAccess, HasAccount
 
 from .models import Config
 
@@ -17,7 +17,8 @@ BOOKINGS_GROUP_NAME_MAX_LENGTH = 255
 
 
 class BookingViewConfigView(APIView):
-    permission_classes = [IsAuthenticated, HasAccount]
+    feature_key = 'booking_settings_form_templates'
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
 
     def get(self, request):
         row = Config.objects.filter(
@@ -55,7 +56,8 @@ class BookingViewConfigView(APIView):
 
 
 class BookingsGroupNameConfigView(APIView):
-    permission_classes = [IsAuthenticated, HasAccount]
+    feature_key = 'booking_settings_form_templates'
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
 
     def get(self, request):
         row = Config.objects.filter(

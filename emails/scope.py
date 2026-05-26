@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from users.roles import has_feature_write
+
 from .models import EmailLog
 
 
@@ -9,12 +11,13 @@ def email_logs_for_user(user, *, company_id=None):
     """
     Email logs visible to ``user``.
 
-    Scoped to the user's account. Account admins may list all companies in the
-    account or filter by ``company_id``. Other users only see their own company;
-    a ``company_id`` query param is ignored unless it matches ``user.company_id``.
+    Scoped to the user's account. Users with ``emails`` write may list all
+    companies in the account or filter by ``company_id``. Others only see their
+    own company; a ``company_id`` query param is ignored unless it matches
+    ``user.company_id``.
     """
     qs = EmailLog.objects.filter(account_id=user.account_id)
-    if getattr(user, 'is_admin', False):
+    if has_feature_write(user, 'emails'):
         if company_id is not None:
             qs = qs.filter(company_id=company_id)
         return qs

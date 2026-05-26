@@ -10,6 +10,7 @@ from countries.models import Country
 from subscriptions.models import AccountSubscription, Subscription
 from suppliers.models import SupplierType
 from users.models import Account
+from users.test_support import assign_owner_role
 
 User = get_user_model()
 
@@ -61,9 +62,9 @@ class UserCreateSubscriptionTests(TestCase):
             password='secret12',
             account=self.account,
             company=self.company,
-            is_admin=True,
             is_verified=True,
         )
+        assign_owner_role(self.admin)
         self.client.force_authenticate(user=self.admin)
 
     def _create_payload(self):
@@ -73,7 +74,6 @@ class UserCreateSubscriptionTests(TestCase):
             'first_name': 'New',
             'last_name': 'User',
             'is_active': True,
-            'is_admin': False,
         }
 
     @patch('users.views._send_reset_email')

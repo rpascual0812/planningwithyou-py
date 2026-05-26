@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from bookings.package_items import nested_package_items_for_api
 from bookings.supplier_line import _package_query_for_supplier_line
 from companies.models import Company
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import FeatureAccess, HasAccount
 from suppliers.models import SupplierSetting, Tier
 from users.supplier_price import resolve_active_package_for_supplier_tier
 
@@ -60,7 +60,8 @@ class BookingSupplierPackageView(APIView):
     (``package_for_supplier_booking_line`` / ``_package_query_for_supplier_line``).
     """
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'bookings'
 
     def get(self, request):
         query = BookingSupplierPackageQuerySerializer(

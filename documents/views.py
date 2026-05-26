@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import Document, DocumentFolder
 from .scope import document_folders_for_user, documents_for_user
@@ -14,7 +14,8 @@ from .serializers import DocumentFolderSerializer, DocumentSerializer
 
 
 class DocumentFolderViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'file_manager'
     serializer_class = DocumentFolderSerializer
 
     def get_queryset(self):
@@ -62,7 +63,8 @@ class DocumentFolderViewSet(viewsets.ModelViewSet):
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'file_manager'
     serializer_class = DocumentSerializer
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 

@@ -69,7 +69,6 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, username, email, password=None, **extra_fields):
-        extra_fields.setdefault('is_admin', True)
         extra_fields.setdefault('is_active', True)
         return self.create_user(username, email, password, **extra_fields)
 
@@ -105,10 +104,17 @@ class User(AbstractBaseUser):
     )
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
-    is_admin = models.BooleanField(default=False)
     token_version = models.PositiveIntegerField(
         default=0,
         help_text='Incremented on each login to invalidate JWTs from previous sessions.',
+    )
+    role = models.ForeignKey(
+        'users.Role',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='users',
+        db_column='role_id',
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -129,17 +135,19 @@ class User(AbstractBaseUser):
 
     @property
     def is_staff(self):
-        return self.is_admin
+        from users.roles import is_platform_admin
+
+        return is_platform_admin(self)
 
     @property
     def is_superuser(self):
-        return self.is_admin
+        return self.is_staff
 
     def has_module_perms(self, app_label):
-        return self.is_admin
+        return self.is_staff
 
     def has_perm(self, perm, obj=None):
-        return self.is_admin
+        return self.is_staff
 
 
 class EmailVerificationToken(models.Model):
@@ -194,3 +202,54 @@ class PasswordResetToken(models.Model):
     @property
     def is_valid(self):
         return not self.used and not self.is_expired
+
+
+class Role(models.Model):
+    """Per-account role that groups feature permissions."""
+
+    account = models.ForeignKey(
+        Account,
+        on_delete=models.CASCADE,
+        related_name='roles',
+        db_column='account_id',
+    )
+    name = models.CharField(max_length=100)
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'roles'
+        unique_together = (('account', 'name'),)
+        ordering = ['account_id', 'name']
+
+    def __str__(self):
+        return f'{self.account_id}:{self.name}'
+
+
+class RolePermission(models.Model):
+    class AccessLevel(models.TextChoices):
+        NONE = 'none', 'None'
+        READ = 'read', 'Read'
+        WRITE = 'write', 'Write'
+
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.CASCADE,
+        related_name='permissions',
+        db_column='role_id',
+    )
+    feature_key = models.CharField(max_length=100)
+    access = models.CharField(
+        max_length=10,
+        choices=AccessLevel.choices,
+        default=AccessLevel.NONE,
+    )
+
+    class Meta:
+        db_table = 'role_permissions'
+        unique_together = (('role', 'feature_key'),)
+        ordering = ['role_id', 'feature_key']
+
+    def __str__(self):
+        return f'{self.role_id}:{self.feature_key}={self.access}'

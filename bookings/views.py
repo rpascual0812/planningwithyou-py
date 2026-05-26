@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from companies.models import Company
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from django.db import transaction
 
@@ -42,7 +42,8 @@ from .serializers import (
 
 class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
     history_resource_type = 'booking_status'
-    permission_classes = [IsAuthenticated, HasAccount]
+    feature_key = 'booking_settings_statuses'
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     serializer_class = BookingStatusSerializer
 
     def get_queryset(self):
@@ -116,7 +117,8 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
 
 class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
     history_resource_type = 'booking'
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    feature_key = 'bookings'
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
     serializer_class = BookingItemSerializer
 
     def get_queryset(self):
@@ -293,7 +295,8 @@ class SupplierBookingCapacityQuerySerializer(serializers.Serializer):
 class SupplierBookingCapacityView(APIView):
     """Check whether a supplier has reached ``max_bookings_per_day`` for a date."""
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'bookings'
 
     def get(self, request):
         query = SupplierBookingCapacityQuerySerializer(data=request.query_params)
@@ -311,7 +314,8 @@ class SupplierBookingCapacityView(APIView):
 
 class FormTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
     history_resource_type = 'form_template'
-    permission_classes = [IsAuthenticated, HasAccount]
+    feature_key = 'booking_settings_form_templates'
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     serializer_class = FormTemplateSerializer
 
     def get_queryset(self):

@@ -18,7 +18,7 @@ COMPANY_FIELDS = (
 )
 
 USER_FIELDS = (
-    'username', 'email', 'first_name', 'last_name', 'is_active', 'is_admin',
+    'username', 'email', 'first_name', 'last_name', 'is_active', 'role',
     'company_id',
 )
 

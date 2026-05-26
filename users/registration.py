@@ -28,6 +28,7 @@ from subscriptions.models import AccountSubscription, Subscription
 from suppliers.models import SupplierType, Tier
 
 from .models import Account
+from .roles import ensure_owner_role
 
 User = get_user_model()
 
@@ -256,6 +257,8 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
         name='General',
     )
 
+    owner_role = ensure_owner_role(account)
+
     username = data.email.strip().lower()
     user = User.objects.create_user(
         username=username,
@@ -267,7 +270,7 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
         last_name=data.last_name.strip(),
         is_active=True,
         is_verified=False,
-        is_admin=False,
+        role=owner_role,
     )
 
     return RegistrationResult(account=account, company=company, user=user)

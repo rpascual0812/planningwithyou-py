@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from companies.models import Company
 
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import FeatureAccess, HasAccount
 
 from .models import SupplierType, Tier
 from .serializers import (
@@ -51,7 +51,8 @@ class SupplierTypeViewSet(viewsets.ReadOnlyModelViewSet):
 class TierViewSet(viewsets.ModelViewSet):
     """CRUD for account tiers (soft-delete on destroy)."""
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'supplier_settings'
     serializer_class = TierSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'name', 'created_at']
@@ -96,7 +97,8 @@ class SupplierOptionListView(APIView):
     optionally filtered by ``supplier_type``.
     """
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'bookings'
 
     def get(self, request):
         query = SupplierOptionQuerySerializer(
@@ -124,7 +126,8 @@ class SupplierOptionListView(APIView):
 class SupplierTierListView(APIView):
     """Tiers configured for a supplier through supplier_setting_tiers."""
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'bookings'
 
     def get(self, request):
         query = SupplierTierQuerySerializer(

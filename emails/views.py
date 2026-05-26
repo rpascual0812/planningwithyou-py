@@ -19,7 +19,7 @@ from planningwithyou.history.snapshots import (
     diff_simple,
     snapshot_email_template,
 )
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import EmailLog, EmailTemplate
 from .scope import email_logs_for_user
@@ -29,7 +29,8 @@ from .tasks import send_email_task
 
 class EmailLogViewSet(viewsets.ModelViewSet):
     """CRUD + resend for email logs."""
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    feature_key = 'emails'
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
     serializer_class = EmailLogSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'status', 'created_at', 'sent_at']
@@ -94,7 +95,8 @@ class EmailTypedTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
     """CRUD for email templates scoped to a single ``template_type``."""
 
     history_resource_type = 'email_template'
-    permission_classes = [IsAuthenticated, HasAccount]
+    feature_key = 'email_templates'
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     serializer_class = EmailTemplateSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'name', 'created_at', 'updated_at']

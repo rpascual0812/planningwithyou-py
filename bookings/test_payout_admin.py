@@ -56,14 +56,16 @@ class BookingPaymentPayoutAdminTests(TestCase):
             transaction_status='paid',
             transaction_id='pay_abc',
         )
+        from users.test_support import grant_platform_admin
+
         self.admin = User.objects.create_user(
             username='admin-payout@test.com',
             email='admin-payout@test.com',
             password='test-pass',
             account=self.account,
             company=self.company,
-            is_admin=True,
         )
+        grant_platform_admin(self.admin)
         self.user = User.objects.create_user(
             username='user-payout@test.com',
             email='user-payout@test.com',

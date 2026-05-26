@@ -14,7 +14,7 @@ from planningwithyou.file_storage import company_logo_public_url, user_photo_pub
 from .jwt import issue_tokens_for_user
 from .user_photo import delete_user_photo, save_user_photo
 
-from .models import Account
+from .models import Account, Role
 
 User = get_user_model()
 
@@ -162,7 +162,14 @@ class UserSerializer(serializers.ModelSerializer):
     company_name = serializers.SerializerMethodField()
     company_logo_url = serializers.SerializerMethodField()
     photo_url = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
+    role_name = serializers.CharField(source='role.name', read_only=True, default='')
     photo_upload = serializers.FileField(write_only=True, required=False, allow_null=True)
+    role = serializers.PrimaryKeyRelatedField(
+        queryset=Role.objects.none(),
+        allow_null=True,
+        required=False,
+    )
 
     class Meta:
         model = User
@@ -180,7 +187,9 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'is_active',
-            'is_admin',
+            'role',
+            'role_name',
+            'permissions',
             'subscription_plan',
             'last_login',
             'created_at',
@@ -202,6 +211,24 @@ class UserSerializer(serializers.ModelSerializer):
             'deleted_at',
         ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            self.fields['role'].queryset = Role.objects.filter(
+                account_id=request.user.account_id,
+            )
+
+    def validate_role(self, role):
+        if role is None:
+            return role
+        request = self.context.get('request')
+        if request is None or not request.user.is_authenticated:
+            raise serializers.ValidationError('Authentication required.')
+        if role.account_id != request.user.account_id:
+            raise serializers.ValidationError('Invalid role for this account.')
+        return role
+
     def get_subscription_plan(self, obj: User) -> str:
         return current_subscription_plan_for_account(obj.account_id)
 
@@ -220,6 +247,11 @@ class UserSerializer(serializers.ModelSerializer):
             company.pk,
             request=self.context.get('request'),
         )
+
+    def get_permissions(self, obj: User) -> dict[str, str]:
+        from .roles import effective_feature_permissions
+
+        return effective_feature_permissions(obj)
 
     def get_photo_url(self, obj: User) -> str:
         return user_photo_public_url(
@@ -285,7 +317,9 @@ class UserSerializer(serializers.ModelSerializer):
             except (TypeError, ValueError):
                 return request.user.company_id
             if company_belongs_to_account(company_id, request.user.account_id):
-                if getattr(request.user, 'is_admin', False) or company_id == request.user.company_id:
+                from .roles import has_feature_write
+
+                if has_feature_write(request.user, 'users') or company_id == request.user.company_id:
                     return company_id
         return request.user.company_id
 
@@ -316,8 +350,11 @@ class UserSerializer(serializers.ModelSerializer):
         instance = super().update(instance, validated_data)
         request = self.context.get('request')
         if request and request.user.is_authenticated:
+            from .roles import has_feature_write
+
             instance.account_id = request.user.account_id or 1
-            instance.company_id = request.user.company_id
+            if not has_feature_write(request.user, 'users'):
+                instance.company_id = request.user.company_id
             instance.save(update_fields=['account_id', 'company_id'])
         self._apply_photo_upload(instance, photo_upload)
         return instance
@@ -355,7 +392,9 @@ class UserCreateSerializer(UserSerializer):
             return company
         if not company_belongs_to_account(company.pk, request.user.account_id):
             raise serializers.ValidationError('Invalid company for this account.')
-        if not getattr(request.user, 'is_admin', False) and company.pk != request.user.company_id:
+        from .roles import has_feature_write
+
+        if not has_feature_write(request.user, 'users') and company.pk != request.user.company_id:
             raise serializers.ValidationError(
                 'You may only add users to your own company.',
             )

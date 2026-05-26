@@ -2,7 +2,7 @@ from django.db.models import Q
 from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .payment_validity import valid_booking_payments_queryset
 from .payout_report_serializers import BookingPaymentPayoutReportSerializer
@@ -11,7 +11,8 @@ from .payout_report_serializers import BookingPaymentPayoutReportSerializer
 class BookingPaymentPayoutReportViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """Company-scoped payout report for Reports → Payouts."""
 
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'reports'
     serializer_class = BookingPaymentPayoutReportSerializer
 
     def get_queryset(self):

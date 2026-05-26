@@ -11,7 +11,7 @@ from planningwithyou.history.record import (
     record_resource_update,
 )
 from planningwithyou.history.snapshots import diff_contact, snapshot_contact
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .scope import contacts_for_user
 from .serializers import ContactSerializer
@@ -19,7 +19,8 @@ from .serializers import ContactSerializer
 
 class ContactViewSet(HistoryListMixin, viewsets.ModelViewSet):
     history_resource_type = 'contact'
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    feature_key = 'contacts'
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
     serializer_class = ContactSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'first_name', 'last_name', 'email', 'company', 'created_at']

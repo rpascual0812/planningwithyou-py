@@ -23,7 +23,7 @@ from planningwithyou.history.snapshots import (
     snapshot_company,
     snapshot_supplier_setting,
 )
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import FeatureAccess, HasAccount
 from users.supplier_price import (
     build_supplier_setting_active_by_company,
     build_supplier_tiers_by_company,
@@ -42,7 +42,7 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
     """CRUD for tenant companies (soft-delete on destroy)."""
 
     history_resource_type = 'company'
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
     serializer_class = CompanySerializer
     filter_backends = [filters.OrderingFilter]
@@ -56,6 +56,11 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
             'true',
             'yes',
         )
+
+    def get_feature_key(self, request) -> str:
+        if self._is_supplier_directory() or request.query_params.get('supplier_type', '').strip():
+            return 'supplier_settings'
+        return 'companies_settings'
 
     def _uses_supplier_setting_active(self) -> bool:
         return self._is_supplier_directory() or bool(

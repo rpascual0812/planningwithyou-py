@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from planningwithyou.permissions import HasAccount, HasCompany
+from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import CalendarStatus
 from .scope import calendar_events_for_user
@@ -12,7 +12,8 @@ from .serializers import CalendarSerializer, CalendarStatusSerializer
 
 
 class CalendarStatusViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'calendar'
     serializer_class = CalendarStatusSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'title', 'sort_order', 'created_at']
@@ -57,7 +58,8 @@ class CalendarStatusViewSet(viewsets.ModelViewSet):
 
 
 class CalendarViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, HasAccount, HasCompany]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'calendar'
     serializer_class = CalendarSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'title', 'start', 'end', 'created_at']

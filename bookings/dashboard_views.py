@@ -2,7 +2,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planningwithyou.permissions import HasAccount
+from planningwithyou.permissions import FeatureAccess, HasAccount
 
 from .dashboard import build_dashboard_for_account
 
@@ -10,7 +10,8 @@ from .dashboard import build_dashboard_for_account
 class DashboardSummaryView(APIView):
     """Per-company booking, payment, calendar, and payout metrics."""
 
-    permission_classes = [IsAuthenticated, HasAccount]
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'dashboard'
 
     def get(self, request):
         return Response(

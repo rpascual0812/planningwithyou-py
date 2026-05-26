@@ -6,6 +6,7 @@ from rest_framework.test import APIClient
 
 from system_notifications.models import SystemNotification
 from users.models import Account, User
+from users.test_support import assign_owner_role, grant_platform_admin
 
 
 class SystemNotificationApiTests(TestCase):
@@ -17,15 +18,15 @@ class SystemNotificationApiTests(TestCase):
             email='admin@example.com',
             password='test-pass',
             account=cls.account,
-            is_admin=True,
         )
+        grant_platform_admin(cls.admin)
         cls.user = User.objects.create_user(
             username='user@example.com',
             email='user@example.com',
             password='test-pass',
             account=cls.account,
-            is_admin=False,
         )
+        assign_owner_role(cls.user)
         cls.now = timezone.now()
 
     def setUp(self):
