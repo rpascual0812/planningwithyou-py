@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'packages',
     'payments',
     'system_notifications',
+    'system_settings',
 ]
 
 MIDDLEWARE = [
