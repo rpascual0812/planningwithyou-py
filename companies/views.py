@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 from rest_framework import filters, parsers, status, viewsets
@@ -5,6 +6,23 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from bookings.models import History
+
+from planningwithyou.history.core import request_metadata
+from planningwithyou.history.mixin import HistoryListMixin
+from planningwithyou.history.record import (
+    record_resource_create,
+    record_resource_delete,
+    record_resource_update,
+)
+from planningwithyou.history.serializers import HistorySerializer
+from planningwithyou.history.snapshots import (
+    COMPANY_FIELDS,
+    diff_simple,
+    diff_supplier_setting,
+    snapshot_company,
+    snapshot_supplier_setting,
+)
 from planningwithyou.permissions import HasAccount
 from users.supplier_price import (
     build_supplier_setting_active_by_company,
@@ -20,9 +38,10 @@ from .models import Company, CompanyKybVerification
 from .serializers import CompanySerializer, SupplierCompanyTierPricingSerializer
 
 
-class CompanyViewSet(viewsets.ModelViewSet):
+class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
     """CRUD for tenant companies (soft-delete on destroy)."""
 
+    history_resource_type = 'company'
     permission_classes = [IsAuthenticated, HasAccount]
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
     serializer_class = CompanySerializer
@@ -110,9 +129,43 @@ class CompanyViewSet(viewsets.ModelViewSet):
             default_type = SupplierType.objects.filter(is_active=True).order_by('id').first()
             if default_type is not None:
                 extra['supplier_type'] = default_type
-        serializer.save(**extra)
+        company = serializer.save(**extra)
+        record_resource_create(
+            account_id=company.account_id,
+            resource_type='company',
+            resource_id=company.pk,
+            snapshot=snapshot_company(company),
+            actor=self.request.user,
+            metadata=request_metadata(self.request),
+        )
+
+    def perform_update(self, serializer):
+        before = snapshot_company(serializer.instance)
+        company = serializer.save()
+        changes = diff_simple(before, snapshot_company(company), COMPANY_FIELDS)
+        request = self.request
+
+        def _record():
+            record_resource_update(
+                account_id=company.account_id,
+                resource_type='company',
+                resource_id=company.pk,
+                changes=changes,
+                actor=request.user,
+                metadata=request_metadata(request),
+            )
+
+        transaction.on_commit(_record)
 
     def perform_destroy(self, instance):
+        record_resource_delete(
+            account_id=instance.account_id,
+            resource_type='company',
+            resource_id=instance.pk,
+            changes={'name': instance.name},
+            actor=self.request.user,
+            metadata=request_metadata(self.request),
+        )
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at'])
 
@@ -139,6 +192,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        before = snapshot_supplier_setting(company.id, tenant_account_id)
         if 'name' in data:
             name = data['name'].strip() or company.name
             if name != company.name:
@@ -150,6 +204,21 @@ class CompanyViewSet(viewsets.ModelViewSet):
             data['tiers'],
             supplier_account_id=company.account_id,
         )
+        after = snapshot_supplier_setting(company.id, tenant_account_id)
+        changes = diff_supplier_setting(before, after)
+        request = self.request
+
+        def _record():
+            record_resource_update(
+                account_id=tenant_account_id,
+                resource_type='supplier_setting',
+                resource_id=company.id,
+                changes=changes,
+                actor=request.user,
+                metadata=request_metadata(request),
+            )
+
+        transaction.on_commit(_record)
         return Response(
             {
                 'name': company.name,
@@ -160,6 +229,21 @@ class CompanyViewSet(viewsets.ModelViewSet):
                 ),
             },
         )
+
+    @action(detail=True, methods=['get'], url_path='supplier-setting/history')
+    def supplier_setting_history(self, request, pk=None):
+        company = self.get_object()
+        tenant_account_id = request.user.account_id
+        rows = (
+            History.objects.filter(
+                account_id=tenant_account_id,
+                resource_type='supplier_setting',
+                resource_id=company.pk,
+            )
+            .select_related('actor')
+            .order_by('-created_at', '-id')
+        )
+        return Response(HistorySerializer(rows, many=True).data)
 
     def _get_or_create_kyb(self, company: Company) -> CompanyKybVerification:
         kyb, _created = CompanyKybVerification.objects.get_or_create(

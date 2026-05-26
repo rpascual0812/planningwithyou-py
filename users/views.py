@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
+from django.db import transaction
 from rest_framework import filters, parsers, status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
@@ -10,6 +11,20 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from planningwithyou.history.core import request_metadata
+from planningwithyou.history.mixin import HistoryListMixin
+from planningwithyou.history.record import (
+    record_resource_create,
+    record_resource_delete,
+    record_resource_update,
+)
+from planningwithyou.history.snapshots import (
+    ACCOUNT_FIELDS,
+    USER_FIELDS,
+    diff_simple,
+    snapshot_account,
+    snapshot_user,
+)
 from planningwithyou.permissions import HasAccount, HasCompany
 from planningwithyou.template_placeholders import (
     DEFAULT_PASSWORD_RESET_BODY_HTML,
@@ -165,9 +180,10 @@ def _send_verification_email(user):
     send_email_task.delay(log.pk)
 
 
-class AccountViewSet(viewsets.ModelViewSet):
+class AccountViewSet(HistoryListMixin, viewsets.ModelViewSet):
     """Accounts (tenant organizations), filterable by supplier type."""
 
+    history_resource_type = 'account'
     permission_classes = [IsAuthenticated]
     serializer_class = AccountSerializer
     filter_backends = [filters.OrderingFilter]
@@ -175,13 +191,42 @@ class AccountViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
-        qs = Account.objects.select_related('country')
+        qs = Account.objects.select_related('country').filter(deleted_at__isnull=True)
+        account_id = getattr(self.request.user, 'account_id', None)
+        if account_id is not None:
+            qs = qs.filter(pk=account_id)
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(name__icontains=search)
         return qs
 
+    def perform_update(self, serializer):
+        before = snapshot_account(serializer.instance)
+        account = serializer.save()
+        changes = diff_simple(before, snapshot_account(account), ACCOUNT_FIELDS)
+        request = self.request
+
+        def _record():
+            record_resource_update(
+                account_id=account.pk,
+                resource_type='account',
+                resource_id=account.pk,
+                changes=changes,
+                actor=request.user,
+                metadata=request_metadata(request),
+            )
+
+        transaction.on_commit(_record)
+
     def perform_destroy(self, instance):
+        record_resource_delete(
+            account_id=instance.pk,
+            resource_type='account',
+            resource_id=instance.pk,
+            changes={'name': instance.name},
+            actor=self.request.user,
+            metadata=request_metadata(self.request),
+        )
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at', 'updated_at'])
 
@@ -206,7 +251,8 @@ class AccountViewSet(viewsets.ModelViewSet):
         serializer = AccountSerializer(account)
         return Response(serializer.data)
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
+    history_resource_type = 'user'
     permission_classes = [IsAuthenticated, HasAccount, HasCompany]
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
     filter_backends = [filters.OrderingFilter]
@@ -264,7 +310,30 @@ class UserViewSet(viewsets.ModelViewSet):
         if account_at_user_seat_limit(account_id):
             raise PermissionDenied(SEAT_LIMIT_MESSAGE)
         user = serializer.save()
+        record_resource_create(
+            account_id=account_id,
+            resource_type='user',
+            resource_id=user.pk,
+            snapshot=snapshot_user(user),
+            actor=self.request.user,
+            metadata=request_metadata(self.request),
+        )
         _send_reset_email(user)
+
+    def perform_destroy(self, instance):
+        record_resource_delete(
+            account_id=instance.account_id,
+            resource_type='user',
+            resource_id=instance.pk,
+            changes={
+                'username': instance.username,
+                'email': instance.email,
+            },
+            actor=self.request.user,
+            metadata=request_metadata(self.request),
+        )
+        instance.deleted_at = timezone.now()
+        instance.save(update_fields=['deleted_at', 'updated_at'])
 
     def perform_update(self, serializer):
         instance = serializer.instance
@@ -272,10 +341,25 @@ class UserViewSet(viewsets.ModelViewSet):
         if not instance.is_active and new_is_active:
             if account_at_user_seat_limit(self.request.user.account_id):
                 raise PermissionDenied(SEAT_LIMIT_MESSAGE)
+        before = snapshot_user(instance)
         old_email = instance.email
         user = serializer.save()
         if user.email != old_email:
             _send_reset_email(user)
+        changes = diff_simple(before, snapshot_user(user), USER_FIELDS)
+        request = self.request
+
+        def _record():
+            record_resource_update(
+                account_id=user.account_id,
+                resource_type='user',
+                resource_id=user.pk,
+                changes=changes,
+                actor=request.user,
+                metadata=request_metadata(request),
+            )
+
+        transaction.on_commit(_record)
 
     @action(detail=False, methods=['get'], url_path='me')
     def me(self, request):

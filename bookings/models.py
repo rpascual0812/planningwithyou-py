@@ -360,6 +360,90 @@ class BookingLine(models.Model):
         return f'{self.label}: {self.value}'
 
 
+class History(models.Model):
+    """Append-only change log for bookings and other tenant resources."""
+
+    class ResourceType(models.TextChoices):
+        BOOKING = 'booking', 'Booking'
+        ACCOUNT = 'account', 'Account'
+        COMPANY = 'company', 'Company'
+        USER = 'user', 'User'
+        CONTACT = 'contact', 'Contact'
+        SUPPLIER_SETTING = 'supplier_setting', 'Supplier setting'
+        BOOKING_STATUS = 'booking_status', 'Booking status'
+        EMAIL_TEMPLATE = 'email_template', 'Email template'
+        FORM_TEMPLATE = 'form_template', 'Form template'
+
+    class EntityType(models.TextChoices):
+        BOOKING = 'booking', 'Booking'
+        BOOKING_LINE = 'booking_line', 'Booking line'
+        BOOKING_GROUP = 'booking_group', 'Booking group'
+        ACCOUNT = 'account', 'Account'
+        COMPANY = 'company', 'Company'
+        USER = 'user', 'User'
+        CONTACT = 'contact', 'Contact'
+        SUPPLIER_SETTING = 'supplier_setting', 'Supplier setting'
+        BOOKING_STATUS = 'booking_status', 'Booking status'
+        EMAIL_TEMPLATE = 'email_template', 'Email template'
+        FORM_TEMPLATE = 'form_template', 'Form template'
+
+    class Action(models.TextChoices):
+        CREATE = 'create', 'Create'
+        UPDATE = 'update', 'Update'
+        DELETE = 'delete', 'Delete'
+        REPLACE = 'replace', 'Replace'
+
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+    )
+    resource_type = models.CharField(
+        max_length=32,
+        choices=ResourceType.choices,
+        default=ResourceType.BOOKING,
+    )
+    resource_id = models.PositiveIntegerField(default=0)
+    booking = models.ForeignKey(
+        BookingItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='history_entries',
+        db_column='booking_id',
+    )
+    entity_type = models.CharField(max_length=32)
+    entity_id = models.PositiveIntegerField(null=True, blank=True)
+    action = models.CharField(max_length=20, choices=Action.choices)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='booking_history_entries',
+        db_column='actor_id',
+    )
+    changes = models.JSONField(default=dict)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'history'
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['resource_type', 'resource_id', '-created_at']),
+            models.Index(fields=['booking', '-created_at']),
+            models.Index(fields=['account', '-created_at']),
+        ]
+
+    def __str__(self):
+        return (
+            f'{self.action} {self.resource_type}:{self.resource_id} '
+            f'({self.entity_type})'
+        )
+
+
 class FormTemplate(models.Model):
     account = models.ForeignKey(
         'users.Account',

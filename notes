@@ -170,4 +170,6 @@ in the dashboard component, display the following:
 
 
 
-let us change the proration computation, when paying for the first time, straight up bill the entire total amount. If the customer already exists, calculate the remaining value of their subscription by getting the account_subscriptions.total_price and the remaining days left by comparing the date today and account_subscriptions.end_date. Substract the prorated value to the total amount computed by the form. The difference will be the 
+next
+
+roles and permissions

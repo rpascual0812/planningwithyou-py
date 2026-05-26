@@ -3,6 +3,13 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
+from .history import (
+    record_booking_create,
+    record_booking_update,
+    snapshot_booking_full,
+)
+from planningwithyou.history.core import request_metadata
+
 from planningwithyou.file_storage import (
     absolute_file_url,
     booking_pdf_file_url,
@@ -21,6 +28,7 @@ from .models import (
     FormTemplate,
     FormTemplateField,
     FormTemplateFieldOption,
+
 )
 from .downpayment import (
     sum_booking_required_downpayment,
@@ -284,11 +292,22 @@ class BookingItemSerializer(serializers.ModelSerializer):
         self._save_field_values(booking, field_values_data)
         self._refresh_required_downpayment_amount(booking)
         self._enqueue_pdf_generation(booking)
+        request = self.context.get('request')
+        transaction.on_commit(
+            lambda: record_booking_create(
+                booking,
+                actor=getattr(request, 'user', None),
+                metadata=request_metadata(request),
+            ),
+        )
         return booking
 
     def update(self, instance, validated_data):
         field_values_data = self._pop_field_values(validated_data)
         groups_data = self._pop_groups(validated_data)
+        include_nested = field_values_data is not None or groups_data is not None
+        request = self.context.get('request')
+        before = snapshot_booking_full(instance)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.account_id = instance.status.account_id
@@ -305,6 +324,15 @@ class BookingItemSerializer(serializers.ModelSerializer):
         if field_values_data is not None:
             self._refresh_required_downpayment_amount(instance)
         self._enqueue_pdf_generation(instance)
+        transaction.on_commit(
+            lambda: record_booking_update(
+                instance,
+                before,
+                actor=getattr(request, 'user', None),
+                include_nested=include_nested,
+                metadata=request_metadata(request),
+            ),
+        )
         return instance
 
 

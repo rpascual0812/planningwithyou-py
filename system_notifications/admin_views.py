@@ -26,13 +26,13 @@ class SystemNotificationAdminViewSet(viewsets.ModelViewSet):
                 Q(title__icontains=search) | Q(message__icontains=search),
             )
         status = self.request.query_params.get('status', '').strip()
-        today = timezone.localdate()
+        now = timezone.now()
         if status == 'active':
-            qs = qs.filter(start_date__lte=today, end_date__gte=today)
+            qs = qs.filter(start_date__lte=now, end_date__gte=now)
         elif status == 'scheduled':
-            qs = qs.filter(start_date__gt=today)
+            qs = qs.filter(start_date__gt=now)
         elif status == 'expired':
-            qs = qs.filter(end_date__lt=today)
+            qs = qs.filter(end_date__lt=now)
         return qs
 
     def perform_create(self, serializer):

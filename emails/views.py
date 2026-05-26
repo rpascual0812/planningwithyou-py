@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import filters, status, viewsets
@@ -6,6 +7,18 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from planningwithyou.history.core import request_metadata
+from planningwithyou.history.mixin import HistoryListMixin
+from planningwithyou.history.record import (
+    record_resource_create,
+    record_resource_delete,
+    record_resource_update,
+)
+from planningwithyou.history.snapshots import (
+    EMAIL_TEMPLATE_FIELDS,
+    diff_simple,
+    snapshot_email_template,
+)
 from planningwithyou.permissions import HasAccount, HasCompany
 
 from .models import EmailLog, EmailTemplate
@@ -77,9 +90,10 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         )
 
 
-class EmailTypedTemplateViewSet(viewsets.ModelViewSet):
+class EmailTypedTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
     """CRUD for email templates scoped to a single ``template_type``."""
 
+    history_resource_type = 'email_template'
     permission_classes = [IsAuthenticated, HasAccount]
     serializer_class = EmailTemplateSerializer
     filter_backends = [filters.OrderingFilter]
@@ -114,25 +128,60 @@ class EmailTypedTemplateViewSet(viewsets.ModelViewSet):
         company_id = serializer.validated_data.get('company_id')
         if company_id is None:
             company_id = self.request.user.company_id
-        serializer.save(
+        template = serializer.save(
             template_type=self.template_type,
             account_id=self.request.user.account_id,
             company_id=company_id,
             is_default=False,
         )
+        record_resource_create(
+            account_id=template.account_id,
+            resource_type='email_template',
+            resource_id=template.pk,
+            snapshot=snapshot_email_template(template),
+            actor=self.request.user,
+            metadata=request_metadata(self.request),
+        )
 
     def perform_update(self, serializer):
+        before = snapshot_email_template(serializer.instance)
         company_id = serializer.validated_data.get('company_id')
         if company_id is None and self.request.user.company_id:
-            serializer.save(company_id=self.request.user.company_id)
+            template = serializer.save(company_id=self.request.user.company_id)
         else:
-            serializer.save()
+            template = serializer.save()
+        changes = diff_simple(
+            before,
+            snapshot_email_template(template),
+            EMAIL_TEMPLATE_FIELDS,
+        )
+        request = self.request
+
+        def _record():
+            record_resource_update(
+                account_id=template.account_id,
+                resource_type='email_template',
+                resource_id=template.pk,
+                changes=changes,
+                actor=request.user,
+                metadata=request_metadata(request),
+            )
+
+        transaction.on_commit(_record)
 
     def perform_destroy(self, instance):
         if instance.is_default:
             from rest_framework.exceptions import PermissionDenied
 
             raise PermissionDenied('Default email templates cannot be deleted.')
+        record_resource_delete(
+            account_id=instance.account_id,
+            resource_type='email_template',
+            resource_id=instance.pk,
+            changes={'name': instance.name, 'title': instance.title},
+            actor=self.request.user,
+            metadata=request_metadata(self.request),
+        )
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at', 'updated_at'])
 

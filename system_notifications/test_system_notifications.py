@@ -26,7 +26,7 @@ class SystemNotificationApiTests(TestCase):
             account=cls.account,
             is_admin=False,
         )
-        cls.today = timezone.localdate()
+        cls.now = timezone.now()
 
     def setUp(self):
         self.client = APIClient()
@@ -34,19 +34,19 @@ class SystemNotificationApiTests(TestCase):
     def _login(self, user: User):
         self.client.force_authenticate(user=user)
 
-    def test_active_notifications_for_today(self):
+    def test_active_notifications_for_current_window(self):
         SystemNotification.objects.create(
             title='Active',
             message='Hello team',
-            start_date=self.today,
-            end_date=self.today + timedelta(days=7),
+            start_date=self.now - timedelta(hours=1),
+            end_date=self.now + timedelta(days=7),
             created_by=self.admin,
         )
         SystemNotification.objects.create(
             title='Future',
             message='Later',
-            start_date=self.today + timedelta(days=1),
-            end_date=self.today + timedelta(days=7),
+            start_date=self.now + timedelta(days=1),
+            end_date=self.now + timedelta(days=7),
             created_by=self.admin,
         )
         self._login(self.user)
@@ -57,13 +57,15 @@ class SystemNotificationApiTests(TestCase):
 
     def test_admin_crud_and_soft_delete(self):
         self._login(self.admin)
+        start = self.now
+        end = self.now + timedelta(days=1)
         create = self.client.post(
             '/api/admin/system-notifications/',
             {
                 'title': 'Maintenance',
                 'message': 'Tonight 10pm',
-                'start_date': self.today.isoformat(),
-                'end_date': (self.today + timedelta(days=1)).isoformat(),
+                'start_date': start.isoformat(),
+                'end_date': end.isoformat(),
             },
             format='json',
         )
@@ -87,8 +89,8 @@ class SystemNotificationApiTests(TestCase):
             {
                 'title': 'Nope',
                 'message': 'Denied',
-                'start_date': self.today.isoformat(),
-                'end_date': self.today.isoformat(),
+                'start_date': self.now.isoformat(),
+                'end_date': (self.now + timedelta(hours=1)).isoformat(),
             },
             format='json',
         )

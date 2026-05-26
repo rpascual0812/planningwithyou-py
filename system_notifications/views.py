@@ -8,16 +8,16 @@ from .serializers import SystemNotificationPublicSerializer
 
 
 class ActiveSystemNotificationsView(APIView):
-    """Notifications visible in the app header today."""
+    """Notifications visible in the app header right now."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        today = timezone.localdate()
+        now = timezone.now()
         rows = (
             SystemNotification.objects.filter(
-                start_date__lte=today,
-                end_date__gte=today,
+                start_date__lte=now,
+                end_date__gte=now,
             )
             .order_by('-start_date', '-id')
         )

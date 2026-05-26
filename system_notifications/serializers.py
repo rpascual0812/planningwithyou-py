@@ -35,7 +35,7 @@ class SystemNotificationSerializer(serializers.ModelSerializer):
             end = end if end is not None else self.instance.end_date
         if start and end and end < start:
             raise serializers.ValidationError(
-                {'end_date': ['End date must be on or after the start date.']},
+                {'end_date': ['End time must be on or after the start time.']},
             )
         return attrs
 

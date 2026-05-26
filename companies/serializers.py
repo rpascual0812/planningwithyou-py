@@ -271,13 +271,34 @@ class CompanySerializer(serializers.ModelSerializer):
             is_active = validated_data.pop('is_active')
             request = self.context.get('request')
             if request is not None:
+                from planningwithyou.history.core import request_metadata
+                from planningwithyou.history.record import record_resource_update
+                from planningwithyou.history.snapshots import (
+                    diff_supplier_setting,
+                    snapshot_supplier_setting,
+                )
                 from users.supplier_price import set_supplier_setting_active
 
+                tenant_account_id = request.user.account_id
+                before = snapshot_supplier_setting(instance.id, tenant_account_id)
                 set_supplier_setting_active(
                     instance.id,
-                    request.user.account_id,
+                    tenant_account_id,
                     is_active,
                 )
+                changes = diff_supplier_setting(
+                    before,
+                    snapshot_supplier_setting(instance.id, tenant_account_id),
+                )
+                if changes:
+                    record_resource_update(
+                        account_id=tenant_account_id,
+                        resource_type='supplier_setting',
+                        resource_id=instance.id,
+                        changes=changes,
+                        actor=request.user,
+                        metadata=request_metadata(request),
+                    )
         if self._will_be_main(validated_data, instance):
             self._clear_other_main_companies(
                 instance.account_id,

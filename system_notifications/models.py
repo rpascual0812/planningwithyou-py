@@ -20,8 +20,8 @@ class SystemNotificationAllManager(models.Manager.from_queryset(SystemNotificati
 class SystemNotification(models.Model):
     title = models.CharField(max_length=255)
     message = models.TextField()
-    start_date = models.DateField()
-    end_date = models.DateField()
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -44,6 +44,6 @@ class SystemNotification(models.Model):
         return self.title
 
     @property
-    def is_active_today(self) -> bool:
-        today = timezone.localdate()
-        return self.start_date <= today <= self.end_date
+    def is_active_now(self) -> bool:
+        now = timezone.now()
+        return self.start_date <= now <= self.end_date
