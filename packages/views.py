@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from companies.models import Company
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
+from users.company_access import effective_company_id
 
 from .models import Package, PackageItem, PackageVersion
 from .serializers import PackageSerializer, PackageVersionSerializer
@@ -51,17 +52,12 @@ class PackageViewSet(viewsets.ModelViewSet):
                 ),
             ),
         )
-        company_id = self.request.query_params.get('company_id', '').strip()
-        if company_id:
-            if not Company.objects.filter(
-                pk=company_id,
-                account_id=account_id,
-                deleted_at__isnull=True,
-            ).exists():
-                return qs.none()
-            qs = qs.filter(company_id=company_id)
-        else:
-            qs = qs.filter(company_id=self.request.user.company_id)
+        raw = self.request.query_params.get('company_id', '').strip()
+        requested = int(raw) if raw.isdigit() else None
+        company_id = effective_company_id(self.request.user, requested)
+        if company_id is None:
+            return qs.none()
+        qs = qs.filter(company_id=company_id)
         version_id = self.request.query_params.get('package_version_id', '').strip()
         if version_id:
             qs = qs.filter(package_version_id=version_id)
@@ -116,17 +112,12 @@ class PackageVersionViewSet(viewsets.ModelViewSet):
             account_id=account_id,
             deleted_at__isnull=True,
         )
-        company_id = self.request.query_params.get('company_id', '').strip()
-        if company_id:
-            if not Company.objects.filter(
-                pk=company_id,
-                account_id=account_id,
-                deleted_at__isnull=True,
-            ).exists():
-                return qs.none()
-            qs = qs.filter(company_id=company_id)
-        else:
-            qs = qs.filter(company_id=self.request.user.company_id)
+        raw = self.request.query_params.get('company_id', '').strip()
+        requested = int(raw) if raw.isdigit() else None
+        company_id = effective_company_id(self.request.user, requested)
+        if company_id is None:
+            return qs.none()
+        qs = qs.filter(company_id=company_id)
         active_only = self.request.query_params.get('active_only', '').lower()
         if active_only in ('1', 'true', 'yes'):
             qs = qs.filter(is_active=True)

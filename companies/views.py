@@ -3,7 +3,7 @@ from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 from rest_framework import filters, parsers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 from rest_framework.response import Response
 
 from bookings.models import History
@@ -60,6 +60,11 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
     def get_feature_key(self, request) -> str:
         if self._is_supplier_directory() or request.query_params.get('supplier_type', '').strip():
             return 'supplier_settings'
+        if request.method in SAFE_METHODS:
+            from users.company_access import can_change_company
+
+            if can_change_company(request.user):
+                return 'change_company'
         return 'companies_settings'
 
     def _uses_supplier_setting_active(self) -> bool:

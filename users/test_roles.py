@@ -287,3 +287,73 @@ class RoleApiTests(TestCase):
 
         response = self.client.get('/api/admin/kyb-verifications/')
         self.assertEqual(response.status_code, 200)
+
+    def test_change_company_required_to_filter_other_company_users(self):
+        other_company = Company.objects.create(
+            account=self.account,
+            name='Other Co',
+            is_active=True,
+            is_main=False,
+            sort_order=1,
+        )
+        User.objects.create_user(
+            username='other@acme.com',
+            email='other@acme.com',
+            password='secret',
+            account=self.account,
+            company=other_company,
+            is_active=True,
+            is_verified=True,
+            role=self.owner,
+        )
+
+        reader = Role.objects.create(account=self.account, name='LockedCo')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='users',
+            access='write',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        blocked = self.client.get(f'/api/users/?company_id={other_company.pk}')
+        self.assertEqual(blocked.status_code, 200)
+        self.assertEqual(len(blocked.json()), 0)
+
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='change_company',
+            access='read',
+        )
+
+        allowed = self.client.get(f'/api/users/?company_id={other_company.pk}')
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(len(allowed.json()), 1)
+
+    def test_change_company_read_can_fetch_active_companies(self):
+        reader = Role.objects.create(account=self.account, name='CoPicker')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='change_company',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        response = self.client.get('/api/companies/?active_only=true')
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(len(response.json()), 1)
+
+    def test_change_company_write_can_fetch_active_companies(self):
+        reader = Role.objects.create(account=self.account, name='CoPickerWrite')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='change_company',
+            access='write',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        response = self.client.get('/api/companies/?active_only=true')
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(len(response.json()), 1)

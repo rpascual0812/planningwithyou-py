@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from users.roles import has_feature_read, has_feature_write
+from users.company_access import effective_company_id
+from users.roles import has_feature_read
 
 from .models import EmailLog
 
@@ -11,22 +12,14 @@ def email_logs_for_user(user, *, company_id=None):
     """
     Email logs visible to ``user``.
 
-    Scoped to the user's account. Users with ``emails`` write may list all
-    companies in the account or filter by ``company_id``. Others only see their
-    own company; a ``company_id`` query param is ignored unless it matches
-    ``user.company_id``.
+    Scoped to the account. ``company_id`` is honored only with Change Company;
+    otherwise logs are limited to ``user.company_id``.
     """
     qs = EmailLog.objects.filter(account_id=user.account_id)
-    if has_feature_write(user, 'emails'):
-        if company_id is not None:
-            qs = qs.filter(company_id=company_id)
-        return qs
-    if user.company_id is None:
+    cid = effective_company_id(user, company_id)
+    if cid is None:
         return qs.filter(company_id__isnull=True)
-    effective_company_id = user.company_id
-    if company_id is not None and company_id == user.company_id:
-        effective_company_id = company_id
-    return qs.filter(company_id=effective_company_id)
+    return qs.filter(company_id=cid)
 
 
 def email_logs_for_platform_admin(user, *, company_id=None):

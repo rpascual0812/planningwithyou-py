@@ -317,9 +317,9 @@ class UserSerializer(serializers.ModelSerializer):
             except (TypeError, ValueError):
                 return request.user.company_id
             if company_belongs_to_account(company_id, request.user.account_id):
-                from .roles import has_feature_write
+                from .company_access import can_change_company
 
-                if has_feature_write(request.user, 'users') or company_id == request.user.company_id:
+                if can_change_company(request.user) or company_id == request.user.company_id:
                     return company_id
         return request.user.company_id
 
@@ -392,9 +392,9 @@ class UserCreateSerializer(UserSerializer):
             return company
         if not company_belongs_to_account(company.pk, request.user.account_id):
             raise serializers.ValidationError('Invalid company for this account.')
-        from .roles import has_feature_write
+        from .company_access import can_change_company
 
-        if not has_feature_write(request.user, 'users') and company.pk != request.user.company_id:
+        if not can_change_company(request.user) and company.pk != request.user.company_id:
             raise serializers.ValidationError(
                 'You may only add users to your own company.',
             )

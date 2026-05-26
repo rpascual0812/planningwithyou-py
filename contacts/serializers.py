@@ -74,6 +74,15 @@ class ContactSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Invalid company.')
         if not value.is_active or value.deleted_at is not None:
             raise serializers.ValidationError('Company must be active.')
+        from users.company_access import can_change_company
+
+        if (
+            value.pk != request.user.company_id
+            and not can_change_company(request.user)
+        ):
+            raise serializers.ValidationError(
+                'You may only assign contacts to your own company.',
+            )
         return value
 
     def create(self, validated_data):

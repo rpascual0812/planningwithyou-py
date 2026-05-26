@@ -32,6 +32,8 @@ from .history import (
 )
 from .models import BookingGroup, BookingItem, BookingStatus, FormTemplate
 from .supplier_capacity import supplier_booking_capacity_status
+from users.company_access import effective_company_id
+
 from .scope import assert_booking_editable, bookings_for_user
 from .serializers import (
     BookingItemSerializer,
@@ -322,12 +324,11 @@ class FormTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
         qs = FormTemplate.objects.filter(
             account_id=self.request.user.account_id,
         ).prefetch_related('fields__options')
-        company_id = self.request.query_params.get('company_id')
-        if company_id:
-            try:
-                qs = qs.filter(company_id=int(company_id))
-            except (TypeError, ValueError):
-                pass
+        raw = self.request.query_params.get('company_id', '').strip()
+        requested = int(raw) if raw.isdigit() else None
+        company_id = effective_company_id(self.request.user, requested)
+        if company_id is not None:
+            qs = qs.filter(company_id=company_id)
         return qs
 
     def _template_with_relations(self, template: FormTemplate) -> FormTemplate:

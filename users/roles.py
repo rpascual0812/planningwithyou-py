@@ -21,6 +21,7 @@ TENANT_FEATURE_KEYS = (
     'email_templates',
     'roles_permissions',
     'calendar_settings',
+    'change_company',
 )
 
 # Cross-tenant staff tools (shown in role editor only to users with Admin read).
@@ -45,6 +46,7 @@ GET_READ_GRANTS: dict[str, tuple[str, ...]] = {
     'booking_settings_statuses': ('bookings',),
     'email_templates': ('emails',),
     'calendar_settings': ('calendar',),
+    'companies_settings': ('change_company',),
 }
 
 

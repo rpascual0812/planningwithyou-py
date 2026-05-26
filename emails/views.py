@@ -22,6 +22,8 @@ from planningwithyou.history.snapshots import (
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import EmailLog, EmailTemplate
+from users.company_access import effective_company_id
+
 from .scope import email_logs_for_platform_admin, email_logs_for_user
 from .serializers import EmailLogSerializer, EmailTemplateSerializer
 from .tasks import send_email_task
@@ -149,12 +151,11 @@ class EmailTypedTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
             deleted_at__isnull=True,
             account_id=aid,
         )
-        company_id = self.request.query_params.get('company_id')
-        if company_id:
-            try:
-                qs = qs.filter(company_id=int(company_id))
-            except (TypeError, ValueError):
-                pass
+        raw = self.request.query_params.get('company_id', '').strip()
+        requested = int(raw) if raw.isdigit() else None
+        company_id = effective_company_id(self.request.user, requested)
+        if company_id is not None:
+            qs = qs.filter(company_id=company_id)
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
