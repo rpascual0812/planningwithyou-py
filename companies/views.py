@@ -288,7 +288,8 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='kyb/start-paymongo')
     def kyb_start_paymongo(self, request, pk=None):
         """
-        Save application fields (optional body) and create a PayMongo onboarding link.
+        Save application fields (optional body), create a new PayMongo merchant,
+        and return the hosted onboarding URL (from PAYMONGO_ONBOARDING_URL).
         """
         from payments.paymongo_merchant_onboarding import start_paymongo_merchant_onboarding
         from payments.paymongo_onboarding import PayMongoOnboardingError
@@ -302,8 +303,6 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
             'merchant_business_name',
             'merchant_email',
             'merchant_mobile_number',
-            'bank_details',
-            'business_website',
         }
         filtered = {k: v for k, v in patch_data.items() if k in allowed}
         if filtered:

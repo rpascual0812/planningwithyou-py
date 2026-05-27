@@ -11,6 +11,8 @@ from django.conf import settings
 
 from bookings.paymongo_client import PayMongoError, _request as _v1_request
 
+from .paymongo_config import paymongo_merchant_children_api_path
+
 PAYMONGO_API_ROOT = 'https://api.paymongo.com'
 
 
@@ -81,6 +83,85 @@ def _resource_attributes(data: dict) -> dict:
     return attrs if isinstance(attrs, dict) else {}
 
 
+def extract_hosted_url(resource: dict | None) -> str:
+    """Pull a redirect URL from PayMongo v1/v2 resource shapes."""
+    if not isinstance(resource, dict):
+        return ''
+    attrs = _resource_attributes(resource)
+    for container in (attrs, resource):
+        if not isinstance(container, dict):
+            continue
+        for key in ('checkout_url', 'onboarding_url', 'url', 'verification_url'):
+            value = str(container.get(key) or '').strip()
+            if value.startswith('http'):
+                return value
+        redirect = container.get('redirect')
+        if isinstance(redirect, dict):
+            for key in ('checkout_url', 'url', 'onboarding_url'):
+                value = str(redirect.get(key) or '').strip()
+                if value.startswith('http'):
+                    return value
+    return ''
+
+
+def account_onboarding_url(account: dict) -> str:
+    """Onboarding URL on a v2 child account / merchant resource, when present."""
+    return extract_hosted_url(account)
+
+
+def _v1_post_with_fallback(paths: list[str], body: dict) -> dict:
+    """Try multiple v1 paths (platform vs legacy) until one succeeds."""
+    last_error: PayMongoError | None = None
+    for path in paths:
+        try:
+            return _v1_request('POST', path, body)
+        except PayMongoError as exc:
+            last_error = exc
+            if exc.status_code not in {404, 405}:
+                raise
+    if last_error is not None:
+        raise last_error
+    raise PayMongoError('PayMongo merchant API path not found.')
+
+
+def create_child_merchant(
+    *,
+    trade_name: str,
+    business_type: str,
+    email: str,
+    phone_number: str,
+    features: list[str] | None = None,
+) -> dict:
+    """
+    POST /v1/merchants/children — create a child merchant under the platform.
+
+    See ``PAYMONGO_MERCHANT_CHILDREN_URL``. Returns the PayMongo ``data`` object.
+    """
+    business: dict[str, str] = {
+        'trade_name': trade_name,
+        'type': business_type,
+        'email': email,
+        'phone_number': phone_number,
+    }
+    response = _platform_request(
+        'POST',
+        paymongo_merchant_children_api_path(),
+        {
+            'data': {
+                'attributes': {
+                    'accepted_terms_and_conditions': True,
+                    'features': features if features is not None else ['payment_gateway'],
+                    'business': business,
+                },
+            },
+        },
+    )
+    data = response.get('data')
+    if not isinstance(data, dict):
+        raise PayMongoError('Unexpected PayMongo create child merchant response.')
+    return data
+
+
 def create_platform_merchant(
     *,
     business_name: str,
@@ -88,29 +169,13 @@ def create_platform_merchant(
     email: str,
     mobile_number: str,
 ) -> dict:
-    """
-    POST /v1/merchants — create a sub-merchant under the platform.
-
-    Returns the PayMongo resource ``data`` object (includes ``id``).
-    """
-    response = _v1_request(
-        'POST',
-        '/merchants',
-        {
-            'data': {
-                'attributes': {
-                    'business_name': business_name,
-                    'business_type': business_type,
-                    'email': email,
-                    'mobile_number': mobile_number,
-                },
-            },
-        },
+    """Backward-compatible alias for :func:`create_child_merchant`."""
+    return create_child_merchant(
+        trade_name=business_name,
+        business_type=business_type,
+        email=email,
+        phone_number=mobile_number,
     )
-    data = response.get('data')
-    if not isinstance(data, dict):
-        raise PayMongoError('Unexpected PayMongo create merchant response.')
-    return data
 
 
 def create_merchant_onboarding_link(merchant_id: str) -> str:
@@ -119,23 +184,22 @@ def create_merchant_onboarding_link(merchant_id: str) -> str:
 
     Returns the checkout / onboarding URL to redirect the merchant.
     """
-    response = _v1_request(
-        'POST',
-        f'/merchants/{merchant_id}/onboarding_links',
+    response = _v1_post_with_fallback(
+        [
+            f'/platform/merchants/{merchant_id}/onboarding_links',
+            f'/merchants/{merchant_id}/onboarding_links',
+        ],
         {'data': {'attributes': {}}},
     )
     data = response.get('data')
     if not isinstance(data, dict):
         raise PayMongoError('Unexpected PayMongo onboarding link response.')
-    attrs = _resource_attributes(data)
-    url = (
-        attrs.get('checkout_url')
-        or attrs.get('onboarding_url')
-        or attrs.get('url')
-        or data.get('checkout_url')
-        or ''
+    url = extract_hosted_url(data)
+    if url:
+        return url
+    raise PayMongoError(
+        'PayMongo onboarding link response did not include a redirect URL.',
     )
-    return str(url).strip()
 
 
 def _v1_request(method: str, path: str, body: dict | None = None) -> dict:
@@ -179,7 +243,7 @@ def create_identity_verification_session(account_id: str) -> dict:
 
 def verification_session_url(session: dict) -> str:
     """Extract hosted verification URL from a verification session resource."""
-    return (session.get('url') or '').strip()
+    return extract_hosted_url(session)
 
 
 def activate_child_account(account_id: str) -> dict:

@@ -52,8 +52,6 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
             'merchant_business_name',
             'merchant_email',
             'merchant_mobile_number',
-            'bank_details',
-            'business_website',
             'submitted_at',
             'reviewed_at',
             'reviewed_by',
@@ -89,17 +87,28 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
             return []
         return missing_kyb_application_fields(obj)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not (data.get('onboarding_url') or '').strip():
+            from payments.models import PaymentIntegration
+
+            integration = (
+                PaymentIntegration.objects.filter(
+                    company_id=instance.company_id,
+                    payment_gateway=PaymentIntegration.PaymentGateway.PAYMONGO,
+                    deleted_at__isnull=True,
+                )
+                .order_by('-id')
+                .first()
+            )
+            if integration and (integration.identity_verification_url or '').strip():
+                data['onboarding_url'] = integration.identity_verification_url
+        return data
+
     def validate_business_type(self, value):
         value = (value or '').strip()
         if value and value not in CompanyKybVerification.BusinessType.values:
             raise serializers.ValidationError('Invalid business type.')
-        return value
-
-    def validate_bank_details(self, value):
-        if value in (None, ''):
-            return {}
-        if not isinstance(value, dict):
-            raise serializers.ValidationError('Bank details must be an object.')
         return value
 
     def validate(self, attrs):
@@ -134,7 +143,6 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
             'merchant_business_name',
             'merchant_email',
             'merchant_mobile_number',
-            'business_website',
             'rejection_notes',
         ):
             if key in attrs and attrs[key] is not None:

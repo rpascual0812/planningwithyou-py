@@ -99,7 +99,9 @@ class CompanyKybVerification(models.Model):
     """
 
     class BusinessType(models.TextChoices):
+        INDIVIDUAL = 'individual', 'Individual'
         SOLE_PROPRIETOR = 'sole_proprietor', 'Sole proprietorship'
+        PARTNERSHIP = 'partnership', 'Partnership'
         CORPORATION = 'corporation', 'Corporation'
 
     class Status(models.TextChoices):

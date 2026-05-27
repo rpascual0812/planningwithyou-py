@@ -41,6 +41,48 @@ def platform_merchant_id() -> str:
     return (getattr(settings, 'PAYMONGO_PLATFORM_MERCHANT_ID', None) or '').strip()
 
 
+def paymongo_onboarding_base_url() -> str:
+    return (getattr(settings, 'PAYMONGO_ONBOARDING_URL', None) or '').strip()
+
+
+def paymongo_merchant_children_url() -> str:
+    return (
+        getattr(settings, 'PAYMONGO_MERCHANT_CHILDREN_URL', None)
+        or 'https://api.paymongo.com/v1/merchants/children'
+    ).strip()
+
+
+def paymongo_merchant_children_api_path() -> str:
+    """API path for ``_platform_request`` (from full URL or path in settings)."""
+    raw = paymongo_merchant_children_url()
+    if raw.startswith('http://') or raw.startswith('https://'):
+        from urllib.parse import urlparse
+
+        path = urlparse(raw).path
+        return path or '/v1/merchants/children'
+    if raw.startswith('/'):
+        return raw
+    return f'/{raw}'
+
+
+def build_paymongo_onboarding_url(merchant_id: str) -> str:
+    """
+    Build the hosted PayMongo KYB URL for a child merchant.
+
+    ``PAYMONGO_ONBOARDING_URL`` may be a base path (merchant id appended) or a
+    template containing ``{merchant_id}``.
+    """
+    base = paymongo_onboarding_base_url()
+    mid = (merchant_id or '').strip()
+    if not base:
+        raise ValueError('PAYMONGO_ONBOARDING_URL is not configured.')
+    if not mid:
+        raise ValueError('PayMongo merchant id is required.')
+    if '{merchant_id}' in base:
+        return base.format(merchant_id=mid)
+    return f'{base.rstrip("/")}/{mid}'
+
+
 def get_platform_config() -> PayMongoPlatformConfig | None:
     secret_key = platform_secret_key()
     if not secret_key:

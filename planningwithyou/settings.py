@@ -250,6 +250,22 @@ PAYMONGO_CHILD_ACCOUNT_HEADER = os.environ.get(
     'PAYMONGO_CHILD_ACCOUNT_HEADER',
     'Paymongo-Account-Id',
 )
+# POST child merchant under platform (full URL or path).
+PAYMONGO_MERCHANT_CHILDREN_URL = (
+    os.environ.get(
+        'PAYMONGO_MERCHANT_CHILDREN_URL',
+        'https://api.paymongo.com/v1/merchants/children',
+    )
+    or 'https://api.paymongo.com/v1/merchants/children'
+).strip()
+# Hosted KYB: base URL or template with {merchant_id} (trailing slash optional).
+PAYMONGO_ONBOARDING_URL = (
+    os.environ.get(
+        'PAYMONGO_ONBOARDING_URL',
+        'https://onboarding.paymongo.com/onboarding/merchants',
+    )
+    or 'https://onboarding.paymongo.com/onboarding/merchants'
+).strip()
 
 PASSWORD_RESET_TOKEN_LIFETIME_HOURS = int(
     os.environ.get('PASSWORD_RESET_TOKEN_LIFETIME_HOURS', 24),

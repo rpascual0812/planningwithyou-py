@@ -28,7 +28,12 @@ def live_payments_allowed(kyb: CompanyKybVerification | None) -> bool:
 
 
 def paymongo_business_type(business_type: str) -> str:
-    """Map internal business type to PayMongo merchant API value."""
-    if business_type == CompanyKybVerification.BusinessType.CORPORATION:
-        return 'corporation'
-    return 'sole_proprietorship'
+    """
+    Map internal business type to PayMongo ``/v1/merchants/children`` business.type.
+
+    Values match our KYB choices (e.g. ``sole_proprietor`` per PayMongo API).
+    """
+    valid = {choice.value for choice in CompanyKybVerification.BusinessType}
+    if business_type in valid:
+        return business_type
+    return CompanyKybVerification.BusinessType.SOLE_PROPRIETOR
