@@ -61,7 +61,7 @@ class BookingHistoryTests(TestCase):
 
     def test_create_booking_records_history(self):
         res = self.client.post(
-            '/api/booking-items/',
+            '/booking-items/',
             {
                 'status': self.status.pk,
                 'title': 'Wedding',
@@ -94,7 +94,7 @@ class BookingHistoryTests(TestCase):
             title='Before',
         )
         res = self.client.patch(
-            f'/api/booking-items/{booking.pk}/',
+            f'/booking-items/{booking.pk}/',
             {'title': 'After'},
             format='json',
         )
@@ -124,7 +124,7 @@ class BookingHistoryTests(TestCase):
             value='Old',
         )
         res = self.client.patch(
-            f'/api/booking-items/{booking.pk}/',
+            f'/booking-items/{booking.pk}/',
             {
                 'field_values': [
                     {
@@ -163,7 +163,7 @@ class BookingHistoryTests(TestCase):
             actor=self.user,
             changes={'snapshot': {}},
         )
-        res = self.client.get(f'/api/booking-items/{booking.pk}/history/')
+        res = self.client.get(f'/booking-items/{booking.pk}/history/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
         self.assertEqual(res.json()[0]['actor_name'], self.user.username)
@@ -171,7 +171,7 @@ class BookingHistoryTests(TestCase):
 
     def test_booking_status_update_records_history(self):
         res = self.client.patch(
-            f'/api/booking-statuses/{self.status.pk}/',
+            f'/booking-statuses/{self.status.pk}/',
             {'title': 'Confirmed', 'color': '#52b585'},
             format='json',
         )
@@ -195,7 +195,7 @@ class BookingHistoryTests(TestCase):
             actor=self.user,
             changes={'fields': {'title': {'old': 'A', 'new': 'B'}}},
         )
-        res = self.client.get(f'/api/booking-statuses/{self.status.pk}/history/')
+        res = self.client.get(f'/booking-statuses/{self.status.pk}/history/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
 
@@ -209,7 +209,7 @@ class BookingHistoryTests(TestCase):
             is_default=False,
         )
         res = self.client.patch(
-            f'/api/form-templates/{template.pk}/',
+            f'/form-templates/{template.pk}/',
             {'description': 'New'},
             format='json',
         )
@@ -240,6 +240,6 @@ class BookingHistoryTests(TestCase):
             actor=self.user,
             changes={'fields': {'name': {'old': 'A', 'new': 'B'}}},
         )
-        res = self.client.get(f'/api/form-templates/{template.pk}/history/')
+        res = self.client.get(f'/form-templates/{template.pk}/history/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)

@@ -61,7 +61,7 @@ class UserHistoryTests(TestCase):
 
     def test_update_user_records_history(self):
         res = self.client.patch(
-            f'/api/users/{self.target.pk}/',
+            f'/users/{self.target.pk}/',
             {'first_name': 'New'},
             format='json',
         )
@@ -85,6 +85,6 @@ class UserHistoryTests(TestCase):
             actor=self.admin,
             changes={'fields': {'first_name': {'old': 'A', 'new': 'B'}}},
         )
-        res = self.client.get(f'/api/users/{self.target.pk}/history/')
+        res = self.client.get(f'/users/{self.target.pk}/history/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)

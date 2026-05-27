@@ -59,7 +59,7 @@ class MeProfileUpdateTests(TestCase):
     def test_limited_user_can_patch_own_profile_via_me(self):
         self.client.force_authenticate(user=self.limited_user)
         response = self.client.patch(
-            '/api/users/me/',
+            '/users/me/',
             {'first_name': 'Updated'},
             format='json',
         )
@@ -70,7 +70,7 @@ class MeProfileUpdateTests(TestCase):
     def test_limited_user_cannot_patch_other_users(self):
         self.client.force_authenticate(user=self.limited_user)
         response = self.client.patch(
-            f'/api/users/{self.admin.pk}/',
+            f'/users/{self.admin.pk}/',
             {'first_name': 'Hacked'},
             format='json',
         )

@@ -76,7 +76,7 @@ class BookingPaymentPayoutReportTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.user)
-        res = client.get('/api/booking-payouts/')
+        res = client.get('/booking-payouts/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]['booking_unique_id'], '26-0100')
@@ -87,14 +87,14 @@ class BookingPaymentPayoutReportTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.user)
-        pending = client.get('/api/booking-payouts/', {'payout': 'pending'})
+        pending = client.get('/booking-payouts/', {'payout': 'pending'})
         self.assertEqual(len(pending.data), 1)
 
         self.payment.payout_sent_at = self.payment.created_at
         self.payment.save(update_fields=['payout_sent_at'])
 
-        pending = client.get('/api/booking-payouts/', {'payout': 'pending'})
+        pending = client.get('/booking-payouts/', {'payout': 'pending'})
         self.assertEqual(len(pending.data), 0)
 
-        sent = client.get('/api/booking-payouts/', {'payout': 'sent'})
+        sent = client.get('/booking-payouts/', {'payout': 'sent'})
         self.assertEqual(len(sent.data), 1)

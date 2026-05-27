@@ -67,27 +67,27 @@ class UserPhotoTests(TestCase):
         self.client.force_authenticate(user=self.user)
 
     def test_me_includes_photo_url_after_upload(self):
-        self.assertEqual(self.client.get('/api/users/me/').data['photo_url'], '')
+        self.assertEqual(self.client.get('/users/me/').data['photo_url'], '')
 
         res = self.client.patch(
-            f'/api/users/{self.user.pk}/',
+            f'/users/{self.user.pk}/',
             {'photo': _jpeg_upload()},
             format='multipart',
         )
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.data['photo_url'])
 
-        me = self.client.get('/api/users/me/')
+        me = self.client.get('/users/me/')
         self.assertEqual(me.status_code, 200)
         self.assertEqual(me.data['photo_url'], res.data['photo_url'])
 
-        file_res = self.client.get(f'/api/files/u/{self.user.pk}/photo/')
+        file_res = self.client.get(f'/files/u/{self.user.pk}/photo/')
         self.assertEqual(file_res.status_code, 200)
         self.assertIn('image/', file_res['Content-Type'])
 
     def test_cannot_upload_photo_for_another_user(self):
         res = self.client.patch(
-            f'/api/users/{self.other.pk}/',
+            f'/users/{self.other.pk}/',
             {'photo': _jpeg_upload()},
             format='multipart',
         )

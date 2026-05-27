@@ -80,7 +80,7 @@ class UserSeatUsageTests(TestCase):
             is_active=True,
             is_verified=True,
         )
-        res = self.client.get('/api/users/seat-usage/')
+        res = self.client.get('/users/seat-usage/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['active_users_count'], 2)
         self.assertEqual(res.data['team_seats'], 2)
@@ -104,7 +104,7 @@ class UserSeatUsageTests(TestCase):
             'last_name': 'User',
             'is_active': True,
         }
-        res = self.client.post('/api/users/', payload, format='json')
+        res = self.client.post('/users/', payload, format='json')
         self.assertEqual(res.status_code, 403)
 
     def test_activate_user_blocked_at_seat_limit(self):
@@ -127,7 +127,7 @@ class UserSeatUsageTests(TestCase):
             is_verified=True,
         )
         res = self.client.patch(
-            f'/api/users/{inactive.id}/',
+            f'/users/{inactive.id}/',
             {'is_active': True},
             format='json',
         )

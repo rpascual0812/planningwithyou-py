@@ -73,7 +73,7 @@ class UsersCompanyFilterTests(TestCase):
         self.client.force_authenticate(user=self.admin)
 
     def test_list_users_filtered_by_company_id(self):
-        res = self.client.get(f'/api/users/?company_id={self.company_b.id}')
+        res = self.client.get(f'/users/?company_id={self.company_b.id}')
         self.assertEqual(res.status_code, 200)
         emails = {row['email'] for row in res.data}
         self.assertEqual(emails, {'userb@test.example'})
@@ -82,7 +82,7 @@ class UsersCompanyFilterTests(TestCase):
         self.client.force_authenticate(
             user=User.objects.get(email='usera@test.example'),
         )
-        res = self.client.get(f'/api/users/?company_id={self.company_b.id}')
+        res = self.client.get(f'/users/?company_id={self.company_b.id}')
         self.assertEqual(res.status_code, 200)
         emails = {row['email'] for row in res.data}
         self.assertEqual(emails, {'usera@test.example'})

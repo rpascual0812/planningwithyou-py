@@ -28,7 +28,7 @@ class SystemLegalAdminApiTests(TestCase):
     def test_patch_privacy_policy(self):
         row = SystemSetting.objects.get(name=PRIVACY_POLICY)
         res = self.client.patch(
-            f'/api/admin/system-legal/{PRIVACY_POLICY}/',
+            f'/admin/system-legal/{PRIVACY_POLICY}/',
             {'value': '<p>Privacy text</p>'},
             format='json',
         )
@@ -41,6 +41,6 @@ class SystemLegalAdminApiTests(TestCase):
             value='<p>Public privacy</p>',
         )
         client = APIClient()
-        res = client.get(f'/api/system-legal/{PRIVACY_POLICY}/')
+        res = client.get(f'/system-legal/{PRIVACY_POLICY}/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['value'], '<p>Public privacy</p>')

@@ -102,7 +102,7 @@ class CompanyPayMongoIntegrationApiTests(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.user)
         res = client.get(
-            f'/api/companies/{self.company.pk}/payment-integrations/paymongo/',
+            f'/companies/{self.company.pk}/payment-integrations/paymongo/',
         )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['activation_status'], 'not_started')
@@ -114,7 +114,7 @@ class CompanyPayMongoIntegrationApiTests(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.user)
         res = client.get(
-            f'/api/companies/{self.other_company.pk}/payment-integrations/paymongo/',
+            f'/companies/{self.other_company.pk}/payment-integrations/paymongo/',
         )
         self.assertEqual(res.status_code, 404)
 

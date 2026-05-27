@@ -58,7 +58,7 @@ class ContactHistoryTests(TestCase):
 
     def test_update_contact_records_history(self):
         res = self.client.patch(
-            f'/api/contacts/{self.contact.pk}/',
+            f'/contacts/{self.contact.pk}/',
             {'first_name': 'Janet'},
             format='json',
         )

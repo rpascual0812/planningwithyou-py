@@ -59,7 +59,7 @@ class EmailVerifyApiTests(TestCase):
 
     def test_verify_email_issues_tokens_and_sets_is_verified(self):
         res = self.client.post(
-            '/api/verify-email/',
+            '/verify-email/',
             {'token': str(self.verification.token)},
             format='json',
         )
@@ -74,7 +74,7 @@ class EmailVerifyApiTests(TestCase):
 
     def test_login_blocked_until_verified(self):
         res = self.client.post(
-            '/api/token/',
+            '/token/',
             {
                 'username': self.user.email,
                 'email': self.user.email,
@@ -88,7 +88,7 @@ class EmailVerifyApiTests(TestCase):
     @patch('users.views.send_email_task.delay')
     def test_register_does_not_return_jwt(self, _mock_delay):
         res = self.client.post(
-            '/api/register/',
+            '/register/',
             {
                 'company_name': 'New Co',
                 'supplier_type_id': self.supplier_type.id,

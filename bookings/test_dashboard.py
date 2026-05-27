@@ -65,7 +65,7 @@ class DashboardSummaryTests(TestCase):
         self.client.force_authenticate(user=self.user)
 
     def test_summary_per_company(self):
-        res = self.client.get('/api/dashboard/summary/')
+        res = self.client.get('/dashboard/summary/')
         self.assertEqual(res.status_code, 200)
         main = res.data['companies'][0]
         self.assertEqual(main['name'], 'Main Co')

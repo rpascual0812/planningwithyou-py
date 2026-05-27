@@ -87,7 +87,7 @@ class UserCreateSubscriptionTests(TestCase):
             base_price=0,
             total_price=0,
         )
-        response = self.client.post('/api/users/', self._create_payload(), format='json')
+        response = self.client.post('/users/', self._create_payload(), format='json')
         self.assertEqual(response.status_code, 403)
         self.assertFalse(
             User.objects.filter(email='newuser@test.example').exists(),
@@ -104,7 +104,7 @@ class UserCreateSubscriptionTests(TestCase):
             base_price=100,
             total_price=100,
         )
-        response = self.client.post('/api/users/', self._create_payload(), format='json')
+        response = self.client.post('/users/', self._create_payload(), format='json')
         self.assertEqual(response.status_code, 201)
         self.assertTrue(
             User.objects.filter(email='newuser@test.example').exists(),

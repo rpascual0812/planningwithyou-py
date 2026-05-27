@@ -89,7 +89,7 @@ class BookingSupplierPackageViewTests(TestCase):
 
     def test_returns_package_items_same_as_pdf_resolution(self):
         res = self.client.get(
-            '/api/booking-supplier-package/',
+            '/booking-supplier-package/',
             {
                 'company_id': self.supplier.id,
                 'tier_id': self.tier.id,
@@ -103,7 +103,7 @@ class BookingSupplierPackageViewTests(TestCase):
 
     def test_resolves_active_package_when_version_omitted(self):
         res = self.client.get(
-            '/api/booking-supplier-package/',
+            '/booking-supplier-package/',
             {
                 'company_id': self.supplier.id,
                 'tier_id': self.tier.id,
@@ -156,7 +156,7 @@ class BookingSupplierPackageViewTests(TestCase):
             title='External item',
         )
         res = self.client.get(
-            '/api/booking-supplier-package/',
+            '/booking-supplier-package/',
             {
                 'company_id': external_supplier.id,
                 'tier_id': external_tier.id,
@@ -183,7 +183,7 @@ class BookingSupplierPackageViewTests(TestCase):
             sort_order=0,
         )
         res = self.client.get(
-            '/api/booking-supplier-package/',
+            '/booking-supplier-package/',
             {
                 'company_id': self.supplier.id,
                 'tier_id': self.tier.id,

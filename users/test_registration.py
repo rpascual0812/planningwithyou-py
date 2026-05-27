@@ -48,7 +48,7 @@ class RegisterApiTests(TestCase):
 
     @patch('users.views.send_email_task.delay')
     def test_register_creates_tenant_records(self, _mock_delay):
-        response = self.client.post('/api/register/', self._payload(), format='json')
+        response = self.client.post('/register/', self._payload(), format='json')
         self.assertEqual(response.status_code, 201)
         self.assertIn('detail', response.data)
         self.assertNotIn('access', response.data)
@@ -146,9 +146,9 @@ class RegisterApiTests(TestCase):
         self.assertTrue(user.check_password('secret12'))
 
     def test_register_rejects_duplicate_email(self):
-        self.client.post('/api/register/', self._payload(), format='json')
+        self.client.post('/register/', self._payload(), format='json')
         response = self.client.post(
-            '/api/register/',
+            '/register/',
             self._payload(email='jane@acme.test', company_name='Other Co'),
             format='json',
         )

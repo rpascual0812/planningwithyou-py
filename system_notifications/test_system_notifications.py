@@ -51,7 +51,7 @@ class SystemNotificationApiTests(TestCase):
             created_by=self.admin,
         )
         self._login(self.user)
-        res = self.client.get('/api/system-notifications/active/')
+        res = self.client.get('/system-notifications/active/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
         self.assertEqual(res.json()[0]['title'], 'Active')
@@ -61,7 +61,7 @@ class SystemNotificationApiTests(TestCase):
         start = self.now
         end = self.now + timedelta(days=1)
         create = self.client.post(
-            '/api/admin/system-notifications/',
+            '/admin/system-notifications/',
             {
                 'title': 'Maintenance',
                 'message': 'Tonight 10pm',
@@ -74,19 +74,19 @@ class SystemNotificationApiTests(TestCase):
         row_id = create.json()['id']
         self.assertEqual(create.json()['created_by'], self.admin.pk)
 
-        delete = self.client.delete(f'/api/admin/system-notifications/{row_id}/')
+        delete = self.client.delete(f'/admin/system-notifications/{row_id}/')
         self.assertEqual(delete.status_code, 204)
         row = SystemNotification.all_objects.get(pk=row_id)
         self.assertIsNotNone(row.deleted_at)
 
         self._login(self.user)
-        active = self.client.get('/api/system-notifications/active/')
+        active = self.client.get('/system-notifications/active/')
         self.assertEqual(len(active.json()), 0)
 
     def test_non_admin_cannot_manage(self):
         self._login(self.user)
         res = self.client.post(
-            '/api/admin/system-notifications/',
+            '/admin/system-notifications/',
             {
                 'title': 'Nope',
                 'message': 'Denied',

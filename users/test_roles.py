@@ -39,14 +39,14 @@ class RoleApiTests(TestCase):
         self.client.force_authenticate(user=self.user)
 
     def test_list_roles_includes_owner(self):
-        response = self.client.get('/api/roles/')
+        response = self.client.get('/roles/')
         self.assertEqual(response.status_code, 200)
         names = [row['name'] for row in response.json()]
         self.assertIn('Owner', names)
 
     def test_create_role_with_read_bookings(self):
         response = self.client.post(
-            '/api/roles/',
+            '/roles/',
             {
                 'name': 'Coordinator',
                 'is_default': False,
@@ -62,7 +62,7 @@ class RoleApiTests(TestCase):
         )
 
     def test_cannot_delete_owner_role(self):
-        response = self.client.delete(f'/api/roles/{self.owner.pk}/')
+        response = self.client.delete(f'/roles/{self.owner.pk}/')
         self.assertEqual(response.status_code, 400)
 
     def test_feature_catalog_excludes_admin_without_admin_read(self):
@@ -75,7 +75,7 @@ class RoleApiTests(TestCase):
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
 
-        response = self.client.get('/api/roles/feature-catalog/')
+        response = self.client.get('/roles/feature-catalog/')
         self.assertEqual(response.status_code, 200)
         keys = {row['key'] for row in response.json()}
         self.assertEqual(keys, set(TENANT_FEATURE_KEYS))
@@ -87,7 +87,7 @@ class RoleApiTests(TestCase):
 
         grant_platform_admin(self.user)
 
-        response = self.client.get('/api/roles/feature-catalog/')
+        response = self.client.get('/roles/feature-catalog/')
         self.assertEqual(response.status_code, 200)
         keys = {row['key'] for row in response.json()}
         self.assertEqual(keys, set(TENANT_FEATURE_KEYS) | set(ADMIN_FEATURE_KEYS))
@@ -106,7 +106,7 @@ class RoleApiTests(TestCase):
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
 
-        response = self.client.get('/api/users/me/')
+        response = self.client.get('/users/me/')
         self.assertEqual(response.status_code, 200)
         perms = response.json()['permissions']
         self.assertEqual(perms['bookings'], 'read')
@@ -133,7 +133,7 @@ class RoleApiTests(TestCase):
             sort_order=0,
         )
         response = self.client.post(
-            '/api/bookings/items/',
+            '/bookings/items/',
             {
                 'title': 'Blocked',
                 'status': status.pk,
@@ -162,10 +162,10 @@ class RoleApiTests(TestCase):
             sort_order=0,
         )
 
-        statuses = self.client.get('/api/booking-statuses/')
+        statuses = self.client.get('/booking-statuses/')
         self.assertEqual(statuses.status_code, 200)
 
-        items = self.client.get('/api/bookings/items/')
+        items = self.client.get('/bookings/items/')
         self.assertEqual(items.status_code, 200)
 
     def test_read_bookings_cannot_post_status(self):
@@ -179,7 +179,7 @@ class RoleApiTests(TestCase):
         self.user.save(update_fields=['role_id'])
 
         response = self.client.post(
-            '/api/booking-statuses/',
+            '/booking-statuses/',
             {'title': 'Blocked', 'description': '', 'color': '#111'},
             format='json',
         )
@@ -195,7 +195,7 @@ class RoleApiTests(TestCase):
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
 
-        response = self.client.get('/api/calendar-statuses/')
+        response = self.client.get('/calendar-statuses/')
         self.assertEqual(response.status_code, 200)
 
     def test_read_calendar_cannot_post_calendar_status(self):
@@ -209,7 +209,7 @@ class RoleApiTests(TestCase):
         self.user.save(update_fields=['role_id'])
 
         response = self.client.post(
-            '/api/calendar-statuses/',
+            '/calendar-statuses/',
             {
                 'title': 'Blocked',
                 'description': '',
@@ -230,7 +230,7 @@ class RoleApiTests(TestCase):
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
 
-        response = self.client.get('/api/roles/')
+        response = self.client.get('/roles/')
         self.assertEqual(response.status_code, 200)
 
     def test_roles_permissions_read_cannot_create_role(self):
@@ -244,7 +244,7 @@ class RoleApiTests(TestCase):
         self.user.save(update_fields=['role_id'])
 
         response = self.client.post(
-            '/api/roles/',
+            '/roles/',
             {
                 'name': 'Blocked',
                 'is_default': False,
@@ -264,7 +264,7 @@ class RoleApiTests(TestCase):
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
 
-        response = self.client.get('/api/admin/kyb-verifications/')
+        response = self.client.get('/admin/kyb-verifications/')
         self.assertEqual(response.status_code, 403)
 
     def test_admin_kyb_read_can_list_kyb(self):
@@ -285,7 +285,7 @@ class RoleApiTests(TestCase):
             merchant_email='owner@acme.test',
         )
 
-        response = self.client.get('/api/admin/kyb-verifications/')
+        response = self.client.get('/admin/kyb-verifications/')
         self.assertEqual(response.status_code, 200)
 
     def test_change_company_required_to_filter_other_company_users(self):
@@ -316,7 +316,7 @@ class RoleApiTests(TestCase):
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
 
-        blocked = self.client.get(f'/api/users/?company_id={other_company.pk}')
+        blocked = self.client.get(f'/users/?company_id={other_company.pk}')
         self.assertEqual(blocked.status_code, 200)
         self.assertEqual(len(blocked.json()), 0)
 
@@ -326,7 +326,7 @@ class RoleApiTests(TestCase):
             access='read',
         )
 
-        allowed = self.client.get(f'/api/users/?company_id={other_company.pk}')
+        allowed = self.client.get(f'/users/?company_id={other_company.pk}')
         self.assertEqual(allowed.status_code, 200)
         self.assertEqual(len(allowed.json()), 1)
 
@@ -340,7 +340,7 @@ class RoleApiTests(TestCase):
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
 
-        response = self.client.get('/api/companies/?active_only=true')
+        response = self.client.get('/companies/?active_only=true')
         self.assertEqual(response.status_code, 200)
         self.assertGreaterEqual(len(response.json()), 1)
 
@@ -354,6 +354,6 @@ class RoleApiTests(TestCase):
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
 
-        response = self.client.get('/api/companies/?active_only=true')
+        response = self.client.get('/companies/?active_only=true')
         self.assertEqual(response.status_code, 200)
         self.assertGreaterEqual(len(response.json()), 1)

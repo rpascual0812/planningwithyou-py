@@ -50,7 +50,7 @@ class CompanyHistoryTests(TestCase):
 
     def test_update_company_records_history(self):
         res = self.client.patch(
-            f'/api/companies/{self.company.pk}/',
+            f'/companies/{self.company.pk}/',
             {'name': 'Renamed Co'},
             format='json',
         )
@@ -74,6 +74,6 @@ class CompanyHistoryTests(TestCase):
             actor=self.user,
             changes={'fields': {'name': {'old': 'A', 'new': 'B'}}},
         )
-        res = self.client.get(f'/api/companies/{self.company.pk}/history/')
+        res = self.client.get(f'/companies/{self.company.pk}/history/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)

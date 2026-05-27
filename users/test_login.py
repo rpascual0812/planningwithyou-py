@@ -55,7 +55,7 @@ class LoginTokenApiTests(TestCase):
         }
 
     def test_login_succeeds_when_account_and_company_active(self):
-        res = self.client.post('/api/token/', self._token_payload(), format='json')
+        res = self.client.post('/token/', self._token_payload(), format='json')
         self.assertEqual(res.status_code, 200)
         self.assertIn('access', res.data)
 
@@ -64,7 +64,7 @@ class LoginTokenApiTests(TestCase):
         self.user.email = 'jane.doe@example.com'
         self.user.save(update_fields=['username', 'email'])
         res = self.client.post(
-            '/api/token/',
+            '/token/',
             {'username': 'planner_jane', 'password': self.password},
             format='json',
         )
@@ -76,7 +76,7 @@ class LoginTokenApiTests(TestCase):
         self.user.email = 'jane.doe@example.com'
         self.user.save(update_fields=['username', 'email'])
         res = self.client.post(
-            '/api/token/',
+            '/token/',
             {'email': 'jane.doe@example.com', 'password': self.password},
             format='json',
         )
@@ -86,17 +86,17 @@ class LoginTokenApiTests(TestCase):
     def test_login_fails_when_account_inactive(self):
         self.account.is_active = False
         self.account.save(update_fields=['is_active'])
-        res = self.client.post('/api/token/', self._token_payload(), format='json')
+        res = self.client.post('/token/', self._token_payload(), format='json')
         self.assertEqual(res.status_code, 401)
 
     def test_login_fails_when_company_inactive(self):
         self.company.is_active = False
         self.company.save(update_fields=['is_active'])
-        res = self.client.post('/api/token/', self._token_payload(), format='json')
+        res = self.client.post('/token/', self._token_payload(), format='json')
         self.assertEqual(res.status_code, 401)
 
     def test_login_fails_when_user_inactive(self):
         self.user.is_active = False
         self.user.save(update_fields=['is_active'])
-        res = self.client.post('/api/token/', self._token_payload(), format='json')
+        res = self.client.post('/token/', self._token_payload(), format='json')
         self.assertEqual(res.status_code, 401)

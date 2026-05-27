@@ -62,7 +62,7 @@ class EmailTemplateHistoryTests(TestCase):
     def test_update_email_template_records_history_without_booking_id(self):
         with self.captureOnCommitCallbacks(execute=True):
             res = self.client.patch(
-                f'/api/email-templates/bookings/{self.template.pk}/',
+                f'/email-templates/bookings/{self.template.pk}/',
                 {'body': '<p>Hi {first_name}</p>'},
                 format='json',
             )

@@ -157,7 +157,7 @@ class CompanyKybAdminApiTests(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.admin)
         res = client.get(
-            '/api/admin/kyb-verifications/',
+            '/admin/kyb-verifications/',
             {'status': CompanyKybVerification.Status.PENDING_PAYMONGO},
         )
         self.assertEqual(res.status_code, 200)
@@ -169,7 +169,7 @@ class CompanyKybAdminApiTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.user)
-        res = client.get('/api/admin/kyb-verifications/')
+        res = client.get('/admin/kyb-verifications/')
         self.assertEqual(res.status_code, 403)
 
     def test_admin_approves_kyb(self):
@@ -178,7 +178,7 @@ class CompanyKybAdminApiTests(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.admin)
         res = client.patch(
-            f'/api/admin/kyb-verifications/{self.kyb.pk}/',
+            f'/admin/kyb-verifications/{self.kyb.pk}/',
             {'status': CompanyKybVerification.Status.APPROVED},
             format='json',
         )

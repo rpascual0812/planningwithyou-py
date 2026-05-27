@@ -79,7 +79,7 @@ class BookingPaymentPayoutAdminTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.admin)
-        res = client.get('/api/admin/booking-payments/')
+        res = client.get('/admin/booking-payments/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]['company_name'], 'Payout Co')
@@ -93,11 +93,11 @@ class BookingPaymentPayoutAdminTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.admin)
-        pending = client.get('/api/admin/booking-payments/', {'payout': 'pending'})
+        pending = client.get('/admin/booking-payments/', {'payout': 'pending'})
         self.assertEqual(pending.status_code, 200)
         self.assertEqual(len(pending.data), 0)
 
-        sent = client.get('/api/admin/booking-payments/', {'payout': 'sent'})
+        sent = client.get('/admin/booking-payments/', {'payout': 'sent'})
         self.assertEqual(len(sent.data), 1)
 
     def test_mark_payout_sent(self):
@@ -106,7 +106,7 @@ class BookingPaymentPayoutAdminTests(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.admin)
         res = client.post(
-            f'/api/admin/booking-payments/{self.payment.pk}/mark-payout-sent/',
+            f'/admin/booking-payments/{self.payment.pk}/mark-payout-sent/',
         )
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.data['payout_sent'])
@@ -118,5 +118,5 @@ class BookingPaymentPayoutAdminTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.user)
-        res = client.get('/api/admin/booking-payments/')
+        res = client.get('/admin/booking-payments/')
         self.assertEqual(res.status_code, 403)

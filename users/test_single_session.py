@@ -49,7 +49,7 @@ class SingleSessionTests(TestCase):
 
     def _login(self):
         return self.client.post(
-            '/api/token/',
+            '/token/',
             {
                 'email': self.user.email,
                 'password': self.password,
@@ -70,16 +70,16 @@ class SingleSessionTests(TestCase):
         self.assertEqual(self.user.token_version, 2)
 
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {first_access}')
-        me = self.client.get('/api/users/me/')
+        me = self.client.get('/users/me/')
         self.assertEqual(me.status_code, 401)
 
         refresh_res = self.client.post(
-            '/api/token/refresh/',
+            '/token/refresh/',
             {'refresh': first_refresh},
             format='json',
         )
         self.assertEqual(refresh_res.status_code, 401)
 
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {second.data["access"]}')
-        me_ok = self.client.get('/api/users/me/')
+        me_ok = self.client.get('/users/me/')
         self.assertEqual(me_ok.status_code, 200)

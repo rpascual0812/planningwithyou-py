@@ -58,7 +58,7 @@ class MeSubscriptionPlanTests(TestCase):
         self.client.force_authenticate(user=self.user)
 
     def test_me_returns_free_when_no_account_subscription(self):
-        res = self.client.get('/api/users/me/')
+        res = self.client.get('/users/me/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['subscription_plan'], 'free')
         self.assertEqual(res.data['company_name'], 'Main Co')
@@ -74,6 +74,6 @@ class MeSubscriptionPlanTests(TestCase):
             base_price=100,
             total_price=100,
         )
-        res = self.client.get('/api/users/me/')
+        res = self.client.get('/users/me/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['subscription_plan'], 'starter')
