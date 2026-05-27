@@ -41,6 +41,7 @@ class SupportTicketSerializer(serializers.ModelSerializer):
     can_delete = serializers.SerializerMethodField(read_only=True)
     message_count = serializers.SerializerMethodField(read_only=True)
     last_message_preview = serializers.SerializerMethodField(read_only=True)
+    last_message_at = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SupportTicket
@@ -55,6 +56,7 @@ class SupportTicketSerializer(serializers.ModelSerializer):
             'can_delete',
             'message_count',
             'last_message_preview',
+            'last_message_at',
         ]
         read_only_fields = fields
 
@@ -94,6 +96,15 @@ class SupportTicketSerializer(serializers.ModelSerializer):
         if len(text) > 120:
             return f'{text[:117]}...'
         return text
+
+    def get_last_message_at(self, obj: SupportTicket):
+        last_at = getattr(obj, '_last_message_at', None)
+        if last_at is not None:
+            return last_at
+        last = getattr(obj, '_last_message', None)
+        if last is not None:
+            return last.created_at
+        return obj.created_at
 
 
 class SupportTicketDetailSerializer(SupportTicketSerializer):

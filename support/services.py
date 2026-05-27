@@ -1,24 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Exists, OuterRef
 
 from users.roles import feature_access_level_for_request
 
 from .models import SupportTicket, SupportTicketMessage, SupportTicketRead
 
 User = get_user_model()
-
-
-def order_support_tickets_for_viewer(queryset, user: User):
-    """Unread tickets first, then newest by created_at."""
-    read_exists = SupportTicketRead.objects.filter(
-        ticket_id=OuterRef('pk'),
-        user_id=user.pk,
-    )
-    return queryset.annotate(_viewer_has_read=Exists(read_exists)).order_by(
-        '_viewer_has_read',
-        '-created_at',
-        '-id',
-    )
 
 
 def user_display_name(user: User) -> str:

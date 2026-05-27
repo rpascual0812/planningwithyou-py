@@ -1,4 +1,4 @@
-from django.db.models import Count, OuterRef, Prefetch, Subquery
+from django.db.models import Prefetch
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -15,11 +15,15 @@ from .serializers import (
     SupportTicketMessageSerializer,
     SupportTicketSerializer,
 )
+from .querysets import (
+    annotate_support_ticket_list,
+    filter_admin_support_tickets,
+    order_support_tickets_for_viewer,
+)
 from .services import (
     clear_support_ticket_read,
     create_support_ticket_message,
     mark_support_ticket_read,
-    order_support_tickets_for_viewer,
 )
 
 
@@ -32,23 +36,16 @@ class SupportTicketAdminViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        last_message = SupportTicketMessage.objects.filter(
-            ticket_id=OuterRef('pk'),
-        ).order_by('-created_at', '-id')
-        qs = (
-            SupportTicket.objects.select_related('created_by')
-            .annotate(
-                _message_count=Count('messages'),
-                _last_message_id=Subquery(last_message.values('pk')[:1]),
-            )
-            .prefetch_related(
-                Prefetch(
-                    'reads',
-                    queryset=SupportTicketRead.objects.filter(user_id=user.pk),
-                    to_attr='_prefetched_reads',
-                ),
-            )
+        qs = SupportTicket.objects.select_related('created_by').prefetch_related(
+            Prefetch(
+                'reads',
+                queryset=SupportTicketRead.objects.filter(user_id=user.pk),
+                to_attr='_prefetched_reads',
+            ),
         )
+        qs = annotate_support_ticket_list(qs)
+        if self.action == 'list':
+            qs = filter_admin_support_tickets(qs, self.request)
         return order_support_tickets_for_viewer(qs, user)
 
     def get_serializer_class(self):

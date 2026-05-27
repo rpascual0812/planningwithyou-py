@@ -1,4 +1,4 @@
-from django.db.models import Count, OuterRef, Prefetch, Subquery
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -16,11 +16,8 @@ from .serializers import (
     SupportTicketMessageSerializer,
     SupportTicketSerializer,
 )
-from .services import (
-    create_support_ticket_message,
-    mark_support_ticket_read,
-    order_support_tickets_for_viewer,
-)
+from .querysets import annotate_support_ticket_list, order_support_tickets_for_viewer
+from .services import create_support_ticket_message, mark_support_ticket_read
 
 
 class SupportTicketViewSet(viewsets.ModelViewSet):
@@ -31,17 +28,10 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        last_message = SupportTicketMessage.objects.filter(
-            ticket_id=OuterRef('pk'),
-        ).order_by('-created_at', '-id')
-        qs = (
-            SupportTicket.objects.filter(created_by_id=user.pk)
-            .select_related('created_by')
-            .annotate(
-                _message_count=Count('messages'),
-                _last_message_id=Subquery(last_message.values('pk')[:1]),
-            )
+        qs = SupportTicket.objects.filter(created_by_id=user.pk).select_related(
+            'created_by',
         )
+        qs = annotate_support_ticket_list(qs)
         return order_support_tickets_for_viewer(qs, user)
 
     def get_serializer_class(self):
