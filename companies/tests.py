@@ -125,8 +125,11 @@ class CompanyKybAdminApiTests(TestCase):
         )
         self.kyb = CompanyKybVerification.objects.create(
             company=self.company,
-            status=CompanyKybVerification.Status.SUBMITTED,
+            status=CompanyKybVerification.Status.PENDING_PAYMONGO,
             business_type=CompanyKybVerification.BusinessType.SOLE_PROPRIETOR,
+            merchant_business_name='Verify Me Co',
+            merchant_email='owner@verifyme.test',
+            merchant_mobile_number='+639171234567',
         )
         from users.models import User
 
@@ -148,14 +151,14 @@ class CompanyKybAdminApiTests(TestCase):
             company=self.company,
         )
 
-    def test_admin_lists_submitted_kyb(self):
+    def test_admin_lists_pending_paymongo_kyb(self):
         from rest_framework.test import APIClient
 
         client = APIClient()
         client.force_authenticate(user=self.admin)
         res = client.get(
             '/api/admin/kyb-verifications/',
-            {'status': CompanyKybVerification.Status.SUBMITTED},
+            {'status': CompanyKybVerification.Status.PENDING_PAYMONGO},
         )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)

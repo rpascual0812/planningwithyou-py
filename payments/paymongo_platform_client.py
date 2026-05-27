@@ -72,6 +72,77 @@ def _errors_detail(payload: dict | None) -> str:
     return ' '.join(parts)
 
 
+def _resource_id(data: dict) -> str:
+    return str(data.get('id') or '').strip()
+
+
+def _resource_attributes(data: dict) -> dict:
+    attrs = data.get('attributes')
+    return attrs if isinstance(attrs, dict) else {}
+
+
+def create_platform_merchant(
+    *,
+    business_name: str,
+    business_type: str,
+    email: str,
+    mobile_number: str,
+) -> dict:
+    """
+    POST /v1/merchants — create a sub-merchant under the platform.
+
+    Returns the PayMongo resource ``data`` object (includes ``id``).
+    """
+    response = _v1_request(
+        'POST',
+        '/merchants',
+        {
+            'data': {
+                'attributes': {
+                    'business_name': business_name,
+                    'business_type': business_type,
+                    'email': email,
+                    'mobile_number': mobile_number,
+                },
+            },
+        },
+    )
+    data = response.get('data')
+    if not isinstance(data, dict):
+        raise PayMongoError('Unexpected PayMongo create merchant response.')
+    return data
+
+
+def create_merchant_onboarding_link(merchant_id: str) -> str:
+    """
+    POST /v1/merchants/{id}/onboarding_links — hosted KYB / document upload.
+
+    Returns the checkout / onboarding URL to redirect the merchant.
+    """
+    response = _v1_request(
+        'POST',
+        f'/merchants/{merchant_id}/onboarding_links',
+        {'data': {'attributes': {}}},
+    )
+    data = response.get('data')
+    if not isinstance(data, dict):
+        raise PayMongoError('Unexpected PayMongo onboarding link response.')
+    attrs = _resource_attributes(data)
+    url = (
+        attrs.get('checkout_url')
+        or attrs.get('onboarding_url')
+        or attrs.get('url')
+        or data.get('checkout_url')
+        or ''
+    )
+    return str(url).strip()
+
+
+def _v1_request(method: str, path: str, body: dict | None = None) -> dict:
+    """PayMongo v1 JSON:API (platform merchants / onboarding links)."""
+    return _platform_request(method, f'/v1{path}', body)
+
+
 def create_child_merchant_account() -> dict:
     """POST /v2/accounts — provision a merchant child under the platform."""
     response = _platform_request(

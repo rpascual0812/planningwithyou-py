@@ -1,3 +1,5 @@
+import logging
+
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -23,11 +25,15 @@ from .paymongo_webhook import (
     parse_webhook_body,
     verify_paymongo_signature,
 )
+from payments.webhook_logging import PAYMONGO_WEBHOOK_SOURCE, log_webhook
 from subscriptions.paymongo_checkout_webhook import (
     handle_subscription_checkout_webhook_body,
 )
+from payments.paymongo_merchant_webhook import handle_paymongo_merchant_webhook_event
 from subscriptions.paymongo_webhook import handle_paymongo_subscription_webhook_event
 from .scope import assert_booking_editable, bookings_for_user
+
+logger = logging.getLogger(__name__)
 
 
 class BookingPaymentLinkListCreateView(APIView):
@@ -117,20 +123,35 @@ class PayMongoWebhookView(APIView):
 
     def post(self, request):
         raw = request.body
+        log_webhook(PAYMONGO_WEBHOOK_SOURCE, raw)
+
+        if not raw:
+            logger.warning('PayMongo webhook rejected: empty request body')
+            return Response({'detail': 'Empty body.'}, status=status.HTTP_400_BAD_REQUEST)
+
         signature = request.headers.get('Paymongo-Signature') or request.headers.get(
             'paymongo-signature',
         )
         try:
             body = parse_webhook_body(raw)
         except ValueError:
+            logger.warning('PayMongo webhook rejected: invalid JSON body')
             return Response({'detail': 'Invalid JSON.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(body, dict):
+            logger.warning('PayMongo webhook rejected: JSON root must be an object')
+            return Response(
+                {'detail': 'Invalid JSON envelope.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         company_id = company_id_from_webhook_body(body)
         if not verify_paymongo_signature(raw, signature, company_id=company_id):
             return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
 
         handled = handle_subscription_checkout_webhook_body(body)
         for event in normalize_paymongo_webhook_body(body):
-            if handle_paymongo_webhook_event(event):
+            if handle_paymongo_merchant_webhook_event(event):
+                handled = True
+            elif handle_paymongo_webhook_event(event):
                 handled = True
             elif handle_paymongo_subscription_webhook_event(event):
                 handled = True

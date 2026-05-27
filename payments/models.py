@@ -99,3 +99,21 @@ class PaymentIntegration(models.Model):
 
     def __str__(self):
         return f'{self.payment_gateway} company={self.company_id}'
+
+
+class WebhookLog(models.Model):
+    source = models.CharField(
+        max_length=127,
+        help_text='Webhook origin (e.g. paymongo).',
+    )
+    payload = models.JSONField(
+        help_text='Full webhook request body as received.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'webhook_logs'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.source} @ {self.created_at:%Y-%m-%d %H:%M:%S}'

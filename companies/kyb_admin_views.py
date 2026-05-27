@@ -31,24 +31,22 @@ class CompanyKybVerificationAdminViewSet(
             '-updated_at',
         )
         status = self.request.query_params.get('status', '').strip()
-        if status in (
-            CompanyKybVerification.Status.SUBMITTED,
-            CompanyKybVerification.Status.APPROVED,
-        ):
+        if status in CompanyKybVerification.Status.values:
             qs = qs.filter(status=status)
         else:
             qs = qs.filter(
                 status__in=[
-                    CompanyKybVerification.Status.SUBMITTED,
+                    CompanyKybVerification.Status.PENDING_PAYMONGO,
                     CompanyKybVerification.Status.APPROVED,
+                    CompanyKybVerification.Status.REJECTED,
                 ],
             )
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
                 Q(company__name__icontains=search)
-                | Q(company_email_domain__icontains=search)
-                | Q(business_description__icontains=search),
+                | Q(merchant_business_name__icontains=search)
+                | Q(merchant_email__icontains=search),
             )
         return qs
 

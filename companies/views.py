@@ -284,3 +284,51 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='kyb/start-paymongo')
+    def kyb_start_paymongo(self, request, pk=None):
+        """
+        Save application fields (optional body) and create a PayMongo onboarding link.
+        """
+        from payments.paymongo_merchant_onboarding import start_paymongo_merchant_onboarding
+        from payments.paymongo_onboarding import PayMongoOnboardingError
+
+        company = self.get_object()
+        record = self._get_or_create_kyb(company)
+
+        patch_data = request.data if isinstance(request.data, dict) else {}
+        allowed = {
+            'business_type',
+            'merchant_business_name',
+            'merchant_email',
+            'merchant_mobile_number',
+            'bank_details',
+            'business_website',
+        }
+        filtered = {k: v for k, v in patch_data.items() if k in allowed}
+        if filtered:
+            ser = CompanyKybVerificationSerializer(
+                record,
+                data=filtered,
+                partial=True,
+                context=self.get_serializer_context(),
+            )
+            ser.is_valid(raise_exception=True)
+            record = ser.save()
+
+        regenerate = bool(patch_data.get('regenerate_link'))
+        try:
+            record = start_paymongo_merchant_onboarding(
+                company,
+                created_by=request.user,
+                regenerate_link=regenerate,
+            )
+        except PayMongoOnboardingError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            CompanyKybVerificationSerializer(
+                record,
+                context=self.get_serializer_context(),
+            ).data,
+        )

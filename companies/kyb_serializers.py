@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from .kyb import missing_kyb_fields
+from .kyb import missing_kyb_application_fields
 from .models import Company, CompanyKybVerification
 
 
@@ -16,8 +16,14 @@ class CompanyKybVerificationListSerializer(serializers.ModelSerializer):
             'company_name',
             'business_type',
             'status',
+            'paymongo_merchant_id',
+            'merchant_business_name',
+            'merchant_email',
+            'merchant_mobile_number',
+            'onboarding_url',
             'submitted_at',
             'reviewed_at',
+            'rejection_notes',
             'created_at',
             'updated_at',
         ]
@@ -27,6 +33,11 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source='company.name', read_only=True)
     live_payments_allowed = serializers.SerializerMethodField()
     missing_fields = serializers.SerializerMethodField()
+    rejection_reason = serializers.CharField(
+        source='rejection_notes',
+        required=False,
+        allow_blank=True,
+    )
 
     class Meta:
         model = CompanyKybVerification
@@ -36,23 +47,18 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
             'company_name',
             'business_type',
             'status',
-            'government_id_file',
-            'dti_registration_file',
-            'sole_prop_business_address',
-            'sole_prop_mobile_number',
-            'bank_account_same_name',
-            'sec_registration_file',
-            'articles_of_incorporation_file',
-            'bir_registration_file',
-            'owner_director_id_files',
-            'business_website_social',
-            'company_email_domain',
-            'proof_of_address_file',
-            'business_description',
+            'paymongo_merchant_id',
+            'onboarding_url',
+            'merchant_business_name',
+            'merchant_email',
+            'merchant_mobile_number',
+            'bank_details',
+            'business_website',
             'submitted_at',
             'reviewed_at',
             'reviewed_by',
             'rejection_notes',
+            'rejection_reason',
             'live_payments_allowed',
             'missing_fields',
             'created_at',
@@ -62,6 +68,8 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
             'id',
             'company',
             'company_name',
+            'paymongo_merchant_id',
+            'onboarding_url',
             'submitted_at',
             'reviewed_at',
             'reviewed_by',
@@ -79,7 +87,7 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
     def get_missing_fields(self, obj) -> list[str]:
         if obj.status != CompanyKybVerification.Status.DRAFT:
             return []
-        return missing_kyb_fields(obj)
+        return missing_kyb_application_fields(obj)
 
     def validate_business_type(self, value):
         value = (value or '').strip()
@@ -87,59 +95,14 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Invalid business type.')
         return value
 
-    def validate_owner_director_id_files(self, value):
+    def validate_bank_details(self, value):
         if value in (None, ''):
-            return []
-        if not isinstance(value, list):
-            raise serializers.ValidationError('Must be a list of file references.')
-        cleaned = []
-        for item in value:
-            if item in (None, ''):
-                continue
-            if isinstance(item, str):
-                ref = item.strip()
-                if ref:
-                    cleaned.append(ref)
-                continue
-            if isinstance(item, dict):
-                ref = str(item.get('file') or item.get('url') or '').strip()
-                label = str(item.get('label') or '').strip()
-                if ref:
-                    cleaned.append({'label': label, 'file': ref})
-                continue
-            raise serializers.ValidationError(
-                'Each entry must be a file path string or {label, file} object.',
-            )
-        return cleaned
-
-    def _strip_text_fields(self, attrs):
-        text_fields = (
-            'sole_prop_business_address',
-            'sole_prop_mobile_number',
-            'bank_account_same_name',
-            'business_website_social',
-            'company_email_domain',
-            'business_description',
-            'rejection_notes',
-        )
-        file_fields = (
-            'government_id_file',
-            'dti_registration_file',
-            'sec_registration_file',
-            'articles_of_incorporation_file',
-            'bir_registration_file',
-            'proof_of_address_file',
-        )
-        for key in text_fields:
-            if key in attrs:
-                attrs[key] = (attrs[key] or '').strip()
-        for key in file_fields:
-            if key in attrs:
-                attrs[key] = (attrs[key] or '').strip()
-        return attrs
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('Bank details must be an object.')
+        return value
 
     def validate(self, attrs):
-        attrs = self._strip_text_fields(attrs)
         instance = getattr(self, 'instance', None)
         request = self.context.get('request')
         user = getattr(request, 'user', None) if request else None
@@ -159,23 +122,23 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
                     {'status': ['Only administrators can approve or reject KYB.']},
                 )
 
-        if new_status == CompanyKybVerification.Status.SUBMITTED:
-            draft = instance or CompanyKybVerification()
-            for key, val in attrs.items():
-                setattr(draft, key, val)
-            missing = missing_kyb_fields(draft)
-            if missing:
-                raise serializers.ValidationError(
-                    {'detail': f'Missing required KYB fields: {", ".join(missing)}.'},
-                )
-
         if (
             new_status == CompanyKybVerification.Status.REJECTED
             and not (attrs.get('rejection_notes') or (instance and instance.rejection_notes))
         ):
             raise serializers.ValidationError(
-                {'rejection_notes': ['Rejection notes are required when rejecting KYB.']},
+                {'rejection_reason': ['Rejection reason is required when rejecting KYB.']},
             )
+
+        for key in (
+            'merchant_business_name',
+            'merchant_email',
+            'merchant_mobile_number',
+            'business_website',
+            'rejection_notes',
+        ):
+            if key in attrs and attrs[key] is not None:
+                attrs[key] = str(attrs[key]).strip()
 
         return attrs
 
@@ -185,8 +148,6 @@ class CompanyKybVerificationSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None) if request else None
         now = timezone.now()
 
-        if new_status == CompanyKybVerification.Status.SUBMITTED and not instance.submitted_at:
-            validated_data['submitted_at'] = now
         if new_status in (
             CompanyKybVerification.Status.APPROVED,
             CompanyKybVerification.Status.REJECTED,

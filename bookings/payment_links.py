@@ -64,7 +64,7 @@ def create_booking_payment_link(
         raise PaymentLinkError('Company not found.')
     if not _company_can_accept_payments(company):
         raise PaymentLinkError(
-            'Live payments are not enabled. Complete KYB verification first.',
+            'Live payments are not enabled. Complete PayMongo business verification first.',
         )
 
     if booking_is_fully_paid(booking):

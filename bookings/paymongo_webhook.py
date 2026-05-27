@@ -5,7 +5,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from django.db import transaction
 from django.utils import timezone
@@ -23,6 +26,22 @@ from .paymongo_client import PayMongoError, retrieve_checkout_session, retrieve_
 _PAYMONGO_LINK_PAID_STATUSES = frozenset({'paid', 'succeeded'})
 
 
+def _parse_paymongo_signature_header(signature_header: str) -> tuple[str | None, list[str]]:
+    """Return timestamp and non-empty te / li / v1 signatures from the header."""
+    parts: dict[str, str] = {}
+    for piece in signature_header.split(','):
+        if '=' in piece:
+            key, value = piece.split('=', 1)
+            parts[key.strip()] = value.strip()
+    timestamp = (parts.get('t') or '').strip() or None
+    signatures: list[str] = []
+    for key in ('te', 'li', 'v1'):
+        value = (parts.get(key) or '').strip()
+        if value:
+            signatures.append(value)
+    return timestamp, signatures
+
+
 def _verify_paymongo_signature_with_secret(
     payload: bytes,
     signature_header: str | None,
@@ -30,22 +49,20 @@ def _verify_paymongo_signature_with_secret(
 ) -> bool:
     if not secret or not signature_header:
         return False
-    parts: dict[str, str] = {}
-    for piece in signature_header.split(','):
-        if '=' in piece:
-            key, value = piece.split('=', 1)
-            parts[key.strip()] = value.strip()
-    timestamp = parts.get('t')
-    signature = parts.get('te') or parts.get('v1') or parts.get('li')
-    if not timestamp or not signature:
+    timestamp, signatures = _parse_paymongo_signature_header(signature_header)
+    if not timestamp or not signatures:
         return False
-    signed_payload = f'{timestamp}.{payload.decode("utf-8")}'.encode('utf-8')
+    try:
+        body_text = payload.decode('utf-8')
+    except UnicodeDecodeError:
+        return False
+    signed_payload = f'{timestamp}.{body_text}'.encode('utf-8')
     expected = hmac.new(
         secret.encode('utf-8'),
         signed_payload,
         hashlib.sha256,
     ).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    return any(hmac.compare_digest(expected, signature) for signature in signatures)
 
 
 def verify_paymongo_signature(
@@ -56,11 +73,20 @@ def verify_paymongo_signature(
 ) -> bool:
     secrets = webhook_secrets_to_try(company_id)
     if not secrets:
+        logger.warning(
+            'PayMongo webhook rejected: PAYMONGO_WEBHOOK_SECRET is not configured',
+        )
         return False
-    return any(
+    if not signature_header:
+        logger.warning('PayMongo webhook rejected: missing Paymongo-Signature header')
+        return False
+    verified = any(
         _verify_paymongo_signature_with_secret(payload, signature_header, secret)
         for secret in secrets
     )
+    if not verified:
+        logger.warning('PayMongo webhook rejected: signature mismatch')
+    return verified
 
 
 def company_id_from_webhook_body(body: dict) -> int | None:

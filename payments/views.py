@@ -12,8 +12,8 @@ from .paymongo_onboarding import (
     PayMongoOnboardingError,
     disconnect_paymongo_integration,
     refresh_paymongo_integration,
-    start_paymongo_onboarding,
 )
+from .paymongo_merchant_onboarding import start_paymongo_merchant_onboarding
 from .serializers import PayMongoIntegrationSerializer
 
 
@@ -48,7 +48,7 @@ class CompanyPayMongoIntegrationView(APIView):
         if company is None:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         try:
-            start_paymongo_onboarding(company, created_by=request.user)
+            start_paymongo_merchant_onboarding(company, created_by=request.user)
         except PayMongoOnboardingError as exc:
             body = {'detail': str(exc)}
             if exc.status_code is not None:

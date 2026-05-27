@@ -91,7 +91,12 @@ class Company(models.Model):
 
 
 class CompanyKybVerification(models.Model):
-    """Know Your Business (KYB) data required before live payments are enabled."""
+    """
+    PayMongo merchant onboarding application for a company.
+
+    Business details are collected locally; documents and compliance review
+    happen on PayMongo-hosted onboarding pages.
+    """
 
     class BusinessType(models.TextChoices):
         SOLE_PROPRIETOR = 'sole_proprietor', 'Sole proprietorship'
@@ -99,8 +104,8 @@ class CompanyKybVerification(models.Model):
 
     class Status(models.TextChoices):
         DRAFT = 'draft', 'Draft'
-        SUBMITTED = 'submitted', 'Submitted for review'
-        APPROVED = 'approved', 'Approved'
+        PENDING_PAYMONGO = 'pending_paymongo', 'Pending PayMongo verification'
+        APPROVED = 'approved', 'Verified'
         REJECTED = 'rejected', 'Rejected'
 
     company = models.OneToOneField(
@@ -116,12 +121,34 @@ class CompanyKybVerification(models.Model):
         default='',
     )
     status = models.CharField(
-        max_length=20,
+        max_length=32,
         choices=Status.choices,
         default=Status.DRAFT,
         db_index=True,
     )
+    paymongo_merchant_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text='PayMongo platform merchant / child account id.',
+    )
+    onboarding_url = models.URLField(
+        max_length=2048,
+        blank=True,
+        default='',
+        help_text='PayMongo-hosted onboarding link for document upload and KYC.',
+    )
+    merchant_business_name = models.CharField(max_length=255, blank=True, default='')
+    merchant_email = models.EmailField(blank=True, default='')
+    merchant_mobile_number = models.CharField(max_length=63, blank=True, default='')
+    bank_details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Optional payout bank details collected before PayMongo onboarding.',
+    )
+    business_website = models.URLField(max_length=2048, blank=True, default='')
 
+    # Legacy document fields (no longer collected in-app; kept for existing rows).
     # Sole proprietorship
     government_id_file = models.CharField(
         max_length=512,

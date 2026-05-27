@@ -280,9 +280,9 @@ class RoleApiTests(TestCase):
         self.user.save(update_fields=['role_id'])
         CompanyKybVerification.objects.create(
             company=self.company,
-            status=CompanyKybVerification.Status.SUBMITTED,
-            company_email_domain='acme.com',
-            business_description='Test',
+            status=CompanyKybVerification.Status.PENDING_PAYMONGO,
+            merchant_business_name='Acme Co',
+            merchant_email='owner@acme.test',
         )
 
         response = self.client.get('/api/admin/kyb-verifications/')
