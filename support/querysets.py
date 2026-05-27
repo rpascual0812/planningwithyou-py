@@ -1,4 +1,4 @@
-from django.db.models import Count, Exists, OuterRef, Q, Subquery
+from django.db.models import Count, Exists, F, OuterRef, Q, Subquery
 from django.db.models.functions import Coalesce
 
 from .models import SupportTicketMessage, SupportTicketRead
@@ -17,7 +17,7 @@ def annotate_support_ticket_list(queryset):
         _last_message_id=Subquery(latest.values('pk')[:1]),
         _last_message_at=Coalesce(
             Subquery(latest.values('created_at')[:1]),
-            'created_at',
+            F('created_at'),
         ),
     )
 
