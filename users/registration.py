@@ -100,6 +100,16 @@ EMAIL_TEMPLATES = [
     {
         'name': 'payment_link',
         'template_type': EmailTemplate.TemplateType.BOOKINGS,
+        'title': 'New/Updated Quote',
+        'subject': '{company_name} - Quotation',
+        'body': (
+            '<p>Hi {first_name} {last_name},</p>'
+            '<p>Please see the attached file/s</p>'
+        ),
+    },
+    {
+        'name': 'payment_link',
+        'template_type': EmailTemplate.TemplateType.BOOKINGS,
         'title': 'Payment Link',
         'subject': 'Payment for your booking',
         'body': (
@@ -122,6 +132,36 @@ EMAIL_TEMPLATES = [
         ),
     },
 ]
+
+
+def seed_company_defaults(account: Account, company: Company) -> None:
+    """Seed per-company defaults used by registration and manual company create."""
+    for tier_name in DEFAULT_TIERS:
+        Tier.objects.get_or_create(
+            account=account,
+            company=company,
+            name=tier_name,
+            defaults={'is_active': True},
+        )
+
+    for template in EMAIL_TEMPLATES:
+        EmailTemplate.objects.update_or_create(
+            account=account,
+            company=company,
+            name=template['name'],
+            defaults={
+                **template,
+                'is_active': True,
+                'is_default': True,
+            },
+        )
+
+    DocumentFolder.objects.get_or_create(
+        account=account,
+        company=company,
+        name='General',
+        defaults={'is_deleted': False},
+    )
 
 
 @dataclass(frozen=True)
@@ -246,28 +286,7 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
         value='Group',
     )
 
-    for tier_name in DEFAULT_TIERS:
-        Tier.objects.create(
-            account=account,
-            company=company,
-            name=tier_name,
-            is_active=True,
-        )
-
-    for template in EMAIL_TEMPLATES:
-        EmailTemplate.objects.create(
-            account=account,
-            company=company,
-            is_active=True,
-            is_default=True,
-            **template,
-        )
-
-    DocumentFolder.objects.create(
-        account=account,
-        company=company,
-        name='General',
-    )
+    seed_company_defaults(account, company)
 
     owner_role = ensure_owner_role(account)
 

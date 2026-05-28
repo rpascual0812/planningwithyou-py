@@ -24,6 +24,7 @@ from planningwithyou.history.snapshots import (
     snapshot_supplier_setting,
 )
 from planningwithyou.permissions import FeatureAccess, HasAccount
+from users.registration import seed_company_defaults
 from users.supplier_price import (
     build_supplier_setting_active_by_company,
     build_supplier_tiers_by_company,
@@ -140,6 +141,7 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
             if default_type is not None:
                 extra['supplier_type'] = default_type
         company = serializer.save(**extra)
+        seed_company_defaults(company.account, company)
         record_resource_create(
             account_id=company.account_id,
             resource_type='company',
