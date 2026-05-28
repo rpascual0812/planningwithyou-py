@@ -166,6 +166,45 @@ class BookingPayment(models.Model):
         return f'Payment {self.pk} booking={self.booking_id}'
 
 
+class BookingPaymentReceipt(models.Model):
+    booking_payment = models.OneToOneField(
+        BookingPayment,
+        on_delete=models.CASCADE,
+        related_name='receipt',
+        db_column='booking_payment_id',
+    )
+    booking = models.ForeignKey(
+        BookingItem,
+        on_delete=models.CASCADE,
+        related_name='payment_receipts',
+        db_column='booking_id',
+    )
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='+',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.PROTECT,
+        db_column='company_id',
+        related_name='booking_payment_receipts',
+    )
+    receipt_url = models.TextField(blank=True, default='')
+    storage_key = models.TextField(blank=True, default='')
+    emailed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'booking_payment_receipts'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Receipt payment={self.booking_payment_id}'
+
+
 class BookingPaymentLink(models.Model):
     """Public PayMongo checkout link for a booking (platform merchant account)."""
 

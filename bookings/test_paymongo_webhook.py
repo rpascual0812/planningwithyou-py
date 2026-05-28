@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
@@ -7,6 +8,7 @@ from django.utils import timezone
 from bookings.models import (
     BookingItem,
     BookingPayment,
+    BookingPaymentReceipt,
     BookingPaymentLink,
     BookingStatus,
 )
@@ -18,7 +20,7 @@ from bookings.paymongo_webhook import (
 from companies.models import Company
 from countries.models import Country
 from suppliers.models import SupplierType
-from users.models import Account
+from users.models import Account, User
 
 
 def _payment_paid_event(payment_id: str, status: str, metadata: dict) -> dict:
@@ -63,6 +65,12 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             is_main=True,
         )
         self.status = BookingStatus.objects.create(account=self.account, title='New')
+        self.user = User.objects.create_user(
+            username='booking-owner@example.com',
+            email='booking-owner@example.com',
+            password='test-pass',
+            account=self.account,
+        )
         self.booking = BookingItem.objects.create(
             account=self.account,
             company=self.company,
@@ -71,6 +79,7 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             title='Event',
             total_amount=Decimal('1500.00'),
             required_downpayment_amount=Decimal('500.00'),
+            created_by=self.user,
         )
         self.link = BookingPaymentLink.objects.create(
             booking=self.booking,
@@ -122,7 +131,8 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
         self.link.refresh_from_db()
         self.assertEqual(self.link.status, BookingPaymentLink.Status.PENDING)
 
-    def test_handle_webhook_records_paid_and_marks_link(self):
+    @patch('bookings.payment_receipts.send_email_task.delay')
+    def test_handle_webhook_records_paid_and_marks_link(self, mock_send_email_task):
         handled = handle_paymongo_webhook_event(
             _payment_paid_event(
                 'pay_ok_1',
@@ -136,6 +146,10 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
         self.assertEqual(payment.base_amount, Decimal('500.00'))
         self.assertEqual(payment.charge_amount, Decimal('1500.00'))
         self.assertEqual(payment.platform_fee, Decimal('5.00'))
+        receipt = BookingPaymentReceipt.objects.get(booking_payment_id=payment.pk)
+        self.assertTrue(receipt.receipt_url)
+        self.assertIsNotNone(receipt.emailed_at)
+        mock_send_email_task.assert_called_once()
         self.link.refresh_from_db()
         self.assertEqual(self.link.status, BookingPaymentLink.Status.PAID)
         self.assertIsNotNone(self.link.paid_at)

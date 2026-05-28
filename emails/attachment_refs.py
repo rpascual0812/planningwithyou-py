@@ -59,7 +59,13 @@ def _storage_key_from_url(url: str) -> str | None:
     media_prefix = settings.MEDIA_URL.lstrip('/')
     if media_prefix and path.startswith(media_prefix):
         return path[len(media_prefix):].lstrip('/')
-    if path.startswith(('documents/', 'booking_pdfs/')):
+    if path.startswith(
+        (
+            'documents/',
+            'booking_pdfs/',
+            'booking_payment_receipts/',
+        ),
+    ):
         return path
     return None
 

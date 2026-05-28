@@ -27,6 +27,8 @@ def _platform_request(
     method: str,
     path: str,
     body: dict | None = None,
+    *,
+    extra_headers: dict[str, str] | None = None,
 ) -> dict:
     import base64
 
@@ -37,6 +39,8 @@ def _platform_request(
         'Content-Type': 'application/json',
         'Accept': 'application/json',
     }
+    if extra_headers:
+        headers.update(extra_headers)
     if body is not None:
         data = json.dumps(body).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
@@ -202,9 +206,20 @@ def create_merchant_onboarding_link(merchant_id: str) -> str:
     )
 
 
-def _v1_request(method: str, path: str, body: dict | None = None) -> dict:
+def _v1_request(
+    method: str,
+    path: str,
+    body: dict | None = None,
+    *,
+    extra_headers: dict[str, str] | None = None,
+) -> dict:
     """PayMongo v1 JSON:API (platform merchants / onboarding links)."""
-    return _platform_request(method, f'/v1{path}', body)
+    return _platform_request(
+        method,
+        f'/v1{path}',
+        body,
+        extra_headers=extra_headers,
+    )
 
 
 def create_child_merchant_account() -> dict:
@@ -329,8 +344,6 @@ def create_checkout_session_for_company(
         'POST',
         '/checkout_sessions',
         payload,
-        company_id=None,
-        secret_key=_platform_secret(),
         extra_headers=extra_headers,
     )
     data = response.get('data')

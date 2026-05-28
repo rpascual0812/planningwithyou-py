@@ -63,5 +63,11 @@ urlpatterns = [
         PayMongoWebhookView.as_view(),
         name='paymongo-webhook',
     ),
+    # Backward-compatible webhook route used by older PayMongo endpoint configs.
+    path(
+        'api/webhooks/paymongo/',
+        PayMongoWebhookView.as_view(),
+        name='paymongo-webhook-legacy-api-prefix',
+    ),
     path('', include(router.urls)),
 ]
