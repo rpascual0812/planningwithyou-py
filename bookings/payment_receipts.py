@@ -12,7 +12,9 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 from emails.mail import create_and_queue_email
+from emails.models import EmailTemplate
 from emails.tasks import send_email_task
+from planningwithyou.template_placeholders import apply_template_placeholders
 
 from .models import BookingPayment, BookingPaymentReceipt
 
@@ -167,6 +169,48 @@ def _receipt_storage_key(payment: BookingPayment, receipt_number: str) -> str:
     )
 
 
+def _payment_received_email_content(payment: BookingPayment) -> tuple[str, str]:
+    booking = payment.booking
+    template = (
+        EmailTemplate.objects.filter(
+            account_id=booking.account_id,
+            company_id=booking.company_id,
+            template_type=EmailTemplate.TemplateType.BOOKINGS,
+            name='payment_received',
+            is_active=True,
+            deleted_at__isnull=True,
+        )
+        .order_by('-id')
+        .first()
+    )
+    context = {
+        'booking_id': str(booking.unique_id or booking.pk),
+        'booking_title': booking.title or '',
+        'transaction_id': payment.transaction_id or '',
+        'amount_paid': _currency(payment.charge_amount),
+    }
+    if template is None:
+        return (
+            apply_template_placeholders(
+                'Payment receipt for booking {booking_id}',
+                context,
+            ),
+            apply_template_placeholders(
+                (
+                    '<p>Your payment receipt is attached.</p>'
+                    '<p>Booking: {booking_title}</p>'
+                    '<p>Transaction ID: {transaction_id}</p>'
+                    '<p>Amount paid: {amount_paid}</p>'
+                ),
+                context,
+            ),
+        )
+    return (
+        apply_template_placeholders(template.subject or '', context),
+        apply_template_placeholders(template.body or '', context),
+    )
+
+
 def ensure_paid_booking_payment_receipt(payment_id: int) -> BookingPaymentReceipt | None:
     payment = (
         BookingPayment.objects.select_related('booking', 'booking__contact', 'booking__created_by', 'company')
@@ -197,15 +241,11 @@ def ensure_paid_booking_payment_receipt(payment_id: int) -> BookingPaymentReceip
 
     recipient = (getattr(payment.booking.created_by, 'email', '') or '').strip()
     if recipient and receipt.emailed_at is None:
+        subject, body = _payment_received_email_content(payment)
         log = create_and_queue_email(
             to=[recipient],
-            subject=f'Payment receipt for booking {payment.booking.unique_id or payment.booking_id}',
-            body=(
-                '<p>Your payment receipt is attached.</p>'
-                f'<p>Booking: <strong>{payment.booking.title}</strong></p>'
-                f'<p>Transaction ID: <strong>{payment.transaction_id or "-"}</strong></p>'
-                f'<p>Amount paid: <strong>{_currency(payment.charge_amount)}</strong></p>'
-            ),
+            subject=subject,
+            body=body,
             attachments=[receipt.receipt_url],
             account=payment.booking.account,
             company=payment.company,

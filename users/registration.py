@@ -98,10 +98,20 @@ EMAIL_TEMPLATES = [
         ),
     },
     {
-        'name': 'payment_link',
+        'name': 'new_quotation',
         'template_type': EmailTemplate.TemplateType.BOOKINGS,
-        'title': 'New/Updated Quote',
+        'title': 'New Quote',
         'subject': '{company_name} - Quotation',
+        'body': (
+            '<p>Hi {first_name} {last_name},</p>'
+            '<p>Please see the attached file/s</p>'
+        ),
+    },
+    {
+        'name': 'updated_quotation',
+        'template_type': EmailTemplate.TemplateType.BOOKINGS,
+        'title': 'Updated Quote',
+        'subject': '{company_name} - Updated Quotation',
         'body': (
             '<p>Hi {first_name} {last_name},</p>'
             '<p>Please see the attached file/s</p>'
@@ -129,6 +139,21 @@ EMAIL_TEMPLATES = [
             '<p>Booking: {booking_title}</p>'
             '<p>Transaction ID: {transaction_id}</p>'
             '<p>Amount paid: {amount_paid}</p>'
+        ),
+    },
+    {
+        'name': 'calendar_event_reminder',
+        'template_type': EmailTemplate.TemplateType.CALENDAR,
+        'title': 'Calendar Event Reminder',
+        'subject': 'Calendar Event Reminder - {event_title}',
+        'body': (
+            '<p>Hi {first_name} {last_name},</p>'
+            '<p>This is a reminder that the following event is scheduled for today:</p>'
+            '<p>Event: {event_title}</p>'
+            '<p>Date: {event_date}</p>'
+            '<p>Time: {event_time}</p>'
+            '<p>Location: {event_location}</p>'
+            '<p>Thank you.</p>'
         ),
     },
 ]
