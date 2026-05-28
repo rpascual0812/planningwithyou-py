@@ -30,6 +30,7 @@ class CalendarSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'title',
+            'location',
             'start',
             'end',
             'repeat_type',

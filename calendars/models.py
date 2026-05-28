@@ -100,6 +100,7 @@ class Calendar(models.Model):
         related_name='calendar_events',
     )
     title = models.CharField(max_length=255)
+    location = models.TextField(blank=True, default='')
     start = models.DateTimeField()
     end = models.DateTimeField()
     repeat_type = models.CharField(max_length=32, null=True, blank=True, default=None)

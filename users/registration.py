@@ -142,20 +142,35 @@ EMAIL_TEMPLATES = [
         ),
     },
     {
-        'name': 'calendar_event_reminder',
+        'name': 'calendar_event_creation',
         'template_type': EmailTemplate.TemplateType.CALENDAR,
-        'title': 'Calendar Event Reminder',
-        'subject': 'Calendar Event Reminder - {event_title}',
+        'title': 'Scheduled Event',
+        'subject': '{company_name} - Scheduled Event',
         'body': (
             '<p>Hi {first_name} {last_name},</p>'
-            '<p>This is a reminder that the following event is scheduled for today:</p>'
-            '<p>Event: {event_title}</p>'
-            '<p>Date: {event_date}</p>'
-            '<p>Time: {event_time}</p>'
+            '<p>A new event has been scheduled:</p>'
+            '<p>Title: {event_title}</p>'
+            '<p>Start: {event_start}</p>'
+            '<p>End: {event_end}</p>'
             '<p>Location: {event_location}</p>'
             '<p>Thank you.</p>'
         ),
     },
+    # {
+    #     'name': 'calendar_event_reminder',
+    #     'template_type': EmailTemplate.TemplateType.CALENDAR,
+    #     'title': 'Calendar Event Reminder',
+    #     'subject': 'Calendar Event Reminder - {event_title}',
+    #     'body': (
+    #         '<p>Hi {first_name} {last_name},</p>'
+    #         '<p>This is a reminder that the following event is scheduled for today:</p>'
+    #         '<p>Event: {event_title}</p>'
+    #         '<p>Date: {event_date}</p>'
+    #         '<p>Time: {event_time}</p>'
+    #         '<p>Location: {event_location}</p>'
+    #         '<p>Thank you.</p>'
+    #     ),
+    # },
 ]
 
 
