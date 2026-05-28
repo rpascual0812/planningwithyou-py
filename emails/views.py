@@ -238,3 +238,9 @@ class EmailBookingTemplateViewSet(EmailTypedTemplateViewSet):
     """CRUD for email templates with template_type fixed to ``bookings``."""
 
     template_type = EmailTemplate.TemplateType.BOOKINGS
+
+
+class EmailCalendarTemplateViewSet(EmailTypedTemplateViewSet):
+    """CRUD for email templates with template_type fixed to ``calendar``."""
+
+    template_type = EmailTemplate.TemplateType.CALENDAR

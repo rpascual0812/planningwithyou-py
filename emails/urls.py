@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     EmailBookingTemplateViewSet,
+    EmailCalendarTemplateViewSet,
     EmailLogViewSet,
     EmailUserTemplateViewSet,
 )
@@ -18,6 +19,11 @@ router.register(
     'email-templates/bookings',
     EmailBookingTemplateViewSet,
     basename='email-template-bookings',
+)
+router.register(
+    'email-templates/calendar',
+    EmailCalendarTemplateViewSet,
+    basename='email-template-calendar',
 )
 
 urlpatterns = [

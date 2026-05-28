@@ -248,8 +248,12 @@ class CompanyCreateDefaultsApiTests(TestCase):
                 'welcome',
                 'verify_email',
                 'password_reset',
+                'new_quotation',
+                'updated_quotation',
                 'payment_link',
                 'payment_received',
+                'calendar_event_creation',
+                'calendar_event_updated',
             },
         )
 

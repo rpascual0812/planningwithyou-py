@@ -23,6 +23,9 @@ celery -A planningwithyou flower
 http://localhost:5555
 
 
+scp -r dist ubuntu@54.251.156.186:/var/www/html/admin
+
+
 When adding a new account, add defaults:
 
 upon saving the registration form, create the following records:
