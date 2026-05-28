@@ -6,6 +6,7 @@ from rest_framework.response import Response
 
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
+from .notifications import send_calendar_event_email
 from .models import CalendarStatus
 from .scope import calendar_events_for_user
 from .serializers import CalendarSerializer, CalendarStatusSerializer
@@ -80,10 +81,23 @@ class CalendarViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(
+        event = serializer.save(
             account_id=self.request.user.account_id,
             company_id=self.request.user.company_id,
             created_by=self.request.user,
+        )
+        send_calendar_event_email(
+            event,
+            template_name='calendar_event_creation',
+            fallback_subject='Scheduled event',
+        )
+
+    def perform_update(self, serializer):
+        event = serializer.save()
+        send_calendar_event_email(
+            event,
+            template_name='calendar_event_updated',
+            fallback_subject='Event updated',
         )
 
     def perform_destroy(self, instance):

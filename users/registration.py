@@ -156,6 +156,21 @@ EMAIL_TEMPLATES = [
             '<p>Thank you.</p>'
         ),
     },
+    {
+        'name': 'calendar_event_updated',
+        'template_type': EmailTemplate.TemplateType.CALENDAR,
+        'title': 'Event Updated',
+        'subject': '{company_name} - Event Updated',
+        'body': (
+            '<p>Hi {first_name} {last_name},</p>'
+            '<p>An event has been updated:</p>'
+            '<p>Title: {event_title}</p>'
+            '<p>Start: {event_start}</p>'
+            '<p>End: {event_end}</p>'
+            '<p>Location: {event_location}</p>'
+            '<p>Thank you.</p>'
+        ),
+    },
     # {
     #     'name': 'calendar_event_reminder',
     #     'template_type': EmailTemplate.TemplateType.CALENDAR,
