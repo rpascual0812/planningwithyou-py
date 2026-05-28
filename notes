@@ -23,7 +23,8 @@ celery -A planningwithyou flower
 http://localhost:5555
 
 
-scp -r dist ubuntu@54.251.156.186:/var/www/html/admin
+planningwithyou-web
+scp -r dist ubuntu@54.251.156.186:/var/www/web
 
 
 When adding a new account, add defaults:
