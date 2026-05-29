@@ -95,6 +95,18 @@ class InvitationTemplate(models.Model):
     class Meta:
         db_table = 'invitation_templates'
         ordering = ['-updated_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company', 'title'],
+                condition=models.Q(is_deleted=False, is_marketplace=False),
+                name='invitation_templates_company_title_uniq',
+            ),
+            models.UniqueConstraint(
+                fields=['slug'],
+                condition=models.Q(is_deleted=False),
+                name='invitation_templates_slug_uniq',
+            ),
+        ]
 
     def __str__(self):
         return self.title

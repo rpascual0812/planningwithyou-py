@@ -92,6 +92,74 @@ class InvitationTemplateApiTests(TestCase):
         self.assertEqual(res.status_code, 400)
         self.assertIn('title', res.data)
 
+    def test_create_rejects_duplicate_title(self):
+        res1 = self.client.post(
+            '/template-studio/templates/',
+            {'title': 'Unique Wedding', 'document': self.doc},
+            format='json',
+        )
+        self.assertEqual(res1.status_code, 201, res1.data)
+        res2 = self.client.post(
+            '/template-studio/templates/',
+            {'title': 'Unique Wedding', 'document': self.doc},
+            format='json',
+        )
+        self.assertEqual(res2.status_code, 400)
+        self.assertIn('title', res2.data)
+
+    def test_update_rejects_duplicate_title(self):
+        first = self.client.post(
+            '/template-studio/templates/',
+            {'title': 'First Invite', 'document': self.doc},
+            format='json',
+        )
+        second = self.client.post(
+            '/template-studio/templates/',
+            {'title': 'Second Invite', 'document': self.doc},
+            format='json',
+        )
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 201)
+        res = self.client.patch(
+            f'/template-studio/templates/{second.data["id"]}/',
+            {'title': 'First Invite'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('title', res.data)
+
+    def test_create_assigns_unique_slug_globally(self):
+        other_company = Company.objects.create(
+            account=self.account,
+            name='Other Co',
+            supplier_type=self.supplier_type,
+            is_main=False,
+        )
+        other_user = User.objects.create_user(
+            username='other@test.example',
+            email='other@test.example',
+            password='secret12',
+            account=self.account,
+            company=other_company,
+            is_verified=True,
+        )
+        InvitationTemplate.objects.create(
+            account=self.account,
+            company=self.company,
+            title='Shared Slug Test',
+            slug='shared-slug',
+            document=self.doc,
+            created_by=self.user,
+        )
+        self.client.force_authenticate(user=other_user)
+        res = self.client.post(
+            '/template-studio/templates/',
+            {'title': 'Shared Slug Test', 'document': self.doc},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertNotEqual(res.data['slug'], 'shared-slug')
+
     def test_publish_and_public_read(self):
         create = self.client.post(
             '/template-studio/templates/',

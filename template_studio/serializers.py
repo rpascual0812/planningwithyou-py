@@ -4,22 +4,60 @@ from rest_framework import serializers
 from template_studio.models import InvitationTemplate
 
 
-def unique_slug_for_company(company_id: int, title: str, exclude_pk: int | None = None) -> str:
+def _active_templates():
+    return InvitationTemplate.objects.filter(is_deleted=False)
+
+
+def title_exists_for_company(
+    company_id: int,
+    title: str,
+    *,
+    exclude_pk: int | None = None,
+) -> bool:
+    qs = _active_templates().filter(
+        company_id=company_id,
+        is_marketplace=False,
+        title__iexact=title.strip(),
+    )
+    if exclude_pk is not None:
+        qs = qs.exclude(pk=exclude_pk)
+    return qs.exists()
+
+
+def unique_title_for_company(
+    company_id: int,
+    base_title: str,
+    *,
+    exclude_pk: int | None = None,
+) -> str:
+    """Return a title unique within the company (for duplicate / auto-naming)."""
+    title = (base_title or '').strip() or 'Invitation'
+    candidate = title
+    n = 1
+    while title_exists_for_company(company_id, candidate, exclude_pk=exclude_pk):
+        n += 1
+        suffix = f' ({n})'
+        candidate = f'{title[: 255 - len(suffix)]}{suffix}'
+    return candidate
+
+
+def unique_slug_globally(title: str, *, exclude_pk: int | None = None) -> str:
+    """Return a slug unique among all active invitation templates."""
     base = slugify(title)[:100] or 'invitation'
     slug = base
     n = 1
     while True:
-        qs = InvitationTemplate.objects.filter(
-            company_id=company_id,
-            slug=slug,
-            is_deleted=False,
-        )
+        qs = _active_templates().filter(slug=slug)
         if exclude_pk is not None:
             qs = qs.exclude(pk=exclude_pk)
         if not qs.exists():
             return slug
         n += 1
         slug = f'{base}-{n}'[:120]
+
+
+# Backward-compatible alias
+unique_slug_for_company = unique_slug_globally
 
 
 class InvitationTemplateSerializer(serializers.ModelSerializer):
@@ -76,11 +114,26 @@ class InvitationTemplateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Unsupported schema version.')
         return value
 
-    def validate(self, attrs):
-        title = attrs.get('title') or (self.instance.title if self.instance else None)
-        if not title or not str(title).strip():
-            raise serializers.ValidationError({'title': 'Title is required.'})
-        return attrs
+    def validate_title(self, value: str) -> str:
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError('Title is required.')
+
+        company_id = self.context.get('company_id')
+        if company_id is None and self.instance is not None:
+            company_id = self.instance.company_id
+        if company_id is None:
+            return value
+
+        if title_exists_for_company(
+            company_id,
+            value,
+            exclude_pk=self.instance.pk if self.instance else None,
+        ):
+            raise serializers.ValidationError(
+                'An invitation with this title already exists. Choose a different title.',
+            )
+        return value
 
 
 class PublicInvitationSerializer(serializers.ModelSerializer):

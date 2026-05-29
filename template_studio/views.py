@@ -25,7 +25,8 @@ from .serializers import (
     InvitationTemplateSerializer,
     MarketplaceTemplateSerializer,
     PublicInvitationSerializer,
-    unique_slug_for_company,
+    unique_slug_globally,
+    unique_title_for_company,
 )
 
 
@@ -37,10 +38,17 @@ class InvitationTemplateViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return templates_for_user(self.request.user).filter(is_deleted=False)
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        user = self.request.user
+        if getattr(user, 'company_id', None) is not None:
+            context['company_id'] = user.company_id
+        return context
+
     def perform_create(self, serializer):
         user = self.request.user
         title = serializer.validated_data['title']
-        slug = unique_slug_for_company(user.company_id, title)
+        slug = unique_slug_globally(title)
         doc = serializer.validated_data.get('document') or {}
         if isinstance(doc, dict):
             meta = doc.setdefault('meta', {})
@@ -96,8 +104,8 @@ class InvitationTemplateViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def duplicate(self, request, pk=None):
         src = self.get_object()
-        title = f'{src.title} copy'
-        slug = unique_slug_for_company(src.company_id, title)
+        title = unique_title_for_company(src.company_id, f'{src.title} copy')
+        slug = unique_slug_globally(title)
         doc = src.document
         if isinstance(doc, dict):
             doc = {**doc, 'meta': {**doc.get('meta', {}), 'title': title, 'name': title}}
