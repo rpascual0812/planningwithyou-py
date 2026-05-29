@@ -21,3 +21,13 @@ def redirect_pay_to_frontend(request, token):
     if query:
         url = f'{url}?{query}'
     return HttpResponseRedirect(url)
+
+
+@require_GET
+def redirect_invitation_to_frontend(request, slug):
+    """Published invitations are rendered by the React app."""
+    query = request.META.get('QUERY_STRING', '')
+    url = f'{_frontend_base()}/invitations/{slug}'
+    if query:
+        url = f'{url}?{query}'
+    return HttpResponseRedirect(url)

@@ -19,11 +19,16 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from planningwithyou.redirects import redirect_pay_to_frontend, redirect_root_to_frontend
+from planningwithyou.redirects import (
+    redirect_invitation_to_frontend,
+    redirect_pay_to_frontend,
+    redirect_root_to_frontend,
+)
 
 urlpatterns = [
     path('', redirect_root_to_frontend),
     path('pay/<uuid:token>/', redirect_pay_to_frontend),
+    path('invitations/<slug:slug>/', redirect_invitation_to_frontend),
     path('', include('planningwithyou.file_urls')),
     path('', include('users.urls')),
     path('', include('companies.urls')),
@@ -40,6 +45,7 @@ urlpatterns = [
     path('', include('system_notifications.urls')),
     path('', include('system_settings.urls')),
     path('', include('support.urls')),
+    path('', include('template_studio.urls')),
     # After REST ``admin/*`` API routes (kyb, payouts, notifications, legal).
     path('admin/', admin.site.urls),
 ]

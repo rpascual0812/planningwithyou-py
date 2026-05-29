@@ -69,6 +69,14 @@ def document_file_url(document_id: int, request=None) -> str:
     return absolute_file_url(request, document_download_path(document_id))
 
 
+def template_asset_public_path(asset_uuid) -> str:
+    return reverse('public-template-asset', kwargs={'asset_uuid': asset_uuid})
+
+
+def template_asset_public_url(asset_uuid, request=None) -> str:
+    return absolute_file_url(request, template_asset_public_path(asset_uuid))
+
+
 def booking_pdf_file_url(booking_id: int, request=None) -> str:
     return absolute_file_url(request, booking_pdf_download_path(booking_id))
 
@@ -371,6 +379,27 @@ def read_booking_pdf_file(
     safe_title = re.sub(r'[-\s]+', '-', safe_title)[:80]
     filename = f'{safe_title}.pdf'
     return data, filename, 'application/pdf'
+
+
+def read_template_asset_file(asset_uuid) -> tuple[bytes, str, str]:
+    from template_studio.models import TemplateAsset
+
+    asset = TemplateAsset.objects.filter(uuid=asset_uuid).first()
+    if asset is None or not asset.file:
+        raise FileNotFoundError('Asset not found')
+
+    with asset.file.open('rb') as handle:
+        data = handle.read()
+    if len(data) > MAX_FILE_BYTES:
+        raise ValueError('File exceeds size limit')
+
+    filename = asset.original_name or 'image'
+    content_type = (
+        asset.mime_type
+        or mimetypes.guess_type(filename)[0]
+        or 'application/octet-stream'
+    )
+    return data, filename, content_type
 
 
 def read_file_from_proxy_url(

@@ -21,6 +21,7 @@ FEATURE_LABELS = {
     'users': 'Users',
     'emails': 'Emails',
     'file_manager': 'File Manager',
+    'template_studio': 'Invitations',
     'reports': 'Reports',
     'settings': 'Settings > Integrations',
     'account_settings': 'Settings > Account Settings',

@@ -12,6 +12,7 @@ TENANT_FEATURE_KEYS = (
     'users',
     'emails',
     'file_manager',
+    'template_studio',
     'reports',
     'settings',
     'account_settings',

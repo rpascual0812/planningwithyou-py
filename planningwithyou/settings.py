@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     'system_notifications',
     'system_settings',
     'support',
+    'template_studio',
 ]
 
 MIDDLEWARE = [
