@@ -20,6 +20,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from planningwithyou.redirects import (
+    redirect_invitation_rsvp_to_frontend,
     redirect_invitation_to_frontend,
     redirect_pay_to_frontend,
     redirect_root_to_frontend,
@@ -28,6 +29,7 @@ from planningwithyou.redirects import (
 urlpatterns = [
     path('', redirect_root_to_frontend),
     path('pay/<uuid:token>/', redirect_pay_to_frontend),
+    path('invitations/<slug:slug>/rsvp/', redirect_invitation_rsvp_to_frontend),
     path('invitations/<slug:slug>/', redirect_invitation_to_frontend),
     path('', include('planningwithyou.file_urls')),
     path('', include('users.urls')),

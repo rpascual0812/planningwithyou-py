@@ -31,3 +31,13 @@ def redirect_invitation_to_frontend(request, slug):
     if query:
         url = f'{url}?{query}'
     return HttpResponseRedirect(url)
+
+
+@require_GET
+def redirect_invitation_rsvp_to_frontend(request, slug):
+    """RSVP submissions list is rendered by the React app."""
+    query = request.META.get('QUERY_STRING', '')
+    url = f'{_frontend_base()}/invitations/{slug}/rsvp'
+    if query:
+        url = f'{url}?{query}'
+    return HttpResponseRedirect(url)

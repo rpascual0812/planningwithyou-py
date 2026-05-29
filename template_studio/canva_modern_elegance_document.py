@@ -91,6 +91,37 @@ def _rsvp(el_id: str, y: float, z: int):
         'name': 'RSVP',
         'heading': "We can't wait to hear from you",
         'submitLabel': 'Send message',
+        'successMessage': 'Thank you! Your RSVP has been received.',
+        'fields': [
+            {
+                'id': 'first_name',
+                'label': 'First Name',
+                'type': 'text',
+                'required': True,
+                'placeholder': 'First name',
+            },
+            {
+                'id': 'last_name',
+                'label': 'Last Name',
+                'type': 'text',
+                'required': True,
+                'placeholder': 'Last name',
+            },
+            {
+                'id': 'mobile_number',
+                'label': 'Mobile Number',
+                'type': 'tel',
+                'required': False,
+                'placeholder': 'Mobile number',
+            },
+            {
+                'id': 'email_address',
+                'label': 'Email Address',
+                'type': 'email',
+                'required': True,
+                'placeholder': 'Email address',
+            },
+        ],
         'transform': {
             'x': 24,
             'y': y,

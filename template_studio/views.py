@@ -11,7 +11,15 @@ from rest_framework.views import APIView
 from planningwithyou.file_storage import read_template_asset_file, template_asset_public_url
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
-from .models import InvitationTemplate, TemplateAsset
+from .models import InvitationRsvp, InvitationTemplate, TemplateAsset
+from .rsvp_serializers import PublicRsvpListSerializer, PublicRsvpSubmitSerializer
+from .rsvp_utils import (
+    find_rsvp_element,
+    get_public_invitation_template,
+    rsvp_field_columns,
+    validate_rsvp_submission,
+)
+from .rsvp_export import build_rsvp_xlsx
 from .scope import templates_for_user
 from .serializers import (
     InvitationTemplateSerializer,
@@ -224,3 +232,101 @@ class PublicInvitationView(APIView):
         if tpl is None:
             return Response({'detail': 'Invitation not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(PublicInvitationSerializer(tpl).data)
+
+
+class PublicInvitationRsvpView(APIView):
+    """List or submit guest RSVPs for a published invitation."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug: str):
+        tpl = get_public_invitation_template(slug)
+        if tpl is None:
+            return Response({'detail': 'Invitation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        rsvps = (
+            InvitationRsvp.objects.filter(invitation_template=tpl)
+            .order_by('-created_at')
+            .values('id', 'element_id', 'fields_data', 'created_at')
+        )
+        results = list(rsvps)
+        payload = {
+            'title': tpl.title,
+            'slug': tpl.slug,
+            'field_columns': rsvp_field_columns(tpl.document, results),
+            'results': results,
+        }
+        serializer = PublicRsvpListSerializer(payload)
+        return Response(serializer.data)
+
+    def post(self, request, slug: str):
+        tpl = get_public_invitation_template(slug)
+        if tpl is None:
+            return Response({'detail': 'Invitation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = PublicRsvpSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        element_id = serializer.validated_data['element_id']
+        fields_payload = serializer.validated_data['fields']
+
+        rsvp_element = find_rsvp_element(tpl.document, element_id)
+        if rsvp_element is None:
+            return Response(
+                {'element_id': ['RSVP form not found on this invitation.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            cleaned = validate_rsvp_submission(rsvp_element, fields_payload)
+        except ValueError as exc:
+            if isinstance(exc.args[0], dict):
+                return Response({'fields': exc.args[0]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        rsvp = InvitationRsvp.objects.create(
+            invitation_template=tpl,
+            element_id=element_id,
+            fields_data=cleaned,
+        )
+        success_message = rsvp_element.get('successMessage') or 'Thank you! Your RSVP has been received.'
+        return Response(
+            {
+                'id': rsvp.pk,
+                'success_message': success_message,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class PublicInvitationRsvpExportView(APIView):
+    """Download RSVP submissions as an Excel workbook."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug: str):
+        tpl = get_public_invitation_template(slug)
+        if tpl is None:
+            return Response({'detail': 'Invitation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        rsvps = list(
+            InvitationRsvp.objects.filter(invitation_template=tpl)
+            .order_by('-created_at')
+            .values('id', 'element_id', 'fields_data', 'created_at'),
+        )
+        columns = rsvp_field_columns(tpl.document, rsvps)
+        rows = [
+            {
+                'created_at': r['created_at'].strftime('%Y-%m-%d %H:%M:%S') if r.get('created_at') else '',
+                'fields_data': r.get('fields_data') or {},
+            }
+            for r in rsvps
+        ]
+        data = build_rsvp_xlsx(rows=rows, columns=columns, sheet_title=tpl.title)
+        filename = f'{tpl.slug}-rsvps.xlsx'
+        response = HttpResponse(
+            data,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename.replace(chr(34), "")}"'
+        response['Content-Length'] = len(data)
+        return response

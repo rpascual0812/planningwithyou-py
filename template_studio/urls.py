@@ -4,6 +4,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     InvitationTemplateViewSet,
     MarketplaceTemplateListView,
+    PublicInvitationRsvpExportView,
+    PublicInvitationRsvpView,
     PublicInvitationView,
     PublicTemplateAssetView,
     TemplateAssetUploadView,
@@ -31,6 +33,16 @@ urlpatterns = [
         'public/template-assets/<uuid:asset_uuid>/',
         PublicTemplateAssetView.as_view(),
         name='public-template-asset',
+    ),
+    path(
+        'public/invitations/<slug:slug>/rsvp/export/',
+        PublicInvitationRsvpExportView.as_view(),
+        name='public-invitation-rsvp-export',
+    ),
+    path(
+        'public/invitations/<slug:slug>/rsvp/',
+        PublicInvitationRsvpView.as_view(),
+        name='public-invitation-rsvp',
     ),
     path(
         'public/invitations/<slug:slug>/',

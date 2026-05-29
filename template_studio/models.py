@@ -98,3 +98,33 @@ class InvitationTemplate(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class InvitationRsvp(models.Model):
+    """Guest RSVP submission for a published invitation template."""
+
+    invitation_template = models.ForeignKey(
+        InvitationTemplate,
+        on_delete=models.CASCADE,
+        related_name='rsvps',
+        db_column='invitation_template_id',
+    )
+    element_id = models.CharField(
+        max_length=64,
+        help_text='Canvas element id of the RSVP widget in the template document.',
+    )
+    fields_data = models.JSONField(
+        default=dict,
+        help_text='Dynamic field values keyed by field id from the RSVP form config.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'invitation_rsvps'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['invitation_template', 'element_id']),
+        ]
+
+    def __str__(self):
+        return f'RSVP for {self.invitation_template_id} ({self.element_id})'

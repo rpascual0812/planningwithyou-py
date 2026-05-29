@@ -187,3 +187,242 @@ class InvitationTemplateApiTests(TestCase):
         res = self.client.get('/template-studio/marketplace/')
         self.assertEqual(res.status_code, 200)
         self.assertTrue(any(r['title'] == 'Catalog Item' for r in res.data))
+
+    def test_public_rsvp_submit(self):
+        doc = {
+            **self.doc,
+            'pages': [
+                {
+                    'id': 'p1',
+                    'name': 'RSVP',
+                    'slug': 'rsvp',
+                    'sectionType': 'rsvp',
+                    'width': 1280,
+                    'height': 720,
+                    'background': {'type': 'solid', 'color': '#fff'},
+                    'elements': [
+                        {
+                            'id': 'rsvp_el_1',
+                            'type': 'rsvp',
+                            'name': 'RSVP',
+                            'heading': 'Please RSVP',
+                            'submitLabel': 'Submit',
+                            'fields': [
+                                {
+                                    'id': 'first_name',
+                                    'label': 'First Name',
+                                    'type': 'text',
+                                    'required': True,
+                                },
+                                {
+                                    'id': 'email_address',
+                                    'label': 'Email Address',
+                                    'type': 'email',
+                                    'required': True,
+                                },
+                            ],
+                            'transform': {
+                                'x': 0,
+                                'y': 0,
+                                'width': 400,
+                                'height': 300,
+                                'rotation': 0,
+                                'scaleX': 1,
+                                'scaleY': 1,
+                                'opacity': 1,
+                                'zIndex': 1,
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+        tpl = InvitationTemplate.objects.create(
+            account=self.account,
+            company=self.company,
+            title='RSVP Wedding',
+            slug='rsvp-wedding-test',
+            document=doc,
+            is_published=True,
+            created_by=self.user,
+        )
+        res = self.client.post(
+            f'/public/invitations/{tpl.slug}/rsvp/',
+            {
+                'element_id': 'rsvp_el_1',
+                'fields': {
+                    'first_name': 'Jane',
+                    'email_address': 'jane@example.com',
+                },
+            },
+            format='json',
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        from template_studio.models import InvitationRsvp
+
+        rsvp = InvitationRsvp.objects.get(invitation_template=tpl)
+        self.assertEqual(rsvp.element_id, 'rsvp_el_1')
+        self.assertEqual(rsvp.fields_data['first_name'], 'Jane')
+        self.assertEqual(rsvp.fields_data['email_address'], 'jane@example.com')
+
+    def test_public_rsvp_required_field_validation(self):
+        doc = {
+            **self.doc,
+            'pages': [
+                {
+                    'id': 'p1',
+                    'name': 'RSVP',
+                    'slug': 'rsvp',
+                    'sectionType': 'rsvp',
+                    'width': 1280,
+                    'height': 720,
+                    'background': {'type': 'solid', 'color': '#fff'},
+                    'elements': [
+                        {
+                            'id': 'rsvp_el_1',
+                            'type': 'rsvp',
+                            'name': 'RSVP',
+                            'heading': 'Please RSVP',
+                            'submitLabel': 'Submit',
+                            'fields': [
+                                {
+                                    'id': 'first_name',
+                                    'label': 'First Name',
+                                    'type': 'text',
+                                    'required': True,
+                                },
+                            ],
+                            'transform': {
+                                'x': 0,
+                                'y': 0,
+                                'width': 400,
+                                'height': 300,
+                                'rotation': 0,
+                                'scaleX': 1,
+                                'scaleY': 1,
+                                'opacity': 1,
+                                'zIndex': 1,
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+        tpl = InvitationTemplate.objects.create(
+            account=self.account,
+            company=self.company,
+            title='RSVP Validation',
+            slug='rsvp-validation-test',
+            document=doc,
+            is_published=True,
+            created_by=self.user,
+        )
+        res = self.client.post(
+            f'/public/invitations/{tpl.slug}/rsvp/',
+            {'element_id': 'rsvp_el_1', 'fields': {}},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('first_name', res.data['fields'])
+
+    def _rsvp_document(self):
+        return {
+            **self.doc,
+            'pages': [
+                {
+                    'id': 'p1',
+                    'name': 'RSVP',
+                    'slug': 'rsvp',
+                    'sectionType': 'rsvp',
+                    'width': 1280,
+                    'height': 720,
+                    'background': {'type': 'solid', 'color': '#fff'},
+                    'elements': [
+                        {
+                            'id': 'rsvp_el_1',
+                            'type': 'rsvp',
+                            'name': 'RSVP',
+                            'heading': 'Please RSVP',
+                            'submitLabel': 'Submit',
+                            'fields': [
+                                {
+                                    'id': 'first_name',
+                                    'label': 'First Name',
+                                    'type': 'text',
+                                    'required': True,
+                                },
+                                {
+                                    'id': 'email_address',
+                                    'label': 'Email Address',
+                                    'type': 'email',
+                                    'required': True,
+                                },
+                            ],
+                            'transform': {
+                                'x': 0,
+                                'y': 0,
+                                'width': 400,
+                                'height': 300,
+                                'rotation': 0,
+                                'scaleX': 1,
+                                'scaleY': 1,
+                                'opacity': 1,
+                                'zIndex': 1,
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+
+    def test_public_rsvp_list(self):
+        from template_studio.models import InvitationRsvp
+
+        tpl = InvitationTemplate.objects.create(
+            account=self.account,
+            company=self.company,
+            title='RSVP List Test',
+            slug='rsvp-list-test',
+            document=self._rsvp_document(),
+            is_published=True,
+            created_by=self.user,
+        )
+        InvitationRsvp.objects.create(
+            invitation_template=tpl,
+            element_id='rsvp_el_1',
+            fields_data={'first_name': 'Jane', 'email_address': 'jane@example.com'},
+        )
+        self.client.logout()
+        res = self.client.get(f'/public/invitations/{tpl.slug}/rsvp/')
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['title'], 'RSVP List Test')
+        self.assertEqual(len(res.data['results']), 1)
+        self.assertEqual(res.data['results'][0]['fields_data']['first_name'], 'Jane')
+        self.assertTrue(any(c['id'] == 'first_name' for c in res.data['field_columns']))
+
+    def test_public_rsvp_export_xlsx(self):
+        from template_studio.models import InvitationRsvp
+
+        tpl = InvitationTemplate.objects.create(
+            account=self.account,
+            company=self.company,
+            title='RSVP Export Test',
+            slug='rsvp-export-test',
+            document=self._rsvp_document(),
+            is_published=True,
+            created_by=self.user,
+        )
+        InvitationRsvp.objects.create(
+            invitation_template=tpl,
+            element_id='rsvp_el_1',
+            fields_data={'first_name': 'Bob', 'email_address': 'bob@example.com'},
+        )
+        self.client.logout()
+        res = self.client.get(f'/public/invitations/{tpl.slug}/rsvp/export/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(
+            'spreadsheetml.sheet',
+            res['Content-Type'],
+        )
+        self.assertIn('attachment', res['Content-Disposition'])
+        self.assertTrue(len(res.content) > 100)
