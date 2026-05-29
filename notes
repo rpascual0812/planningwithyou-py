@@ -24,7 +24,8 @@ http://localhost:5555
 
 
 planningwithyou-web
-scp -r dist ubuntu@54.251.156.186:/var/www/web
+scp -r dist ubuntu@54.255.220.36:/var/www/web
+scp -r dist ubuntu@54.255.220.36:/var/www/app
 
 
 When adding a new account, add defaults:
