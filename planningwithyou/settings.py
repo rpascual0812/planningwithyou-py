@@ -278,8 +278,8 @@ EMAIL_VERIFICATION_TOKEN_LIFETIME_HOURS = int(
 )
 
 # Celery
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_BROKER_URL = "rediss://redis-b2frse.serverless.apse1.cache.amazonaws.com:6379/0"
+CELERY_RESULT_BACKEND = "rediss://redis-b2frse.serverless.apse1.cache.amazonaws.com:6379/0"
 
 CELERY_BROKER_TRANSPORT_OPTIONS = {
     "ssl_cert_reqs": ssl.CERT_NONE
