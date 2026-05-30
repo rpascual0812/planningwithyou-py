@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import ssl
 from datetime import timedelta
 from pathlib import Path
 
@@ -280,7 +281,6 @@ EMAIL_VERIFICATION_TOKEN_LIFETIME_HOURS = int(
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 
-import ssl
 CELERY_BROKER_TRANSPORT_OPTIONS = {
     "ssl_cert_reqs": ssl.CERT_NONE
 }
