@@ -54,11 +54,21 @@ SECRET_KEY = _require_env('SECRET_KEY')
 
 DEBUG = _env_bool('DEBUG', default=True)
 
-ALLOWED_HOSTS = _csv_env('ALLOWED_HOSTS', 'localhost,127.0.0.1')
+# ALLOWED_HOSTS = _csv_env('ALLOWED_HOSTS', 'localhost,127.0.0.1')
+ALLOWED_HOSTS = [
+    "api.planningwithyou.com",
+    "app.planningwithyou.com",
+    "planningwithyou.com",
+    "www.planningwithyou.com",
+    "localhost",
+    "127.0.0.1",
+]
 
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-USE_X_FORWARDED_HOST = True
-
+CSRF_TRUSTED_ORIGINS = [
+    "https://app.planningwithyou.com",
+    "https://www.planningwithyou.com",
+    "https://planningwithyou.com",
+]
 
 # Application definition
 
@@ -224,10 +234,20 @@ else:
     }
 
 # Cross-origin requests from the Vite dev server (and similar local frontends).
-CORS_ALLOWED_ORIGINS = _csv_env(
-    'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173,https://planningwithyou.com,https://www.planningwithyou.com,https://app.planningwithyou.com,https://api.planningwithyou.com',
-)
+# CORS_ALLOWED_ORIGINS = _csv_env(
+#     'CORS_ALLOWED_ORIGINS',
+#     'http://localhost:5173,http://127.0.0.1:5173,https://planningwithyou.com,https://www.planningwithyou.com,https://app.planningwithyou.com,https://api.planningwithyou.com',
+# )
+
+CORS_ALLOWED_ORIGINS = [
+    "https://planningwithyou.com",
+    "https://www.planningwithyou.com",
+    "https://app.planningwithyou.com",
+]
+CORS_ALLOW_CREDENTIALS = True
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
