@@ -221,7 +221,7 @@ else:
 # Cross-origin requests from the Vite dev server (and similar local frontends).
 CORS_ALLOWED_ORIGINS = _csv_env(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173,https://planningwithyou.com,https://app.planningwithyou.com',
+    'http://localhost:5173,http://127.0.0.1:5173,https://planningwithyou.com,https://www.planningwithyou.com,https://app.planningwithyou.com,https://api.planningwithyou.com',
 )
 
 REST_FRAMEWORK = {
