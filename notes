@@ -341,3 +341,131 @@ sudo systemctl status celery-beat
 sudo journalctl -u celery -f
 # beat
 sudo journalctl -u celery-beat -f
+
+
+
+sudo systemctl restart celery
+sudo systemctl start celery-beat
+sudo systemctl restart gunicorn
+sudo systemctl status gunicorn
+celery -A planningwithyou worker -l info
+
+celery -A planningwithyou report
+
+
+sudo systemctl stop celery
+sudo systemctl stop celery-beat
+
+pkill -f celery
+
+sudo systemctl start celery
+sudo systemctl start celery-beat
+
+
+
+
+# API server from scratch
+
+sudo apt install -y python3 python3-pip python3-venv
+cd /var/www/api
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+sudo apt install -y redis-tools
+
+redis-cli \
+  -h master.elasticache-redis.b2frse.apse1.cache.amazonaws.com \
+  -p 6379 \
+  --tls \
+  ping
+
+celery -A planningwithyou worker -l info
+
+sudo nano /etc/systemd/system/celery.service
+
+[Unit]
+Description=Celery Worker
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+
+WorkingDirectory=/var/www/api
+
+Environment="DJANGO_SETTINGS_MODULE=planningwithyou.settings"
+Environment="PATH=/var/www/api/venv/bin"
+
+ExecStart=/var/www/api/venv/bin/celery \
+    -A planningwithyou worker \
+    --loglevel=info
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
+
+sudo vim /etc/systemd/system/celerybeat.service
+
+[Unit]
+Description=Celery Beat Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/api
+
+Environment="PATH=/var/www/api/venv/bin"
+
+ExecStart=/var/www/api/venv/bin/celery \
+    -A planningwithyou beat \
+    --loglevel=info \
+    --schedule=/var/www/api/celerybeat-schedule
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+# NOTE
+
+If you later add more EC2 instances
+
+When you scale behind the load balancer:
+
+ALB
+ ├── EC2 #1 (Django + Celery)
+ ├── EC2 #2 (Django + Celery)
+ └── EC2 #3 (Django + Celery)
+
+ you should not run Celery Beat on every instance, because scheduled jobs will execute multiple times.
+
+ Instead:
+ 
+ ALB
+  ├── EC2 #1 (Django + Celery + Beat)
+  ├── EC2 #2 (Django + Celery)
+  └── EC2 #3 (Django + Celery)
+ 
+ or move Beat to its own worker instance.
+
+
+
+CREATE USER planningwithyou WITH PASSWORD 'jqMnRD1hkZCsFgCmyRHqXyTXW5vPMhoJk7Oz9G4Cx5MhnssW9U56PM98OxTl';
+CREATE DATABASE planningwithyou;
+\c planningwithyou;
+GRANT ALL PRIVILEGES ON DATABASE planningwithyou TO planningwithyou;
+
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO planningwithyou;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO planningwithyou;
+
+
+
