@@ -116,6 +116,11 @@ class User(AbstractBaseUser):
         related_name='users',
         db_column='role_id',
     )
+    tour_completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the user finished or skipped the in-app product tour.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)

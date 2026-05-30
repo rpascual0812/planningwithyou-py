@@ -399,6 +399,19 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
         if request.method == 'GET':
             return Response(UserSerializer(user, context={'request': request}).data)
 
+        if request.data.get('complete_product_tour') is True:
+            user.tour_completed_at = timezone.now()
+            user.save(update_fields=['tour_completed_at', 'updated_at'])
+            return Response(
+                UserSerializer(user, context={'request': request}).data,
+            )
+        if request.data.get('restart_product_tour') is True:
+            user.tour_completed_at = None
+            user.save(update_fields=['tour_completed_at', 'updated_at'])
+            return Response(
+                UserSerializer(user, context={'request': request}).data,
+            )
+
         allowed_keys = {
             'first_name',
             'last_name',

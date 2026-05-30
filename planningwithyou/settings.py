@@ -65,6 +65,8 @@ ALLOWED_HOSTS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
     "https://app.planningwithyou.com",
     "https://www.planningwithyou.com",
     "https://planningwithyou.com",
@@ -240,6 +242,8 @@ else:
 # )
 
 CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
     "https://planningwithyou.com",
     "https://www.planningwithyou.com",
     "https://app.planningwithyou.com",
@@ -305,20 +309,17 @@ EMAIL_VERIFICATION_TOKEN_LIFETIME_HOURS = int(
 )
 
 # Celery
-REDIS_HOST = "master.elasticache-redis.b2frse.apse1.cache.amazonaws.com"
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 
-REDIS_URL = f"rediss://{REDIS_HOST}:6379/0"
+# Not working in local development
+# CELERY_BROKER_USE_SSL = {
+#     "ssl_cert_reqs": ssl.CERT_NONE,
+# }
 
-CELERY_BROKER_URL = REDIS_URL
-CELERY_RESULT_BACKEND = REDIS_URL
-
-CELERY_BROKER_USE_SSL = {
-    "ssl_cert_reqs": ssl.CERT_NONE,
-}
-
-CELERY_REDIS_BACKEND_USE_SSL = {
-    "ssl_cert_reqs": ssl.CERT_NONE,
-}
+# CELERY_REDIS_BACKEND_USE_SSL = {
+#     "ssl_cert_reqs": ssl.CERT_NONE,
+# }
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
