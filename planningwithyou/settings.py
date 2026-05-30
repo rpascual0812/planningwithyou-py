@@ -90,8 +90,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -232,6 +232,8 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ),
 }
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 MAILJET_API_KEY = os.environ.get('MAILJET_API_KEY', '')
 MAILJET_SECRET_KEY = os.environ.get('MAILJET_SECRET_KEY', '')
