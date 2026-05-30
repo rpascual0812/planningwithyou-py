@@ -65,6 +65,7 @@ from .registration_serializers import RegisterSerializer
 from .jwt import issue_tokens_for_user
 from .serializers import (
     AccountSerializer,
+    ChangePasswordSerializer,
     EmailTokenObtainPairSerializer,
     EmailVerifySerializer,
     PasswordResetConfirmSerializer,
@@ -270,7 +271,7 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
     ordering = ['id']
 
     def get_permissions(self):
-        if self.action == 'me':
+        if self.action in ('me', 'change_password'):
             return [IsAuthenticated(), HasAccount()]
         return [IsAuthenticated(), HasAccount(), HasCompany(), FeatureAccess()]
 
@@ -437,6 +438,16 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
         return Response(
             UserSerializer(updated, context={'request': request}).data,
         )
+
+    @action(detail=False, methods=['post'], url_path='me/change-password')
+    def change_password(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'detail': 'Password updated successfully.'})
 
 
 class RegisterView(GenericAPIView):

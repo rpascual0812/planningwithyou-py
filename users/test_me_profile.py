@@ -75,3 +75,24 @@ class MeProfileUpdateTests(TestCase):
             format='json',
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_user_can_change_password_via_me(self):
+        self.client.force_authenticate(user=self.limited_user)
+        response = self.client.post(
+            '/users/me/change-password/',
+            {'current_password': 'secret', 'new_password': 'newsecret12'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.limited_user.refresh_from_db()
+        self.assertTrue(self.limited_user.check_password('newsecret12'))
+
+    def test_change_password_rejects_wrong_current(self):
+        self.client.force_authenticate(user=self.limited_user)
+        response = self.client.post(
+            '/users/me/change-password/',
+            {'current_password': 'wrong', 'new_password': 'newsecret12'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('current_password', response.data)
