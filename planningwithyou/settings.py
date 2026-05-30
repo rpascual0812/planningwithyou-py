@@ -278,15 +278,19 @@ EMAIL_VERIFICATION_TOKEN_LIFETIME_HOURS = int(
 )
 
 # Celery
-CELERY_BROKER_URL = "master.elasticache-redis.b2frse.apse1.cache.amazonaws.com:6379/0"
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+REDIS_HOST = "master.elasticache-redis.b2frse.apse1.cache.amazonaws.com"
+
+REDIS_URL = f"rediss://{REDIS_HOST}:6379/0"
+
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 
 CELERY_BROKER_USE_SSL = {
-    "ssl_cert_reqs": ssl.CERT_NONE
+    "ssl_cert_reqs": ssl.CERT_NONE,
 }
 
 CELERY_REDIS_BACKEND_USE_SSL = {
-    "ssl_cert_reqs": ssl.CERT_NONE
+    "ssl_cert_reqs": ssl.CERT_NONE,
 }
 
 CELERY_ACCEPT_CONTENT = ['json']
