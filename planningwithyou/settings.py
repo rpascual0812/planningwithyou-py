@@ -279,7 +279,7 @@ EMAIL_VERIFICATION_TOKEN_LIFETIME_HOURS = int(
 
 # Celery
 CELERY_BROKER_URL = "rediss://redis-b2frse.serverless.apse1.cache.amazonaws.com:6379/0"
-CELERY_RESULT_BACKEND = "rediss://redis-b2frse.serverless.apse1.cache.amazonaws.com:6379/0"
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 
 CELERY_BROKER_TRANSPORT_OPTIONS = {
     "ssl_cert_reqs": ssl.CERT_NONE
