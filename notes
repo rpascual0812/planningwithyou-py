@@ -178,3 +178,143 @@ in the dashboard component, display the following:
 next
 
 roles and permissions
+
+
+
+LIVE
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install gunicorn django
+gunicorn --bind 0.0.0.0:8000 planningwithyou.wsgi
+
+CTRL + C
+
+sudo vim /etc/systemd/system/gunicorn.service
+
+[Unit]
+Description=gunicorn daemon
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/api
+ExecStart=/var/www/api/venv/bin/gunicorn \
+          --workers 3 \
+          --bind unix:/var/www/api/gunicorn.sock \
+          planningwithyou.wsgi:application
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+
+sudo systemctl daemon-reload
+sudo systemctl start gunicorn
+sudo systemctl enable gunicorn
+
+sudo systemctl status gunicorn
+
+
+sudo nano /etc/nginx/sites-available/api
+
+server {
+    listen 80;
+    server_name api.planningwithyou.com;
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+
+    location /static/ {
+        root /var/www/api;
+    }
+
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/var/www/api/gunicorn.sock;
+    }
+}
+
+sudo ln -s /etc/nginx/sites-available/api /etc/nginx/sites-enabled/
+
+sudo systemctl restart nginx
+
+docker run -d \
+  --name redis \
+  --restart unless-stopped \
+  -p 127.0.0.1:6379:6379 \
+  -v redis-data:/data \
+  redis:7-alpine \
+  redis-server --appendonly yes
+
+sudo docker exec -it redis redis-cli ping
+
+celery -A planningwithyou worker --loglevel=info
+celery -A planningwithyou beat --loglevel=info
+
+
+sudo vim /etc/systemd/system/celery.service
+
+[Unit]
+Description=Celery Worker
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/api
+
+Environment="PATH=/var/www/api/venv/bin"
+
+ExecStart=/var/www/api/venv/bin/celery \
+    -A planningwithyou worker --loglevel=info
+    --loglevel=info
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+sudo vim /etc/systemd/system/celery-beat.service
+
+[Unit]
+Description=Celery Beat Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/api
+
+Environment="PATH=/var/www/api/venv/bin"
+
+ExecStart=/var/www/api/venv/bin/celery \
+    -A planningwithyou beat \
+    --loglevel=info \
+    --schedule=/var/www/api/celerybeat-schedule
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+sudo systemctl daemon-reload
+# enable at startup
+sudo systemctl enable celery
+sudo systemctl enable celery-beat
+# start now
+sudo systemctl start celery
+sudo systemctl start celery-beat
+# check status
+sudo systemctl status celery
+sudo systemctl status celery-beat
+
+# view logs
+# worker
+sudo journalctl -u celery -f
+# beat
+sudo journalctl -u celery-beat -f
