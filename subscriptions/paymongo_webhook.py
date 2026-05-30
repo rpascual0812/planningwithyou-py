@@ -7,8 +7,20 @@ from datetime import datetime
 from django.db import transaction
 from django.utils import timezone
 
-from .models import AccountSubscription
+from bookings.paymongo_webhook import _amount_php_from_paymongo_attributes
 
+from .lifecycle import (
+    apply_scheduled_changes_if_due,
+    extend_prepaid_period,
+    start_prepaid_period,
+)
+from .models import AccountSubscription, SubscriptionPayment
+from .subscription_billing_notifications import (
+    invoice_indicates_failed_payment,
+    invoice_indicates_successful_payment,
+    issue_subscription_payment_receipt,
+    notify_subscription_payment_failed,
+)
 
 _SUBSCRIPTION_EVENT_PREFIX = 'subscription.'
 
@@ -22,20 +34,20 @@ def _parse_billing_date(raw: str | None):
         return None
 
 
-def _subscription_resource_from_event(event: dict) -> tuple[str, dict, str]:
-    """Return (event_type, subscription_attrs, paymongo_subscription_id)."""
+def _subscription_resource_from_event(event: dict) -> tuple[str, dict, str, str]:
+    """Return (event_type, attrs, paymongo_subscription_id, resource_id)."""
     data = event.get('data')
     if not isinstance(data, dict):
-        return '', {}, ''
+        return '', {}, '', ''
     event_attrs = data.get('attributes')
     if not isinstance(event_attrs, dict):
-        return '', {}, ''
+        return '', {}, '', ''
     event_type = (
         event.get('type') or event_attrs.get('type') or ''
     ).strip()
     resource = event_attrs.get('data')
     if not isinstance(resource, dict):
-        return event_type, {}, ''
+        return event_type, {}, '', ''
 
     resource_type = (resource.get('type') or '').strip()
     resource_id = str(resource.get('id') or '').strip()
@@ -45,13 +57,13 @@ def _subscription_resource_from_event(event: dict) -> tuple[str, dict, str]:
 
     if resource_type == 'subscription':
         sub_id = resource_id or str(resource_attrs.get('id') or '').strip()
-        return event_type, resource_attrs, sub_id
+        return event_type, resource_attrs, sub_id, resource_id
 
     if resource_type == 'subscription_invoice':
         sub_id = str(resource_attrs.get('subscription_id') or '').strip()
-        return event_type, resource_attrs, sub_id
+        return event_type, resource_attrs, sub_id, resource_id
 
-    return event_type, {}, ''
+    return event_type, {}, '', ''
 
 
 def _find_account_subscription(paymongo_subscription_id: str) -> AccountSubscription | None:
@@ -71,22 +83,65 @@ def _activate_account_subscription(
     *,
     next_billing_date=None,
 ) -> None:
-    today = timezone.localdate()
-    AccountSubscription.objects.filter(
-        account_id=account_sub.account_id,
-        status=AccountSubscription.Status.ACTIVE,
-        deleted_at__isnull=True,
-    ).exclude(pk=account_sub.pk).update(
-        status=AccountSubscription.Status.CANCELLED,
-        end_date=today,
-        updated_at=timezone.now(),
-    )
+    apply_scheduled_changes_if_due(account_sub)
+    account_sub.refresh_from_db()
+    update_fields = ['status', 'updated_at']
+    if account_sub.status == AccountSubscription.Status.PENDING:
+        start_prepaid_period(
+            account_sub,
+            account_sub.subscription,
+            account_sub.team_seats,
+        )
+        update_fields.extend(['start_date', 'end_date', 'team_seats', 'base_price', 'total_per_users', 'total_price'])
     account_sub.status = AccountSubscription.Status.ACTIVE
-    account_sub.start_date = today
-    account_sub.end_date = next_billing_date
-    account_sub.save(
-        update_fields=['status', 'start_date', 'end_date', 'updated_at'],
+    if next_billing_date:
+        account_sub.end_date = next_billing_date
+        update_fields.append('end_date')
+    account_sub.save(update_fields=list(dict.fromkeys(update_fields)))
+
+
+@transaction.atomic
+def _record_recurring_payment(
+    account_sub: AccountSubscription,
+    *,
+    attrs: dict,
+    invoice_id: str,
+    next_billing_date=None,
+) -> SubscriptionPayment | None:
+    if invoice_id:
+        existing = SubscriptionPayment.objects.filter(
+            paymongo_invoice_id=invoice_id,
+        ).first()
+        if existing is not None:
+            issue_subscription_payment_receipt(existing.pk)
+            return existing
+
+    amount = _amount_php_from_paymongo_attributes(attrs, 'amount')
+    if amount is None:
+        amount = account_sub.total_price
+
+    today = timezone.localdate()
+    period_start = account_sub.end_date or today
+    period_end = next_billing_date
+    if period_end is None and account_sub.subscription.plan != 'free':
+        from .lifecycle import prepaid_period_end
+
+        period_end = prepaid_period_end(account_sub.subscription, period_start)
+
+    plan_name = account_sub.subscription.name
+    payment = SubscriptionPayment.objects.create(
+        account_id=account_sub.account_id,
+        account_subscription=account_sub,
+        amount=amount,
+        paid_at=timezone.now(),
+        paymongo_invoice_id=invoice_id or '',
+        period_start=period_start,
+        period_end=period_end,
+        description=f'{plan_name} subscription renewal',
     )
+    extend_prepaid_period(account_sub, paid_through=period_end)
+    issue_subscription_payment_receipt(payment.pk)
+    return payment
 
 
 @transaction.atomic
@@ -120,7 +175,9 @@ def _mark_subscription_unpaid(account_sub: AccountSubscription) -> None:
 
 
 def handle_paymongo_subscription_webhook_event(event: dict) -> bool:
-    event_type, attrs, paymongo_sub_id = _subscription_resource_from_event(event)
+    event_type, attrs, paymongo_sub_id, resource_id = _subscription_resource_from_event(
+        event,
+    )
     if not event_type.startswith(_SUBSCRIPTION_EVENT_PREFIX):
         return False
 
@@ -136,7 +193,15 @@ def handle_paymongo_subscription_webhook_event(event: dict) -> bool:
         return True
 
     if event_type == 'subscription.invoice.paid':
+        if not invoice_indicates_successful_payment(attrs, event_type=event_type):
+            return False
         _activate_account_subscription(account_sub, next_billing_date=next_billing)
+        _record_recurring_payment(
+            account_sub,
+            attrs=attrs,
+            invoice_id=resource_id,
+            next_billing_date=next_billing,
+        )
         return True
 
     if event_type in {'subscription.past_due'} or status == 'past_due':
@@ -154,9 +219,15 @@ def handle_paymongo_subscription_webhook_event(event: dict) -> bool:
         _cancel_account_subscription(account_sub)
         return True
 
-    if event_type == 'subscription.invoice.payment_failed':
+    if invoice_indicates_failed_payment(event_type):
         if account_sub.status == AccountSubscription.Status.ACTIVE:
             _mark_subscription_past_due(account_sub)
+        failed_amount = _amount_php_from_paymongo_attributes(attrs, 'amount')
+        notify_subscription_payment_failed(
+            account_sub,
+            invoice_id=resource_id,
+            amount=failed_amount,
+        )
         return True
 
     return False

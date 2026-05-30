@@ -41,10 +41,10 @@ accounts table
   contact_email as Email Address from form
   mobile_number as Mobile Number from form
 
-account_subscriptions table
+account_subscriptions table (one row per account)
   uuid as generated new uuid
   start_date as today's date
-  end_date as today's date + 1 month
+  end_date as null (Free is lifetime; paid plans set prepaid end on subscribe)
   base_price as 0
   total_per_users as 0
   total_price as 0
@@ -52,8 +52,8 @@ account_subscriptions table
   created_at as today's date
   updated_at as today's date
   account_id as newly created account id
-  subscription_id as 1
-  status as 'pending'
+  subscription as free monthly plan
+  status as 'active'
   team_seats as 1
 
 companies table 

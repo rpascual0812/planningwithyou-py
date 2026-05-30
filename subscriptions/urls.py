@@ -3,8 +3,11 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     AccountSubscriptionCurrentView,
+    SubscribeFreePlanView,
     SubscriptionCheckoutPreviewView,
     SubscriptionCheckoutView,
+    SubscriptionReceiptDownloadView,
+    SubscriptionReceiptListView,
     SubscriptionViewSet,
 )
 
@@ -26,6 +29,21 @@ urlpatterns = [
         'subscriptions/checkout/',
         SubscriptionCheckoutView.as_view(),
         name='subscription-checkout',
+    ),
+    path(
+        'subscriptions/subscribe-free/',
+        SubscribeFreePlanView.as_view(),
+        name='subscription-subscribe-free',
+    ),
+    path(
+        'subscriptions/receipts/',
+        SubscriptionReceiptListView.as_view(),
+        name='subscription-receipt-list',
+    ),
+    path(
+        'subscriptions/receipts/<int:receipt_id>/download/',
+        SubscriptionReceiptDownloadView.as_view(),
+        name='subscription-receipt-download',
     ),
     path('', include(router.urls)),
 ]

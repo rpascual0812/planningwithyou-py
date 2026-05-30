@@ -20,17 +20,15 @@ from .payment_links import PaymentLinkError, create_booking_payment_link, serial
 from .payment_summary import booking_payment_summary
 from .paymongo_webhook import (
     company_id_from_webhook_body,
-    handle_paymongo_webhook_event,
-    normalize_paymongo_webhook_body,
     parse_webhook_body,
     verify_paymongo_signature,
 )
-from payments.webhook_logging import PAYMONGO_WEBHOOK_SOURCE, log_webhook
-from subscriptions.paymongo_checkout_webhook import (
-    handle_subscription_checkout_webhook_body,
+from payments.webhook_logging import (
+    PAYMONGO_WEBHOOK_SOURCE,
+    finalize_webhook_log,
+    log_webhook,
 )
-from payments.paymongo_merchant_webhook import handle_paymongo_merchant_webhook_event
-from subscriptions.paymongo_webhook import handle_paymongo_subscription_webhook_event
+from payments.webhook_processing import process_paymongo_webhook_body
 from .scope import assert_booking_editable, bookings_for_user
 
 logger = logging.getLogger(__name__)
@@ -123,9 +121,14 @@ class PayMongoWebhookView(APIView):
 
     def post(self, request):
         raw = request.body
-        log_webhook(PAYMONGO_WEBHOOK_SOURCE, raw)
+        webhook_log = log_webhook(PAYMONGO_WEBHOOK_SOURCE, raw)
 
         if not raw:
+            finalize_webhook_log(
+                webhook_log,
+                handled=False,
+                error_message='Empty body',
+            )
             logger.warning('PayMongo webhook rejected: empty request body')
             return Response({'detail': 'Empty body.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -135,9 +138,19 @@ class PayMongoWebhookView(APIView):
         try:
             body = parse_webhook_body(raw)
         except ValueError:
+            finalize_webhook_log(
+                webhook_log,
+                handled=False,
+                error_message='Invalid JSON',
+            )
             logger.warning('PayMongo webhook rejected: invalid JSON body')
             return Response({'detail': 'Invalid JSON.'}, status=status.HTTP_400_BAD_REQUEST)
         if not isinstance(body, dict):
+            finalize_webhook_log(
+                webhook_log,
+                handled=False,
+                error_message='Invalid JSON envelope',
+            )
             logger.warning('PayMongo webhook rejected: JSON root must be an object')
             return Response(
                 {'detail': 'Invalid JSON envelope.'},
@@ -145,15 +158,27 @@ class PayMongoWebhookView(APIView):
             )
         company_id = company_id_from_webhook_body(body)
         if not verify_paymongo_signature(raw, signature, company_id=company_id):
+            finalize_webhook_log(
+                webhook_log,
+                handled=False,
+                error_message='Invalid signature',
+            )
             return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        handled = handle_subscription_checkout_webhook_body(body)
-        for event in normalize_paymongo_webhook_body(body):
-            if handle_paymongo_merchant_webhook_event(event):
-                handled = True
-            elif handle_paymongo_webhook_event(event):
-                handled = True
-            elif handle_paymongo_subscription_webhook_event(event):
-                handled = True
+        handled = False
+        try:
+            handled = process_paymongo_webhook_body(body)
+            finalize_webhook_log(webhook_log, handled=handled)
+        except Exception as exc:
+            logger.exception('PayMongo webhook processing failed (log_id=%s)', webhook_log.pk)
+            finalize_webhook_log(
+                webhook_log,
+                handled=False,
+                error_message=str(exc),
+            )
 
-        return Response({'received': True, 'handled': handled})
+        return Response({
+            'received': True,
+            'handled': handled,
+            'webhook_log_id': webhook_log.pk,
+        })

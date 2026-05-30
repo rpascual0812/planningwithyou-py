@@ -8,6 +8,7 @@ from decimal import Decimal
 from .models import Subscription
 
 MONTHS_BILLED_YEARLY = 10
+FREE_MAX_TEAM_SEATS = 1
 
 
 @dataclass(frozen=True)

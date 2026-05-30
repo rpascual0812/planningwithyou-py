@@ -34,6 +34,9 @@ class PayMongoWebhookViewLogTests(TestCase):
         self.assertEqual(log.source, 'paymongo')
         self.assertEqual(log.payload, payload)
         self.assertIsNotNone(log.created_at)
+        self.assertIsNotNone(log.processed_at)
+        self.assertFalse(log.handled)
+        self.assertEqual(log.error_message, 'Invalid signature')
         self.assertEqual(response.status_code, 400)
 
     def test_logs_non_json_body(self):

@@ -40,8 +40,12 @@ from .proration import (
 )
 
 
-class SubscriptionCheckoutError(Exception):
-    pass
+from .errors import SubscriptionCheckoutError
+from .lifecycle import (
+    get_account_subscription,
+    is_downgrade,
+    validate_team_seats,
+)
 
 
 @dataclass(frozen=True)
@@ -70,7 +74,7 @@ def _validate_checkout_inputs(subscription: Subscription, team_seats: int) -> in
         raise SubscriptionCheckoutError('This plan cannot be purchased.')
     if subscription.billing_cycle not in Subscription.BillingCycle.values:
         raise SubscriptionCheckoutError('Invalid billing cycle.')
-    return max(1, team_seats)
+    return validate_team_seats(subscription, team_seats)
 
 
 def resolve_checkout_quote(
@@ -121,6 +125,15 @@ def resolve_checkout_quote(
 
     if active and (active.reference_id or '').strip():
         next_date = billing_period_end(active)
+        if is_downgrade(active.subscription, subscription):
+            return CheckoutQuote(
+                checkout_kind='downgrade_scheduled',
+                amount_due_now=Decimal('0'),
+                is_one_time_payment=False,
+                next_billing_amount=pricing.total_price,
+                next_billing_date=next_date,
+                team_seats=pricing.team_seats,
+            )
         return CheckoutQuote(
             checkout_kind='plan_change_only',
             amount_due_now=Decimal('0'),
@@ -258,6 +271,25 @@ def _handle_plan_change(
     subscription: Subscription,
     team_seats: int,
 ) -> dict:
+    team_seats = validate_team_seats(subscription, team_seats)
+    if is_downgrade(account_sub.subscription, subscription):
+        account_sub.scheduled_subscription = subscription
+        account_sub.scheduled_team_seats = team_seats
+        account_sub.save(
+            update_fields=[
+                'scheduled_subscription',
+                'scheduled_team_seats',
+                'updated_at',
+            ],
+        )
+        return _checkout_response(
+            checkout_kind='downgrade_scheduled',
+            amount=0,
+            subscription=subscription,
+            team_seats=team_seats,
+            account_subscription_uuid=str(account_sub.uuid),
+            paymongo_subscription_id=account_sub.reference_id,
+        )
     apply_subscription_selection(account_sub, subscription, team_seats)
     update_account_subscription_recurring_plan(account_sub, subscription, team_seats)
     return _checkout_response(
@@ -373,17 +405,33 @@ def _start_full_subscription_checkout(
         raise SubscriptionCheckoutError('This plan does not require payment.')
 
     today = timezone.localdate()
-    account_sub = AccountSubscription.objects.create(
-        account=account,
-        subscription=subscription,
-        status=AccountSubscription.Status.PENDING,
-        team_seats=pricing.team_seats,
-        start_date=today,
-        base_price=pricing.base_price,
-        total_per_users=pricing.total_per_users,
-        total_price=pricing.total_price,
-        discount_code=(discount_code or '').strip(),
-    )
+    account_sub = get_account_subscription(account.pk)
+    if account_sub is None:
+        account_sub = AccountSubscription.objects.create(
+            account=account,
+            subscription=subscription,
+            status=AccountSubscription.Status.PENDING,
+            team_seats=pricing.team_seats,
+            start_date=today,
+            base_price=pricing.base_price,
+            total_per_users=pricing.total_per_users,
+            total_price=pricing.total_price,
+            discount_code=(discount_code or '').strip(),
+        )
+    else:
+        account_sub.subscription = subscription
+        account_sub.status = AccountSubscription.Status.PENDING
+        account_sub.team_seats = pricing.team_seats
+        account_sub.start_date = today
+        account_sub.end_date = None
+        account_sub.base_price = pricing.base_price
+        account_sub.total_per_users = pricing.total_per_users
+        account_sub.total_price = pricing.total_price
+        account_sub.discount_code = (discount_code or '').strip()
+        account_sub.scheduled_subscription = None
+        account_sub.scheduled_team_seats = None
+        account_sub.reference_id = ''
+        account_sub.save()
 
     customer_id = _ensure_paymongo_customer(account, user)
     users = plan_users(subscription, pricing.team_seats)

@@ -109,6 +109,21 @@ class WebhookLog(models.Model):
     payload = models.JSONField(
         help_text='Full webhook request body as received.',
     )
+    processed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When business logic finished processing this payload.',
+    )
+    handled = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text='Whether any handler applied this webhook to app state.',
+    )
+    error_message = models.TextField(
+        blank=True,
+        default='',
+        help_text='Validation or processing error, if any.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

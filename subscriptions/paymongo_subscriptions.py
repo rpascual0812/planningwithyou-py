@@ -124,6 +124,25 @@ def retrieve_subscription(subscription_id: str) -> dict:
     return _resource_data(response, 'subscription')
 
 
+def cancel_paymongo_subscription(subscription_id: str) -> dict:
+    """Cancel a PayMongo recurring subscription immediately."""
+    sub_id = (subscription_id or '').strip()
+    if not sub_id:
+        raise PayMongoError('Subscription id is required.')
+    response = _request(
+        'POST',
+        f'/subscriptions/{sub_id}/cancel',
+        {
+            'data': {
+                'attributes': {
+                    'cancellation_reason': 'switched_service',
+                },
+            },
+        },
+    )
+    return _resource_data(response, 'subscription')
+
+
 def change_subscription_plan(*, subscription_id: str, plan_id: str) -> dict:
     """Point an existing PayMongo subscription at a new plan (recurring amount)."""
     response = _request(

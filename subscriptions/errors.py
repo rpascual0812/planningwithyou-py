@@ -1,0 +1,2 @@
+class SubscriptionCheckoutError(Exception):
+    pass

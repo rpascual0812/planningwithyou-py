@@ -33,7 +33,6 @@ from .roles import ensure_owner_role
 User = get_user_model()
 
 PHILIPPINES_COUNTRY_ID = 173
-DEFAULT_SUBSCRIPTION_ID = 1
 
 BOOKING_STATUSES = [
     ('New', '#1f3a5f'),
@@ -283,11 +282,11 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
     AccountSubscription.objects.create(
         uuid=uuid.uuid4(),
         account=account,
-        subscription_id=DEFAULT_SUBSCRIPTION_ID,
+        subscription=free_subscription,
         status=AccountSubscription.Status.ACTIVE,
         team_seats=1,
         start_date=today,
-        end_date=_add_one_month(today),
+        end_date=None,
         base_price=Decimal('0'),
         total_per_users=Decimal('0'),
         total_price=Decimal('0'),

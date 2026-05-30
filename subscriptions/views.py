@@ -1,3 +1,5 @@
+from django.core.files.storage import default_storage
+from django.http import FileResponse, Http404
 from rest_framework import filters, status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -8,15 +10,15 @@ from planningwithyou.permissions import FeatureAccess, HasAccount
 from users.models import Account
 
 from .account_plan import current_account_subscription
-from .checkout import (
-    SubscriptionCheckoutError,
-    preview_subscription_checkout,
-    start_subscription_checkout,
-)
-from .models import AccountSubscription, Subscription
+from .checkout import preview_subscription_checkout, start_subscription_checkout
+from .errors import SubscriptionCheckoutError
+from .free_plan import subscribe_account_to_free_plan
+from .models import AccountSubscription, Subscription, SubscriptionReceipt
 from .serializers import (
     AccountSubscriptionSerializer,
+    SubscribeFreePlanSerializer,
     SubscriptionCheckoutSerializer,
+    SubscriptionReceiptSerializer,
     SubscriptionSerializer,
 )
 
@@ -141,3 +143,88 @@ class SubscriptionCheckoutView(APIView):
             )
 
         return Response(result, status=status.HTTP_201_CREATED)
+
+
+class SubscribeFreePlanView(APIView):
+    """Activate Free immediately, or schedule Free at end of prepaid period when on a paid plan."""
+
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'account_settings'
+
+    def post(self, request):
+        serializer = SubscribeFreePlanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        billing_cycle = serializer.validated_data.get(
+            'billing_cycle',
+            Subscription.BillingCycle.MONTHLY,
+        )
+
+        account = Account.objects.filter(pk=request.user.account_id).first()
+        if account is None:
+            return Response(
+                {'detail': 'Account not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            row = subscribe_account_to_free_plan(
+                account=account,
+                billing_cycle=billing_cycle,
+            )
+        except SubscriptionCheckoutError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            AccountSubscriptionSerializer(row).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class SubscriptionReceiptListView(APIView):
+    """List subscription payment receipts for Account Settings → Receipts."""
+
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'account_settings'
+
+    def get(self, request):
+        receipts = (
+            SubscriptionReceipt.objects.filter(account_id=request.user.account_id)
+            .select_related(
+                'payment',
+                'payment__account_subscription',
+                'payment__account_subscription__subscription',
+            )
+            .order_by('-created_at')
+        )
+        return Response(SubscriptionReceiptSerializer(receipts, many=True).data)
+
+
+class SubscriptionReceiptDownloadView(APIView):
+    """Download a subscription receipt PDF."""
+
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'account_settings'
+
+    def get(self, request, receipt_id: int):
+        receipt = (
+            SubscriptionReceipt.objects.filter(
+                pk=receipt_id,
+                account_id=request.user.account_id,
+            )
+            .first()
+        )
+        if receipt is None:
+            raise Http404
+        key = (receipt.storage_key or '').strip()
+        if key and default_storage.exists(key):
+            handle = default_storage.open(key, 'rb')
+            response = FileResponse(
+                handle,
+                content_type='application/pdf',
+                as_attachment=True,
+                filename=f'{receipt.receipt_number}.pdf',
+            )
+            return response
+        if receipt.receipt_url:
+            return Response({'receipt_url': receipt.receipt_url})
+        raise Http404

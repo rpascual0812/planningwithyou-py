@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+from django.utils import timezone
+
 from .models import WebhookLog
 
 PAYMONGO_WEBHOOK_SOURCE = 'paymongo'
@@ -18,7 +20,21 @@ def payload_from_raw_body(raw: bytes):
 
 
 def log_webhook(source: str, raw: bytes) -> WebhookLog:
+    """Store the raw PayMongo payload before signature checks or handlers run."""
     return WebhookLog.objects.create(
         source=source,
         payload=payload_from_raw_body(raw),
     )
+
+
+def finalize_webhook_log(
+    log: WebhookLog,
+    *,
+    handled: bool,
+    error_message: str = '',
+) -> WebhookLog:
+    log.processed_at = timezone.now()
+    log.handled = handled
+    log.error_message = (error_message or '')[:4000]
+    log.save(update_fields=['processed_at', 'handled', 'error_message'])
+    return log

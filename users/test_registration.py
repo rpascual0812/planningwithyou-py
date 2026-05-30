@@ -62,9 +62,10 @@ class RegisterApiTests(TestCase):
         self.assertEqual(account.contact_mobile_number, '+639171234567')
 
         sub = AccountSubscription.objects.get(account=account)
-        self.assertEqual(sub.subscription_id, 1)
-        self.assertEqual(sub.status, 'pending')
+        self.assertEqual(sub.subscription.plan, 'free')
+        self.assertEqual(sub.status, AccountSubscription.Status.ACTIVE)
         self.assertEqual(sub.team_seats, 1)
+        self.assertIsNone(sub.end_date)
         self.assertEqual(sub.base_price, 0)
         self.assertEqual(sub.total_price, 0)
 
