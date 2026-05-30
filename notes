@@ -212,6 +212,28 @@ Restart=always
 WantedBy=multi-user.target
 
 
+sudo vim /etc/systemd/system/django.service
+
+[Unit]
+Description=Django Gunicorn Service
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/api
+Environment="PATH=/var/www/api/venv/bin"
+
+ExecStart=/var/www/api/venv/bin/gunicorn \
+    planningwithyou.wsgi:application \
+    --bind 0.0.0.0:8000
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+
 sudo systemctl daemon-reload
 sudo systemctl start gunicorn
 sudo systemctl enable gunicorn
@@ -244,6 +266,7 @@ sudo systemctl restart nginx
 docker run -d \
   --name redis \
   --restart unless-stopped \
+  --memory=512m \
   -p 127.0.0.1:6379:6379 \
   -v redis-data:/data \
   redis:7-alpine \

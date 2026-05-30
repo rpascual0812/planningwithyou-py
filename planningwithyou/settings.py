@@ -279,6 +279,16 @@ EMAIL_VERIFICATION_TOKEN_LIFETIME_HOURS = int(
 # Celery
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+
+import ssl
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "ssl_cert_reqs": ssl.CERT_NONE
+}
+
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    "ssl_cert_reqs": ssl.CERT_NONE
+}
+
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
