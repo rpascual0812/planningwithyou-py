@@ -78,6 +78,33 @@ def send_email(email_log_id: int):
     log = EmailLog.objects.get(pk=email_log_id)
     log.attempts += 1
 
+    from .gmail_service import get_gmail_integration, send_email_via_gmail
+
+    gmail = get_gmail_integration(log.account_id, log.company_id)
+    if gmail and (gmail.refresh_token_encrypted or '').strip():
+        try:
+            send_email_via_gmail(log, gmail)
+            log.status = EmailLog.Status.SENT
+            log.error = ''
+            log.sent_at = timezone.now()
+            if (gmail.google_email or '').strip():
+                log.email_from = gmail.google_email.strip()
+            log.save(
+                update_fields=['status', 'error', 'sent_at', 'attempts', 'email_from'],
+            )
+            logger.info(
+                'Gmail send ok to=%s (log=%s, from=%s)',
+                log.to,
+                log.pk,
+                log.email_from,
+            )
+            return
+        except Exception as exc:
+            log.status = EmailLog.Status.FAILED
+            log.error = str(exc)
+            log.save(update_fields=['status', 'error', 'attempts'])
+            raise
+
     to_list = [{'Email': addr} for addr in log.to]
     cc_list = [{'Email': addr} for addr in log.cc] if log.cc else []
     bcc_list = [{'Email': addr} for addr in log.bcc] if log.bcc else []
@@ -159,17 +186,32 @@ def create_and_queue_email(
     company=None,
 ) -> EmailLog:
     """Create an EmailLog record and return it (caller dispatches the task)."""
+    from .gmail_service import resolve_sender_email
+
+    resolved_account = account if account is not None else Account.objects.get(pk=1)
+    company_id = None
+    if company is not None:
+        company_id = company.pk
+    elif created_by is not None:
+        company_id = getattr(created_by, 'company_id', None)
+
+    resolved_from = (email_from or '').strip()
+    if not resolved_from:
+        resolved_from = resolve_sender_email(resolved_account.pk, company_id)
+    if not resolved_from:
+        resolved_from = settings.MAILJET_SEND_FROM
+
     kwargs = dict(
         to=to,
         cc=cc or [],
         bcc=bcc or [],
-        email_from=email_from or settings.MAILJET_SEND_FROM,
+        email_from=resolved_from,
         reply_to=reply_to or '',
         subject=subject,
         body=body,
         attachments=attachments or [],
         status=EmailLog.Status.QUEUED,
-        account=account if account is not None else Account.objects.get(pk=1),
+        account=resolved_account,
     )
     if created_by is not None:
         kwargs['created_by'] = created_by

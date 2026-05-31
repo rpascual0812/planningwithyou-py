@@ -126,3 +126,46 @@ class EmailTemplate(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.template_type})'
+
+
+class GmailIntegration(models.Model):
+    """OAuth-connected Gmail used to send email for a company."""
+
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='gmail_integrations',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        db_column='company_id',
+        related_name='gmail_integrations',
+    )
+    google_email = models.EmailField(max_length=255, blank=True, default='')
+    access_token_encrypted = models.TextField(blank=True, default='')
+    refresh_token_encrypted = models.TextField(blank=True, default='')
+    token_expiry = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='gmail_integrations_created',
+        db_column='created_by',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'gmail_integrations'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account', 'company'],
+                name='gmail_integrations_one_per_company',
+            ),
+        ]
+
+    def __str__(self):
+        return f'Gmail {self.google_email or "—"} company={self.company_id}'

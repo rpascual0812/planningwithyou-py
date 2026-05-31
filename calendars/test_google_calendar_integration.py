@@ -55,8 +55,8 @@ class GoogleCalendarStatusPayloadTests(TestCase):
         self.assertFalse(data['two_way_sync'])
 
     @override_settings(
-        GOOGLE_OAUTH_CLIENT_ID='id',
-        GOOGLE_OAUTH_CLIENT_SECRET='secret',
+        GOOGLE_CALENDAR_OAUTH_CLIENT_ID='id',
+        GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET='secret',
     )
     def test_connected_payload(self):
         integration = GoogleCalendarIntegration(

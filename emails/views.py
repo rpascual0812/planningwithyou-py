@@ -26,6 +26,7 @@ from users.company_access import effective_company_id
 
 from .scope import email_logs_for_platform_admin, email_logs_for_user
 from .serializers import EmailLogSerializer, EmailTemplateSerializer
+from .gmail_service import resolve_sender_email
 from .tasks import send_email_task
 
 
@@ -110,7 +111,11 @@ class EmailLogViewSet(viewsets.ModelViewSet):
             account_id=self.request.user.account_id,
             company_id=self.request.user.company_id,
             created_by=self.request.user,
-            email_from=settings.MAILJET_SEND_FROM,
+            email_from=resolve_sender_email(
+                self.request.user.account_id,
+                self.request.user.company_id,
+            )
+            or settings.MAILJET_SEND_FROM,
         )
         send_email_task.delay(log.pk)
 
@@ -123,7 +128,11 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         serializer.save(
             status=EmailLog.Status.QUEUED,
             error='',
-            email_from=settings.MAILJET_SEND_FROM,
+            email_from=resolve_sender_email(
+                request.user.account_id,
+                request.user.company_id,
+            )
+            or settings.MAILJET_SEND_FROM,
         )
         send_email_task.delay(log.pk)
         return Response(

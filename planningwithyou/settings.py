@@ -275,8 +275,15 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 API_PUBLIC_BASE_URL = os.environ.get('API_PUBLIC_BASE_URL', 'http://localhost:8000')
 
 # Google Calendar OAuth (Calendar Settings → Calendar Integrations)
-GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
-GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
+GOOGLE_CALENDAR_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_CALENDAR_OAUTH_CLIENT_ID', '')
+GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET = os.environ.get(
+    'GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET',
+    '',
+)
+
+# Gmail OAuth (Email Settings → Email Integration) — separate Google Cloud OAuth client
+GOOGLE_EMAIL_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_EMAIL_OAUTH_CLIENT_ID', '')
+GOOGLE_EMAIL_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_EMAIL_OAUTH_CLIENT_SECRET', '')
 
 # PayMongo (platform account — public booking payment links)
 PAYMONGO_SECRET_KEY = os.environ.get('PAYMONGO_SECRET_KEY', '')

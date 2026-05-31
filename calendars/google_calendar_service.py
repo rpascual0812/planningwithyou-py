@@ -57,8 +57,8 @@ class GoogleCalendarOAuthError(Exception):
 
 def google_oauth_configured() -> bool:
     return bool(
-        (getattr(settings, 'GOOGLE_OAUTH_CLIENT_ID', '') or '').strip()
-        and (getattr(settings, 'GOOGLE_OAUTH_CLIENT_SECRET', '') or '').strip()
+        (getattr(settings, 'GOOGLE_CALENDAR_OAUTH_CLIENT_ID', '') or '').strip()
+        and (getattr(settings, 'GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET', '') or '').strip()
     )
 
 
@@ -83,8 +83,8 @@ def _oauth_flow() -> Flow:
     _require_config()
     client_config = {
         'web': {
-            'client_id': settings.GOOGLE_OAUTH_CLIENT_ID,
-            'client_secret': settings.GOOGLE_OAUTH_CLIENT_SECRET,
+            'client_id': settings.GOOGLE_CALENDAR_OAUTH_CLIENT_ID,
+            'client_secret': settings.GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET,
             'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
             'token_uri': 'https://oauth2.googleapis.com/token',
             'redirect_uris': [oauth_redirect_uri()],
@@ -161,6 +161,7 @@ def get_integration_for_user(user) -> GoogleCalendarIntegration | None:
 
 def integration_status_payload(integration: GoogleCalendarIntegration | None) -> dict:
     configured = google_oauth_configured()
+    redirect_uri = oauth_redirect_uri() if configured else None
     if integration is None or not (integration.refresh_token_encrypted or '').strip():
         return {
             'connected': False,
@@ -169,6 +170,7 @@ def integration_status_payload(integration: GoogleCalendarIntegration | None) ->
             'sync_mode': GoogleCalendarIntegration.SyncMode.ONE_WAY,
             'two_way_sync': False,
             'last_synced_at': None,
+            'oauth_redirect_uri': redirect_uri,
         }
     return {
         'connected': True,
@@ -179,6 +181,7 @@ def integration_status_payload(integration: GoogleCalendarIntegration | None) ->
         'last_synced_at': (
             integration.last_synced_at.isoformat() if integration.last_synced_at else None
         ),
+        'oauth_redirect_uri': redirect_uri,
     }
 
 
@@ -227,8 +230,8 @@ def _credentials_from_integration(
         token=access or None,
         refresh_token=refresh,
         token_uri='https://oauth2.googleapis.com/token',
-        client_id=settings.GOOGLE_OAUTH_CLIENT_ID,
-        client_secret=settings.GOOGLE_OAUTH_CLIENT_SECRET,
+        client_id=settings.GOOGLE_CALENDAR_OAUTH_CLIENT_ID,
+        client_secret=settings.GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET,
         scopes=SCOPES,
     )
     creds.expiry = _expiry_for_google_auth(integration.token_expiry)
