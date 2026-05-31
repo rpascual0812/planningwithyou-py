@@ -24,7 +24,8 @@ from config.views import (
 )
 from documents.models import DocumentFolder
 from emails.models import EmailTemplate
-from subscriptions.models import AccountSubscription, Subscription
+from subscriptions.lifecycle import get_subscription_catalog
+from subscriptions.models import AccountSubscription
 from suppliers.models import SupplierType, Tier
 
 from .models import Account
@@ -261,7 +262,8 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
     if supplier_type is None:
         raise ValueError('Invalid company type.')
 
-    if not Subscription.objects.filter(pk=DEFAULT_SUBSCRIPTION_ID).exists():
+    free_subscription = get_subscription_catalog(plan='free', billing_cycle='monthly')
+    if free_subscription is None:
         raise ValueError('Default subscription is not configured.')
 
     if User.objects.filter(email__iexact=data.email).exists():
