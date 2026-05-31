@@ -28,6 +28,7 @@ from payments.webhook_logging import (
     finalize_webhook_log,
     log_webhook,
 )
+from config.error_logging import log_request_error
 from payments.webhook_processing import process_paymongo_webhook_body
 from .scope import assert_booking_editable, bookings_for_user
 
@@ -171,6 +172,7 @@ class PayMongoWebhookView(APIView):
             finalize_webhook_log(webhook_log, handled=handled)
         except Exception as exc:
             logger.exception('PayMongo webhook processing failed (log_id=%s)', webhook_log.pk)
+            log_request_error(request, exception=exc, status_code=500)
             finalize_webhook_log(
                 webhook_log,
                 handled=False,
