@@ -267,6 +267,34 @@ class RoleApiTests(TestCase):
         response = self.client.get('/admin/kyb-verifications/')
         self.assertEqual(response.status_code, 403)
 
+    def test_platform_admin_read_alone_cannot_list_accounts(self):
+        reader = Role.objects.create(account=self.account, name='AdminShell')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='platform_admin',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        response = self.client.get('/admin/accounts/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_accounts_read_can_list_accounts(self):
+        reader = Role.objects.create(account=self.account, name='AccountsReader')
+        RolePermission.objects.create(
+            role=reader,
+            feature_key='admin_accounts',
+            access='read',
+        )
+        self.user.role = reader
+        self.user.save(update_fields=['role_id'])
+
+        response = self.client.get('/admin/accounts/')
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(any(row['id'] == self.account.id for row in payload))
+
     def test_admin_kyb_read_can_list_kyb(self):
         from companies.models import CompanyKybVerification
 

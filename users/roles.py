@@ -28,6 +28,7 @@ TENANT_FEATURE_KEYS = (
 # Cross-tenant staff tools (shown in role editor only to users with Admin read).
 ADMIN_FEATURE_KEYS = (
     'platform_admin',
+    'admin_accounts',
     'admin_company_verification',
     'admin_emails',
     'admin_payouts',

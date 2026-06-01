@@ -33,6 +33,7 @@ FEATURE_LABELS = {
     'calendar_settings': 'Settings > Calendar Settings',
     'change_company': 'Change Company',
     'platform_admin': 'Admin',
+    'admin_accounts': 'Admin > Accounts',
     'admin_company_verification': 'Admin > Company Verification',
     'admin_emails': 'Admin > Emails',
     'admin_payouts': 'Admin > Payouts',

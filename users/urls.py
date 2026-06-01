@@ -5,6 +5,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 
+from .admin_account_views import AdminAccountViewSet
 from .views import (
     AccountViewSet,
     EmailTokenObtainPairView,
@@ -17,6 +18,7 @@ from .views import (
 
 router = DefaultRouter()
 router.register('accounts', AccountViewSet, basename='account')
+router.register('admin/accounts', AdminAccountViewSet, basename='admin-account')
 router.register('roles', RoleViewSet, basename='role')
 router.register('users', UserViewSet, basename='user')
 

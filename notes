@@ -339,7 +339,7 @@ sudo systemctl status celery-beat
 # view logs
 # worker
 sudo journalctl -u celery -f
-# beat
+# beatsudo systemctl start celery
 sudo journalctl -u celery-beat -f
 
 
