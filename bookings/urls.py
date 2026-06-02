@@ -9,16 +9,18 @@ from .payment_link_views import (
 )
 from .payout_admin_views import BookingPaymentPayoutAdminViewSet
 from .payout_report_views import BookingPaymentPayoutReportViewSet
-from .dashboard_views import DashboardSummaryView
+from .dashboard_views import DashboardProfitProgressView, DashboardSummaryView
 from .views import (
     BookingItemViewSet,
     BookingStatusViewSet,
     FormTemplateViewSet,
     SupplierBookingCapacityView,
+    TagViewSet,
 )
 
 router = DefaultRouter()
 router.register('booking-statuses', BookingStatusViewSet, basename='booking-status')
+router.register('tags', TagViewSet, basename='tag')
 router.register('booking-items', BookingItemViewSet, basename='booking-item')
 router.register('form-templates', FormTemplateViewSet, basename='form-template')
 router.register(
@@ -37,6 +39,11 @@ urlpatterns = [
         'dashboard/summary/',
         DashboardSummaryView.as_view(),
         name='dashboard-summary',
+    ),
+    path(
+        'dashboard/profit-progress/',
+        DashboardProfitProgressView.as_view(),
+        name='dashboard-profit-progress',
     ),
     path(
         'supplier-booking-capacity/',

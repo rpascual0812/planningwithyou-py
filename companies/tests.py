@@ -265,6 +265,16 @@ class CompanyCreateDefaultsApiTests(TestCase):
             ).exists(),
         )
 
+        from bookings.models import Tag
+
+        self.assertTrue(
+            Tag.objects.filter(
+                account=self.account,
+                company_id=company_id,
+                tag__iexact='completed',
+            ).exists(),
+        )
+
     def test_company_detail_includes_contact_email_from_first_user(self):
         from companies.models import Company
 

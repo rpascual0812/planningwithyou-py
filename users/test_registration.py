@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from bookings.models import BookingStatus
+from bookings.models import BookingStatus, Tag
 from calendars.models import CalendarStatus
 from companies.models import Company
 from config.models import Config
@@ -135,6 +135,13 @@ class RegisterApiTests(TestCase):
             template_names,
             {'welcome', 'verify_email', 'password_reset', 'payment_link'},
         )
+
+        completed_tag = Tag.objects.get(
+            account=account,
+            company=company,
+            tag__iexact='completed',
+        )
+        self.assertEqual(completed_tag.tag, 'completed')
 
         folder = DocumentFolder.objects.get(account=account, company=company)
         self.assertEqual(folder.name, 'General')

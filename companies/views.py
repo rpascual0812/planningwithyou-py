@@ -141,7 +141,11 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
             if default_type is not None:
                 extra['supplier_type'] = default_type
         company = serializer.save(**extra)
-        seed_company_defaults(company.account, company)
+        seed_company_defaults(
+            company.account,
+            company,
+            created_by=self.request.user,
+        )
         record_resource_create(
             account_id=company.account_id,
             resource_type='company',

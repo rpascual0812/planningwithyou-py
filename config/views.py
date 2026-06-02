@@ -15,6 +15,9 @@ BOOKINGS_GROUP_NAME_SCOPE = 'account'
 BOOKINGS_GROUP_NAME_NAME = 'bookings_group_name'
 BOOKINGS_GROUP_NAME_MAX_LENGTH = 255
 
+PROFIT_PROGRESS_SCOPE = 'profit_progress'
+PROFIT_PROGRESS_TAG_NAME = 'tag'
+
 
 class BookingViewConfigView(APIView):
     feature_key = 'booking_settings_statuses'
@@ -94,5 +97,51 @@ class BookingsGroupNameConfigView(APIView):
         return Response({
             'scope': BOOKINGS_GROUP_NAME_SCOPE,
             'name': BOOKINGS_GROUP_NAME_NAME,
+            'value': value,
+        })
+
+
+class ProfitProgressTagConfigView(APIView):
+    """Dashboard profit-progress card: selected tag id (bookings via status tags)."""
+
+    feature_key = 'dashboard'
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+
+    def get(self, request):
+        row = Config.objects.filter(
+            account_id=request.user.account_id,
+            scope=PROFIT_PROGRESS_SCOPE,
+            name=PROFIT_PROGRESS_TAG_NAME,
+        ).first()
+        value = row.value if row else ''
+        return Response({
+            'scope': PROFIT_PROGRESS_SCOPE,
+            'name': PROFIT_PROGRESS_TAG_NAME,
+            'value': value,
+        })
+
+    def put(self, request):
+        raw = request.data.get('value')
+        value = '' if raw is None else str(raw).strip()
+        if value:
+            from bookings.models import Tag
+
+            if not Tag.objects.filter(
+                pk=value,
+                account_id=request.user.account_id,
+            ).exists():
+                return Response(
+                    {'detail': 'Invalid tag.'},
+                    status=400,
+                )
+        Config.objects.update_or_create(
+            account_id=request.user.account_id,
+            scope=PROFIT_PROGRESS_SCOPE,
+            name=PROFIT_PROGRESS_TAG_NAME,
+            defaults={'value': value},
+        )
+        return Response({
+            'scope': PROFIT_PROGRESS_SCOPE,
+            'name': PROFIT_PROGRESS_TAG_NAME,
             'value': value,
         })

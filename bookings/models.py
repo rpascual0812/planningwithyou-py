@@ -2,6 +2,58 @@ from django.conf import settings
 from django.db import models
 
 
+class TagQuerySet(models.QuerySet):
+    def alive(self):
+        return self.filter(deleted_at__isnull=True)
+
+
+class TagManager(models.Manager.from_queryset(TagQuerySet)):
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
+class TagAllManager(models.Manager.from_queryset(TagQuerySet)):
+    pass
+
+
+class Tag(models.Model):
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='tags',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_column='company_id',
+        related_name='tags',
+    )
+    tag = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tags_created',
+        db_column='created_by',
+    )
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = TagManager()
+    all_objects = TagAllManager()
+
+    class Meta:
+        db_table = 'tags'
+        ordering = ['tag', 'id']
+
+    def __str__(self):
+        return self.tag
+
+
 class BookingStatus(models.Model):
     account = models.ForeignKey(
         'users.Account',
@@ -13,6 +65,7 @@ class BookingStatus(models.Model):
     description = models.TextField(blank=True, default='')
     color = models.CharField(max_length=20, default='#1f3a5f')
     sort_order = models.PositiveIntegerField(default=0)
+    tags = models.ManyToManyField(Tag, related_name='booking_statuses', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

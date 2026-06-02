@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
-from bookings.models import BookingStatus
+from bookings.models import BookingStatus, Tag
 from calendars.models import CalendarStatus
 from companies.models import Company
 from config.models import Config
@@ -54,6 +54,7 @@ CALENDAR_STATUSES = [
 ]
 
 DEFAULT_TIERS = ('Bronze', 'Silver', 'Gold')
+DEFAULT_COMPANY_TAGS = ('completed',)
 
 EMAIL_TEMPLATES = [
     {
@@ -203,8 +204,26 @@ EMAIL_TEMPLATES = [
 ]
 
 
-def seed_company_defaults(account: Account, company: Company) -> None:
+def seed_company_defaults(
+    account: Account,
+    company: Company,
+    *,
+    created_by=None,
+) -> None:
     """Seed per-company defaults used by registration and manual company create."""
+    for tag_name in DEFAULT_COMPANY_TAGS:
+        if not Tag.objects.filter(
+            account=account,
+            company=company,
+            tag__iexact=tag_name,
+        ).exists():
+            Tag.objects.create(
+                account=account,
+                company=company,
+                tag=tag_name,
+                created_by=created_by,
+            )
+
     for tier_name in DEFAULT_TIERS:
         Tier.objects.get_or_create(
             account=account,

@@ -32,7 +32,7 @@ from .history import (
     record_booking_field_updates,
     record_group_delete,
 )
-from .models import BookingGroup, BookingItem, BookingStatus, FormTemplate
+from .models import BookingGroup, BookingItem, BookingStatus, FormTemplate, Tag
 from .supplier_capacity import supplier_booking_capacity_status
 from users.company_access import effective_company_id
 
@@ -47,8 +47,30 @@ from .serializers import (
     BookingItemBoardSerializer,
     BookingItemSerializer,
     BookingStatusSerializer,
+    TagSerializer,
+    TagWriteSerializer,
     FormTemplateSerializer,
 )
+
+
+class TagViewSet(viewsets.ModelViewSet):
+    """List and create tags for booking status labels."""
+
+    feature_key = 'booking_settings_statuses'
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        qs = Tag.objects.filter(account_id=self.request.user.account_id)
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(tag__icontains=search)
+        return qs.order_by('tag', 'id')
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return TagWriteSerializer
+        return TagSerializer
 
 
 class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
@@ -58,7 +80,10 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
     serializer_class = BookingStatusSerializer
 
     def get_queryset(self):
-        return BookingStatus.objects.filter(account_id=self.request.user.account_id)
+        return (
+            BookingStatus.objects.filter(account_id=self.request.user.account_id)
+            .prefetch_related('tags')
+        )
 
     def perform_create(self, serializer):
         aid = self.request.user.account_id

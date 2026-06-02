@@ -25,6 +25,7 @@ from .models import (
     BookingItem,
     BookingLine,
     BookingStatus,
+    Tag,
     FormTemplate,
     FormTemplateField,
     FormTemplateFieldOption,
@@ -391,19 +392,89 @@ class BookingItemSerializer(serializers.ModelSerializer):
         return instance
 
 
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['id', 'tag', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class TagWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['tag']
+
+    def validate_tag(self, value):
+        text = value.strip()
+        if not text:
+            raise serializers.ValidationError('Tag cannot be empty.')
+        return text
+
+    def create(self, validated_data):
+        request = self.context['request']
+        account_id = request.user.account_id
+        tag_text = validated_data['tag']
+        existing = (
+            Tag.objects.filter(account_id=account_id, tag__iexact=tag_text)
+            .order_by('id')
+            .first()
+        )
+        if existing:
+            return existing
+        company_id = getattr(request.user, 'company_id', None)
+        return Tag.objects.create(
+            account_id=account_id,
+            company_id=company_id,
+            tag=tag_text,
+            created_by=request.user,
+        )
+
+
 class BookingStatusSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(),
+        many=True,
+        required=False,
+        write_only=True,
+    )
 
     class Meta:
         model = BookingStatus
         fields = [
             'id', 'title', 'description', 'color',
-            'sort_order', 'item_count', 'created_at', 'updated_at',
+            'sort_order', 'item_count', 'tags', 'tag_ids',
+            'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            self.fields['tag_ids'].queryset = Tag.objects.filter(
+                account_id=request.user.account_id,
+            )
+
     def get_item_count(self, obj):
         return obj.items.count()
+
+    def _set_tags(self, instance, tag_ids):
+        if tag_ids is not None:
+            instance.tags.set(tag_ids)
+
+    def create(self, validated_data):
+        tag_ids = validated_data.pop('tag_ids', None)
+        instance = super().create(validated_data)
+        self._set_tags(instance, tag_ids)
+        return instance
+
+    def update(self, instance, validated_data):
+        tag_ids = validated_data.pop('tag_ids', None)
+        instance = super().update(instance, validated_data)
+        self._set_tags(instance, tag_ids)
+        return instance
 
 
 class FormTemplateFieldOptionSerializer(serializers.ModelSerializer):

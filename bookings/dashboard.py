@@ -11,7 +11,7 @@ from django.utils import timezone
 from calendars.models import Calendar
 from companies.models import Company
 
-from .models import BookingItem, BookingPayment, BookingStatus
+from .models import BookingItem, BookingPayment, BookingStatus, Tag
 from .payment_breakdown import (
     TWOPLACES,
     _booking_credit_amount_field,
@@ -180,6 +180,81 @@ def _calendar_summary(company_id: int, account_id: int, *, now, week_end) -> dic
     return {
         'events_this_week': base.filter(start__gte=now, start__lt=week_end).count(),
         'upcoming_count': base.filter(start__gte=now).count(),
+    }
+
+
+def _resolve_profit_progress_tag_id(account_id: int, configured_value: str) -> int | None:
+    if configured_value:
+        try:
+            tag_id = int(configured_value)
+        except (TypeError, ValueError):
+            tag_id = None
+        if tag_id is not None and Tag.objects.filter(
+            pk=tag_id,
+            account_id=account_id,
+        ).exists():
+            return tag_id
+    completed = (
+        Tag.objects.filter(account_id=account_id, tag__iexact='completed')
+        .order_by('id')
+        .values_list('pk', flat=True)
+        .first()
+    )
+    if completed is not None:
+        return completed
+    return (
+        Tag.objects.filter(account_id=account_id)
+        .order_by('tag', 'id')
+        .values_list('pk', flat=True)
+        .first()
+    )
+
+
+def profit_progress_total_for_tag(account_id: int, tag_id: int | None) -> Decimal:
+    if tag_id is None:
+        return Decimal('0')
+    status_ids = BookingStatus.objects.filter(
+        account_id=account_id,
+        tags__id=tag_id,
+    ).values_list('pk', flat=True)
+    if not status_ids:
+        return Decimal('0')
+    total = BookingItem.objects.filter(
+        account_id=account_id,
+        status_id__in=status_ids,
+    ).aggregate(sum_total=Sum('total_amount'))['sum_total']
+    return total or Decimal('0')
+
+
+def format_profit_progress_display(total: Decimal) -> str:
+    amount = total if total is not None else Decimal('0')
+    if amount < 0:
+        amount = Decimal('0')
+    if amount >= Decimal('1000000'):
+        scaled = amount / Decimal('1000000')
+        return f'{scaled.quantize(Decimal("0.1"))}M+'
+    if amount >= Decimal('1000'):
+        scaled = amount / Decimal('1000')
+        return f'{scaled.quantize(Decimal("0.1"))}K+'
+    return f'{amount.quantize(TWOPLACES)}+'
+
+
+def build_profit_progress_for_account(account_id: int, configured_tag_value: str) -> dict:
+    tag_id = _resolve_profit_progress_tag_id(account_id, configured_tag_value)
+    tag_name = ''
+    if tag_id is not None:
+        tag_name = (
+            Tag.objects.filter(pk=tag_id, account_id=account_id)
+            .values_list('tag', flat=True)
+            .first()
+            or ''
+        )
+    total = profit_progress_total_for_tag(account_id, tag_id)
+    return {
+        'tag_id': tag_id,
+        'tag_name': tag_name,
+        'total_amount': _decimal_str(total),
+        'display_value': format_profit_progress_display(total),
     }
 
 
