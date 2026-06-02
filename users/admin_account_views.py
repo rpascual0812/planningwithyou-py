@@ -1,8 +1,10 @@
 from django.db.models import Count, Q
+from django.db.models import Prefetch
 from rest_framework import mixins, viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 
+from companies.models import Company
 from planningwithyou.permissions import FeatureAccess
 
 from .admin_account_serializers import AdminAccountListSerializer
@@ -23,6 +25,27 @@ class AdminAccountViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     def get_queryset(self):
         qs = (
             Account.objects.select_related('country')
+            .prefetch_related(
+                Prefetch(
+                    'companies',
+                    queryset=Company.objects.only(
+                        'id',
+                        'account_id',
+                        'name',
+                        'is_main',
+                        'contact_person',
+                        'contact_email',
+                        'kyb_verified',
+                        'max_bookings_per_day',
+                    ).annotate(
+                        user_count=Count(
+                            'users',
+                            filter=Q(users__deleted_at__isnull=True),
+                            distinct=True,
+                        ),
+                    ).order_by('sort_order', 'name'),
+                ),
+            )
             .annotate(
                 company_count=Count(
                     'companies',
