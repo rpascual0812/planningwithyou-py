@@ -1,6 +1,8 @@
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -117,11 +119,45 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
         return Response({'status': 'ok'})
 
 
+def _booking_list_all_requested(request) -> bool:
+    return request.query_params.get('all', '').strip().lower() in (
+        '1',
+        'true',
+        'yes',
+    )
+
+
+def filter_booking_items_list(queryset, request):
+    search = request.query_params.get('search', '').strip()
+    if not search:
+        return queryset
+    return queryset.filter(
+        Q(title__icontains=search)
+        | Q(notes__icontains=search)
+        | Q(unique_id__icontains=search)
+        | Q(status__title__icontains=search),
+    )
+
+
+class BookingItemPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
     history_resource_type = 'booking'
     feature_key = 'bookings'
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
     serializer_class = BookingItemSerializer
+    pagination_class = BookingItemPagination
+
+    def list(self, request, *args, **kwargs):
+        if _booking_list_all_requested(request):
+            queryset = self.filter_queryset(self.get_queryset())
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+        return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
         qs = bookings_for_user(self.request.user).select_related(
@@ -135,6 +171,8 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
         status_id = self.request.query_params.get('status')
         if status_id:
             qs = qs.filter(status_id=status_id)
+        if self.action == 'list' and not _booking_list_all_requested(self.request):
+            qs = filter_booking_items_list(qs, self.request)
         return qs
 
     def update(self, request, *args, **kwargs):
