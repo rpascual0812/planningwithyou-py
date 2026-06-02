@@ -35,6 +35,7 @@ from .downpayment import (
     validate_field_value_downpayment,
 )
 from .payment_breakdown import (
+    TWOPLACES,
     booking_payment_fee_totals,
     booking_payments_paid_base_total,
     booking_remaining_balance,
@@ -116,6 +117,60 @@ class BookingLineSerializer(serializers.ModelSerializer):
             else:
                 data['package_required_downpayment_amount'] = '0'
         return data
+
+
+class BookingItemBoardSerializer(serializers.ModelSerializer):
+    """Slim booking payload for kanban board / cards lazy loading."""
+
+    paid_amount = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+    status_title = serializers.CharField(source='status.title', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
+
+    class Meta:
+        model = BookingItem
+        fields = [
+            'id',
+            'unique_id',
+            'company',
+            'company_name',
+            'status',
+            'status_title',
+            'title',
+            'date_of_event',
+            'total_amount',
+            'notes',
+            'sort_order',
+            'can_edit',
+            'paid_amount',
+            'remaining_amount',
+        ]
+        read_only_fields = fields
+
+    def get_can_edit(self, obj: BookingItem) -> bool:
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+            return False
+        return booking_user_can_edit(obj, request.user)
+
+    def get_paid_amount(self, obj: BookingItem) -> str:
+        annotated = getattr(obj, '_paid_amount', None)
+        if annotated is not None:
+            return str(Decimal(annotated).quantize(TWOPLACES))
+        return str(booking_payments_paid_base_total(obj.pk))
+
+    def get_remaining_amount(self, obj: BookingItem) -> str:
+        total = obj.total_amount or Decimal('0')
+        annotated = getattr(obj, '_paid_amount', None)
+        if annotated is not None:
+            paid = Decimal(annotated)
+        else:
+            paid = booking_payments_paid_base_total(obj.pk)
+        remaining = total - paid
+        if remaining < Decimal('0'):
+            remaining = Decimal('0')
+        return str(remaining.quantize(TWOPLACES))
 
 
 class BookingItemSerializer(serializers.ModelSerializer):

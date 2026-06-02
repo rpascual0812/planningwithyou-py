@@ -36,8 +36,15 @@ from .models import BookingGroup, BookingItem, BookingStatus, FormTemplate
 from .supplier_capacity import supplier_booking_capacity_status
 from users.company_access import effective_company_id
 
+from .board_list import (
+    annotate_booking_board_payments,
+    booking_list_board_view_requested,
+    filter_booking_items_board_column,
+    filter_booking_items_board_foreign_slot,
+)
 from .scope import assert_booking_editable, bookings_for_user
 from .serializers import (
+    BookingItemBoardSerializer,
     BookingItemSerializer,
     BookingStatusSerializer,
     FormTemplateSerializer,
@@ -152,6 +159,11 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
     serializer_class = BookingItemSerializer
     pagination_class = BookingItemPagination
 
+    def get_serializer_class(self):
+        if self.action == 'list' and booking_list_board_view_requested(self.request):
+            return BookingItemBoardSerializer
+        return BookingItemSerializer
+
     def list(self, request, *args, **kwargs):
         if _booking_list_all_requested(request):
             queryset = self.filter_queryset(self.get_queryset())
@@ -160,14 +172,36 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
+        board_list = self.action == 'list' and booking_list_board_view_requested(
+            self.request,
+        )
         qs = bookings_for_user(self.request.user).select_related(
             'company',
             'status',
-        ).prefetch_related(
-            'groups',
-            'lines__booking_group',
-            'lines__company',
         )
+        if not board_list and not _booking_list_all_requested(self.request):
+            qs = qs.prefetch_related(
+                'groups',
+                'lines__booking_group',
+                'lines__company',
+            )
+        if board_list:
+            qs = annotate_booking_board_payments(qs)
+            board_column = self.request.query_params.get('board_column', '').strip()
+            board_slot = self.request.query_params.get('board_slot', '').strip()
+            if board_slot == 'foreign':
+                qs = filter_booking_items_board_foreign_slot(
+                    qs,
+                    self.request.user.account_id,
+                    self.request.user.company_id,
+                )
+            elif board_column.isdigit():
+                qs = filter_booking_items_board_column(
+                    qs,
+                    int(board_column),
+                    self.request.user.account_id,
+                )
+            qs = qs.order_by('sort_order', 'id')
         status_id = self.request.query_params.get('status')
         if status_id:
             qs = qs.filter(status_id=status_id)
