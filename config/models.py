@@ -26,8 +26,8 @@ class Config(models.Model):
         ordering = ['scope', 'name']
         constraints = [
             models.UniqueConstraint(
-                fields=['account', 'scope', 'name'],
-                name='config_account_scope_name_uniq',
+                fields=['account', 'scope', 'name', 'company'],
+                name='config_account_scope_name_company_uniq',
             ),
         ]
 

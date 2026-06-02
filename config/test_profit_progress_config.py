@@ -5,6 +5,7 @@ from rest_framework.test import APIClient
 from bookings.models import Tag
 from companies.models import Company
 from config.models import Config
+from config.views import ACTIVE_PROJECTS_SCOPE, PROFIT_PROGRESS_SCOPE
 from countries.models import Country
 from suppliers.models import SupplierType
 from users.models import Account
@@ -52,24 +53,45 @@ class ProfitProgressTagConfigTests(TestCase):
     def test_put_and_get_profit_progress_tag_config(self):
         put_res = self.client.put(
             '/config/profit-progress-tag/',
-            {'value': str(self.tag.pk)},
+            {'company_id': self.company.pk, 'value': str(self.tag.pk)},
             format='json',
         )
         self.assertEqual(put_res.status_code, 200)
-        self.assertEqual(put_res.data['scope'], 'profit_progress')
+        self.assertEqual(put_res.data['scope'], PROFIT_PROGRESS_SCOPE)
         self.assertEqual(put_res.data['name'], 'tag')
+        self.assertEqual(put_res.data['company_id'], self.company.pk)
         self.assertEqual(put_res.data['value'], str(self.tag.pk))
 
         row = Config.objects.get(
             account=self.account,
-            scope='profit_progress',
+            company=self.company,
+            scope=PROFIT_PROGRESS_SCOPE,
             name='tag',
         )
         self.assertEqual(row.value, str(self.tag.pk))
 
-        get_res = self.client.get('/config/profit-progress-tag/')
+        get_res = self.client.get(
+            f'/config/profit-progress-tag/?company_id={self.company.pk}',
+        )
         self.assertEqual(get_res.status_code, 200)
         self.assertEqual(get_res.data['value'], str(self.tag.pk))
+
+    def test_put_and_get_active_projects_tag_config(self):
+        put_res = self.client.put(
+            '/config/active-projects-tag/',
+            {'company_id': self.company.pk, 'value': str(self.tag.pk)},
+            format='json',
+        )
+        self.assertEqual(put_res.status_code, 200)
+        self.assertEqual(put_res.data['scope'], ACTIVE_PROJECTS_SCOPE)
+
+        row = Config.objects.get(
+            account=self.account,
+            company=self.company,
+            scope=ACTIVE_PROJECTS_SCOPE,
+            name='tag',
+        )
+        self.assertEqual(row.value, str(self.tag.pk))
 
     def test_put_rejects_foreign_tag(self):
         other_account = Account.objects.create(
@@ -80,7 +102,7 @@ class ProfitProgressTagConfigTests(TestCase):
 
         res = self.client.put(
             '/config/profit-progress-tag/',
-            {'value': str(foreign.pk)},
+            {'company_id': self.company.pk, 'value': str(foreign.pk)},
             format='json',
         )
         self.assertEqual(res.status_code, 400)

@@ -61,7 +61,22 @@ class TagViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'head', 'options']
 
     def get_queryset(self):
-        qs = Tag.objects.filter(account_id=self.request.user.account_id)
+        from companies.scope import company_belongs_to_account
+
+        account_id = self.request.user.account_id
+        raw = self.request.query_params.get('company_id', '').strip()
+        if raw:
+            try:
+                company_id = int(raw)
+            except ValueError:
+                return Tag.objects.none()
+            if not company_belongs_to_account(company_id, account_id):
+                return Tag.objects.none()
+        else:
+            company_id = getattr(self.request.user, 'company_id', None)
+        qs = Tag.objects.filter(account_id=account_id)
+        if company_id is not None:
+            qs = qs.filter(company_id=company_id)
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(tag__icontains=search)

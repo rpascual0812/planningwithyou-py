@@ -187,20 +187,22 @@ def _calendar_summary(company_id: int, account_id: int, *, now, week_end) -> dic
     }
 
 
-def _resolve_profit_progress_tag_id(account_id: int, configured_value: str) -> int | None:
+def _resolve_dashboard_tag_id(
+    account_id: int,
+    company_id: int,
+    configured_value: str,
+) -> int | None:
+    tags_qs = Tag.objects.filter(account_id=account_id, company_id=company_id)
     if configured_value:
         try:
             tag_id = int(configured_value)
         except (TypeError, ValueError):
             tag_id = None
-        if tag_id is not None and Tag.objects.filter(
-            pk=tag_id,
-            account_id=account_id,
-        ).exists():
+        if tag_id is not None and tags_qs.filter(pk=tag_id).exists():
             return tag_id
     for fallback_name in ('done', 'completed'):
         tag_id = (
-            Tag.objects.filter(account_id=account_id, tag__iexact=fallback_name)
+            tags_qs.filter(tag__iexact=fallback_name)
             .order_by('id')
             .values_list('pk', flat=True)
             .first()
@@ -208,24 +210,29 @@ def _resolve_profit_progress_tag_id(account_id: int, configured_value: str) -> i
         if tag_id is not None:
             return tag_id
     return (
-        Tag.objects.filter(account_id=account_id)
-        .order_by('tag', 'id')
+        tags_qs.order_by('tag', 'id')
         .values_list('pk', flat=True)
         .first()
     )
 
 
-def profit_progress_total_for_tag(account_id: int, tag_id: int | None) -> Decimal:
+def profit_progress_total_for_tag(
+    account_id: int,
+    company_id: int,
+    tag_id: int | None,
+) -> Decimal:
     if tag_id is None:
         return Decimal('0')
     status_ids = BookingStatus.objects.filter(
         account_id=account_id,
+        company_id=company_id,
         tags__id=tag_id,
     ).values_list('pk', flat=True)
     if not status_ids:
         return Decimal('0')
     total = BookingItem.objects.filter(
         account_id=account_id,
+        company_id=company_id,
         status_id__in=status_ids,
     ).aggregate(sum_total=Sum('total_amount'))['sum_total']
     return total or Decimal('0')
@@ -244,18 +251,98 @@ def format_profit_progress_display(total: Decimal) -> str:
     return f'{amount.quantize(TWOPLACES)}+'
 
 
-def build_profit_progress_for_account(account_id: int, configured_tag_value: str) -> dict:
-    tag_id = _resolve_profit_progress_tag_id(account_id, configured_tag_value)
+def _resolve_profit_progress_tag_id(
+    account_id: int,
+    company_id: int,
+    configured_value: str,
+) -> int | None:
+    return _resolve_dashboard_tag_id(account_id, company_id, configured_value)
+
+
+def active_projects_count_for_tag(
+    account_id: int,
+    company_id: int,
+    tag_id: int | None,
+) -> int:
+    if tag_id is None:
+        return 0
+    status_ids = BookingStatus.objects.filter(
+        account_id=account_id,
+        company_id=company_id,
+        tags__id=tag_id,
+    ).values_list('pk', flat=True)
+    if not status_ids:
+        return 0
+    return BookingItem.objects.filter(
+        account_id=account_id,
+        company_id=company_id,
+        status_id__in=status_ids,
+    ).count()
+
+
+def format_active_projects_display(count: int) -> str:
+    if count < 0:
+        count = 0
+    return str(count)
+
+
+def build_active_projects_for_company(
+    account_id: int,
+    company_id: int,
+    configured_tag_value: str,
+) -> dict:
+    tag_id = _resolve_dashboard_tag_id(
+        account_id,
+        company_id,
+        configured_tag_value,
+    )
     tag_name = ''
     if tag_id is not None:
         tag_name = (
-            Tag.objects.filter(pk=tag_id, account_id=account_id)
+            Tag.objects.filter(
+                pk=tag_id,
+                account_id=account_id,
+                company_id=company_id,
+            )
             .values_list('tag', flat=True)
             .first()
             or ''
         )
-    total = profit_progress_total_for_tag(account_id, tag_id)
+    count = active_projects_count_for_tag(account_id, company_id, tag_id)
     return {
+        'company_id': company_id,
+        'tag_id': tag_id,
+        'tag_name': tag_name,
+        'count': count,
+        'display_value': format_active_projects_display(count),
+    }
+
+
+def build_profit_progress_for_company(
+    account_id: int,
+    company_id: int,
+    configured_tag_value: str,
+) -> dict:
+    tag_id = _resolve_dashboard_tag_id(
+        account_id,
+        company_id,
+        configured_tag_value,
+    )
+    tag_name = ''
+    if tag_id is not None:
+        tag_name = (
+            Tag.objects.filter(
+                pk=tag_id,
+                account_id=account_id,
+                company_id=company_id,
+            )
+            .values_list('tag', flat=True)
+            .first()
+            or ''
+        )
+    total = profit_progress_total_for_tag(account_id, company_id, tag_id)
+    return {
+        'company_id': company_id,
         'tag_id': tag_id,
         'tag_name': tag_name,
         'total_amount': _decimal_str(total),

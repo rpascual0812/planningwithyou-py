@@ -9,7 +9,11 @@ from .payment_link_views import (
 )
 from .payout_admin_views import BookingPaymentPayoutAdminViewSet
 from .payout_report_views import BookingPaymentPayoutReportViewSet
-from .dashboard_views import DashboardProfitProgressView, DashboardSummaryView
+from .dashboard_views import (
+    DashboardActiveProjectsView,
+    DashboardProfitProgressView,
+    DashboardSummaryView,
+)
 from .views import (
     BookingItemViewSet,
     BookingStatusViewSet,
@@ -44,6 +48,11 @@ urlpatterns = [
         'dashboard/profit-progress/',
         DashboardProfitProgressView.as_view(),
         name='dashboard-profit-progress',
+    ),
+    path(
+        'dashboard/active-projects/',
+        DashboardActiveProjectsView.as_view(),
+        name='dashboard-active-projects',
     ),
     path(
         'supplier-booking-capacity/',

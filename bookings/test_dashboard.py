@@ -83,13 +83,38 @@ class DashboardSummaryTests(TestCase):
         self.status.tags.add(done_tag)
         Config.objects.create(
             account=self.account,
+            company=self.main,
             scope='profit_progress',
             name='tag',
             value=str(done_tag.pk),
         )
-        res = self.client.get('/dashboard/profit-progress/')
+        res = self.client.get(
+            f'/dashboard/profit-progress/?company_id={self.main.pk}',
+        )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['tag_id'], done_tag.pk)
         self.assertEqual(res.data['tag_name'], 'done')
         self.assertEqual(res.data['total_amount'], '10000.00')
         self.assertEqual(res.data['display_value'], '10.0K+')
+
+    def test_active_projects_counts_bookings_by_status_tag(self):
+        done_tag = Tag.objects.create(
+            account=self.account,
+            company=self.main,
+            tag='confirmed',
+        )
+        self.status.tags.add(done_tag)
+        Config.objects.create(
+            account=self.account,
+            company=self.main,
+            scope='active_projects',
+            name='tag',
+            value=str(done_tag.pk),
+        )
+        res = self.client.get(
+            f'/dashboard/active-projects/?company_id={self.main.pk}',
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['tag_id'], done_tag.pk)
+        self.assertEqual(res.data['count'], 1)
+        self.assertEqual(res.data['display_value'], '1')
