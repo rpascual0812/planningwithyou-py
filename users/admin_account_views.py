@@ -1,5 +1,6 @@
 from django.db.models import Count, Q
 from rest_framework import mixins, viewsets
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 
 from planningwithyou.permissions import FeatureAccess
@@ -14,6 +15,10 @@ class AdminAccountViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     feature_key = 'admin_accounts'
     permission_classes = [IsAuthenticated, FeatureAccess]
     serializer_class = AdminAccountListSerializer
+    class Pagination(PageNumberPagination):
+        page_size = 10
+
+    pagination_class = Pagination
 
     def get_queryset(self):
         qs = (

@@ -75,7 +75,7 @@ class UsersCompanyFilterTests(TestCase):
     def test_list_users_filtered_by_company_id(self):
         res = self.client.get(f'/users/?company_id={self.company_b.id}')
         self.assertEqual(res.status_code, 200)
-        emails = {row['email'] for row in res.data}
+        emails = {row['email'] for row in res.data['results']}
         self.assertEqual(emails, {'userb@test.example'})
 
     def test_non_admin_cannot_list_other_company(self):
@@ -84,5 +84,22 @@ class UsersCompanyFilterTests(TestCase):
         )
         res = self.client.get(f'/users/?company_id={self.company_b.id}')
         self.assertEqual(res.status_code, 200)
-        emails = {row['email'] for row in res.data}
+        emails = {row['email'] for row in res.data['results']}
         self.assertEqual(emails, {'usera@test.example'})
+
+    def test_users_list_is_paginated(self):
+        for i in range(12):
+            User.objects.create_user(
+                username=f'extra{i}@test.example',
+                email=f'extra{i}@test.example',
+                password='secret12',
+                account=self.account,
+                company=self.company_a,
+                is_verified=True,
+            )
+        res = self.client.get('/users/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('count', res.data)
+        self.assertIn('results', res.data)
+        self.assertEqual(len(res.data['results']), 10)
+        self.assertIsNotNone(res.data['next'])

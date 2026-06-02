@@ -1,5 +1,6 @@
 from django.db.models import Q
 from rest_framework import mixins, viewsets
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 
 from planningwithyou.permissions import FeatureAccess
@@ -21,6 +22,11 @@ class CompanyKybVerificationAdminViewSet(
 
     feature_key = 'admin_company_verification'
     permission_classes = [IsAuthenticated, FeatureAccess]
+    class Pagination(PageNumberPagination):
+        page_size = 10
+
+    pagination_class = Pagination
+
     def get_serializer_class(self):
         if self.action == 'list':
             return CompanyKybVerificationListSerializer

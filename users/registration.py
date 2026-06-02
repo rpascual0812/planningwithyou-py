@@ -98,6 +98,20 @@ EMAIL_TEMPLATES = [
         ),
     },
     {
+        'name': 'kyb_verified',
+        'template_type': EmailTemplate.TemplateType.USERS,
+        'title': 'Business verification approved',
+        'subject': 'Your business verification is approved – {company_name}',
+        'body': (
+            '<h3>Hello,</h3>\n'
+            '<p>Your Know Your Business (KYB) verification for '
+            '<strong>{company_name}</strong> has been approved.</p>\n'
+            '<p>You can now accept live payments through Planning With You.</p>\n'
+            '<p>If you have questions, reply to this email.</p>\n'
+            '<p>Thank you,<br>{company_name}</p>'
+        ),
+    },
+    {
         'name': 'new_quotation',
         'template_type': EmailTemplate.TemplateType.BOOKINGS,
         'title': 'New Quote',

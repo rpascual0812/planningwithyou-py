@@ -1,6 +1,7 @@
 from django.db.models import Q
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -24,6 +25,10 @@ class BookingPaymentPayoutAdminViewSet(
     feature_key = 'admin_payouts'
     permission_classes = [IsAuthenticated, FeatureAccess]
     serializer_class = BookingPaymentPayoutAdminSerializer
+    class Pagination(PageNumberPagination):
+        page_size = 10
+
+    pagination_class = Pagination
 
     def get_queryset(self):
         qs = (

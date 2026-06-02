@@ -4,6 +4,7 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -38,6 +39,11 @@ class EmailLogViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'status', 'created_at', 'sent_at']
     ordering = ['-created_at']
+
+    class Pagination(PageNumberPagination):
+        page_size = 10
+
+    pagination_class = Pagination
 
     def _is_platform_scope(self) -> bool:
         return self.request.query_params.get('platform_scope', '').lower() in (
@@ -104,6 +110,17 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         if status_filter:
             qs = qs.filter(status=status_filter)
         return qs
+
+    def list(self, request, *args, **kwargs):
+        paginated = (
+            request.query_params.get('paginated', '').strip().lower() in ('1', 'true', 'yes')
+            or request.query_params.get('page', '').strip() != ''
+        )
+        if not paginated:
+            queryset = self.filter_queryset(self.get_queryset())
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+        return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         log = serializer.save(

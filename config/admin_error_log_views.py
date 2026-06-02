@@ -73,8 +73,6 @@ def filter_admin_error_logs(queryset, request):
 
 class AdminErrorLogPagination(PageNumberPagination):
     page_size = 10
-    page_size_query_param = 'page_size'
-    max_page_size = 100
 
 
 class ErrorLogAdminViewSet(

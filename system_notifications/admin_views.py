@@ -1,6 +1,7 @@
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import viewsets
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 
 from planningwithyou.permissions import FeatureAccess
@@ -15,6 +16,10 @@ class SystemNotificationAdminViewSet(viewsets.ModelViewSet):
     feature_key = 'admin_system_notifications'
     permission_classes = [IsAuthenticated, FeatureAccess]
     serializer_class = SystemNotificationSerializer
+    class Pagination(PageNumberPagination):
+        page_size = 10
+
+    pagination_class = Pagination
 
     def get_queryset(self):
         qs = SystemNotification.objects.select_related('created_by').order_by(

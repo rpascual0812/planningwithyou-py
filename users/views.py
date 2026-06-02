@@ -7,6 +7,7 @@ from rest_framework import filters, parsers, status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.decorators import action
 from rest_framework.generics import GenericAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -74,6 +75,10 @@ from .serializers import (
 )
 
 User = get_user_model()
+
+
+class UsersPagination(PageNumberPagination):
+    page_size = 10
 
 
 class EmailTokenObtainPairView(TokenObtainPairView):
@@ -269,6 +274,7 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'username', 'email', 'created_at']
     ordering = ['id']
+    pagination_class = UsersPagination
 
     def get_permissions(self):
         if self.action in ('me', 'change_password'):

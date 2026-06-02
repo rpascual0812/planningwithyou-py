@@ -2,6 +2,7 @@ from django.db.models import Prefetch
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -33,6 +34,10 @@ class SupportTicketAdminViewSet(viewsets.ModelViewSet):
     feature_key = 'admin_support'
     permission_classes = [IsAuthenticated, FeatureAccess]
     http_method_names = ['get', 'patch', 'post', 'head', 'options']
+    class Pagination(PageNumberPagination):
+        page_size = 10
+
+    pagination_class = Pagination
 
     def get_queryset(self):
         user = self.request.user
@@ -89,6 +94,11 @@ class SupportTicketAdminViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            tickets = self._attach_read_state(page, request.user)
+            serializer = self.get_serializer(tickets, many=True)
+            return self.get_paginated_response(serializer.data)
         tickets = self._attach_read_state(queryset, request.user)
         serializer = self.get_serializer(tickets, many=True)
         return Response(serializer.data)

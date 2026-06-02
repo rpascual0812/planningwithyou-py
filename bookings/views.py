@@ -148,8 +148,6 @@ def filter_booking_items_list(queryset, request):
 
 class BookingItemPagination(PageNumberPagination):
     page_size = 10
-    page_size_query_param = 'page_size'
-    max_page_size = 100
 
 
 class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):

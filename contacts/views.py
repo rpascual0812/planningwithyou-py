@@ -1,6 +1,8 @@
 from django.db import transaction
 from django.db.models import Q
 from rest_framework import filters, viewsets
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from planningwithyou.history.core import request_metadata
@@ -25,6 +27,22 @@ class ContactViewSet(HistoryListMixin, viewsets.ModelViewSet):
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'first_name', 'last_name', 'email', 'company', 'created_at']
     ordering = ['first_name', 'last_name']
+
+    class Pagination(PageNumberPagination):
+        page_size = 10
+
+    pagination_class = Pagination
+
+    def list(self, request, *args, **kwargs):
+        paginated = (
+            request.query_params.get('paginated', '').strip().lower() in ('1', 'true', 'yes')
+            or request.query_params.get('page', '').strip() != ''
+        )
+        if not paginated:
+            queryset = self.filter_queryset(self.get_queryset())
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+        return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
         qs = (
