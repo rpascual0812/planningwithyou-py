@@ -265,14 +265,30 @@ class CompanyCreateDefaultsApiTests(TestCase):
             ).exists(),
         )
 
-        from bookings.models import Tag
+        from bookings.models import BookingStatus, Tag
 
-        self.assertTrue(
+        status_titles = list(
+            BookingStatus.objects.filter(
+                account=self.account,
+                company_id=company_id,
+            )
+            .order_by('sort_order')
+            .values_list('title', flat=True),
+        )
+        self.assertEqual(
+            status_titles,
+            ['New', 'Confirmed', 'In-progress', 'Completed', 'Cancelled'],
+        )
+
+        tag_names = set(
             Tag.objects.filter(
                 account=self.account,
                 company_id=company_id,
-                tag__iexact='completed',
-            ).exists(),
+            ).values_list('tag', flat=True),
+        )
+        self.assertEqual(
+            tag_names,
+            {'new', 'confirmed', 'cancelled', 'completed', 'done'},
         )
 
     def test_company_detail_includes_contact_email_from_first_user(self):

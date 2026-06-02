@@ -80,21 +80,28 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
     serializer_class = BookingStatusSerializer
 
     def get_queryset(self):
-        return (
-            BookingStatus.objects.filter(account_id=self.request.user.account_id)
-            .prefetch_related('tags')
-        )
+        company_id = self.request.user.company_id
+        qs = BookingStatus.objects.filter(account_id=self.request.user.account_id)
+        if company_id is not None:
+            qs = qs.filter(company_id=company_id)
+        return qs.prefetch_related('tags')
 
     def perform_create(self, serializer):
-        aid = self.request.user.account_id
+        user = self.request.user
+        aid = user.account_id
+        company_id = user.company_id
         max_order = (
-            BookingStatus.objects.filter(account_id=aid)
+            BookingStatus.objects.filter(account_id=aid, company_id=company_id)
             .order_by('-sort_order')
             .values_list('sort_order', flat=True)
             .first()
             or 0
         )
-        status = serializer.save(account_id=aid, sort_order=max_order + 1)
+        status = serializer.save(
+            account_id=aid,
+            company_id=company_id,
+            sort_order=max_order + 1,
+        )
         record_resource_create(
             account_id=aid,
             resource_type='booking_status',
@@ -146,8 +153,13 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         aid = request.user.account_id
+        company_id = request.user.company_id
         for idx, status_id in enumerate(ids):
-            BookingStatus.objects.filter(pk=status_id, account_id=aid).update(sort_order=idx)
+            BookingStatus.objects.filter(
+                pk=status_id,
+                account_id=aid,
+                company_id=company_id,
+            ).update(sort_order=idx)
         return Response({'status': 'ok'})
 
 
@@ -223,6 +235,7 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
                     qs,
                     int(board_column),
                     self.request.user.account_id,
+                    self.request.user.company_id,
                 )
             qs = qs.order_by('sort_order', 'id')
         status_id = self.request.query_params.get('status')
@@ -284,6 +297,7 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
         booking_status = BookingStatus.objects.filter(
             pk=status_id,
             account_id=request.user.account_id,
+            company_id=item.company_id,
         ).first()
         if booking_status is None:
             return Response(
@@ -354,6 +368,7 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
                 if not BookingStatus.objects.filter(
                     pk=new_status_id,
                     account_id=request.user.account_id,
+                    company_id=booking.company_id,
                 ).exists():
                     continue
                 fields['status_id'] = new_status_id

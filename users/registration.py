@@ -39,8 +39,8 @@ BOOKING_STATUSES = [
     ('New', '#1f3a5f'),
     ('Confirmed', '#52b585'),
     ('In-progress', '#5a8edb'),
-    ('Cancelled', '#d65a5a'),
     ('Completed', '#3a9870'),
+    ('Cancelled', '#d65a5a'),
 ]
 
 CALENDAR_STATUSES = [
@@ -54,7 +54,7 @@ CALENDAR_STATUSES = [
 ]
 
 DEFAULT_TIERS = ('Bronze', 'Silver', 'Gold')
-DEFAULT_COMPANY_TAGS = ('completed',)
+DEFAULT_COMPANY_TAGS = ('new', 'confirmed', 'cancelled', 'completed', 'done')
 
 EMAIL_TEMPLATES = [
     {
@@ -204,6 +204,24 @@ EMAIL_TEMPLATES = [
 ]
 
 
+def seed_booking_statuses_for_company(account: Account, company: Company) -> None:
+    """Default kanban columns for a company."""
+    for sort_order, (title, color) in enumerate(BOOKING_STATUSES):
+        if BookingStatus.objects.filter(
+            account=account,
+            company=company,
+            title__iexact=title,
+        ).exists():
+            continue
+        BookingStatus.objects.create(
+            account=account,
+            company=company,
+            title=title,
+            color=color,
+            sort_order=sort_order,
+        )
+
+
 def seed_company_defaults(
     account: Account,
     company: Company,
@@ -211,6 +229,8 @@ def seed_company_defaults(
     created_by=None,
 ) -> None:
     """Seed per-company defaults used by registration and manual company create."""
+    seed_booking_statuses_for_company(account, company)
+
     for tag_name in DEFAULT_COMPANY_TAGS:
         if not Tag.objects.filter(
             account=account,
@@ -343,14 +363,6 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
         kyb_verified=False,
         max_bookings_per_day=1,
     )
-
-    for sort_order, (title, color) in enumerate(BOOKING_STATUSES):
-        BookingStatus.objects.create(
-            account=account,
-            title=title,
-            color=color,
-            sort_order=sort_order,
-        )
 
     for sort_order, (title, text_color, background_color) in enumerate(
         CALENDAR_STATUSES,

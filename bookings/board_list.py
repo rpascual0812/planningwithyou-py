@@ -50,10 +50,14 @@ def annotate_booking_board_payments(queryset: QuerySet) -> QuerySet:
     )
 
 
-def _local_status_ids(account_id: int) -> list[int]:
-    return list(
-        BookingStatus.objects.filter(account_id=account_id).values_list('id', flat=True),
-    )
+def _local_status_ids(
+    account_id: int,
+    company_id: int | None = None,
+) -> list[int]:
+    qs = BookingStatus.objects.filter(account_id=account_id)
+    if company_id is not None:
+        qs = qs.filter(company_id=company_id)
+    return list(qs.values_list('id', flat=True))
 
 
 def _title_match_q(column_title: str) -> Q:
@@ -67,6 +71,7 @@ def filter_booking_items_board_column(
     queryset: QuerySet,
     column_id: int,
     account_id: int,
+    company_id: int | None = None,
 ) -> QuerySet:
     """
     Items shown in a kanban column:
@@ -75,11 +80,14 @@ def filter_booking_items_board_column(
     - Cross-company bookings whose status title matches the column title
       when their status id is not one of this account's column ids.
     """
-    status = BookingStatus.objects.filter(pk=column_id, account_id=account_id).first()
+    status_qs = BookingStatus.objects.filter(pk=column_id, account_id=account_id)
+    if company_id is not None:
+        status_qs = status_qs.filter(company_id=company_id)
+    status = status_qs.first()
     if status is None:
         return queryset.none()
 
-    local_ids = _local_status_ids(account_id)
+    local_ids = _local_status_ids(account_id, company_id)
     title_q = _title_match_q(status.title)
     return queryset.filter(Q(status_id=column_id) | (~Q(status_id__in=local_ids) & title_q))
 
@@ -96,9 +104,10 @@ def filter_booking_items_board_foreign_slot(
     if user_company_id is None:
         return queryset.none()
 
-    local_statuses = list(
-        BookingStatus.objects.filter(account_id=account_id).values('id', 'title'),
-    )
+    status_qs = BookingStatus.objects.filter(account_id=account_id)
+    if user_company_id is not None:
+        status_qs = status_qs.filter(company_id=user_company_id)
+    local_statuses = list(status_qs.values('id', 'title'))
     local_ids = [row['id'] for row in local_statuses]
 
     matched = Q(status_id__in=local_ids)

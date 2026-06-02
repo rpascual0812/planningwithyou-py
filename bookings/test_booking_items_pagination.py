@@ -30,6 +30,7 @@ class BookingItemPaginationTests(APITestCase):
         assign_owner_role(self.user)
         self.status = BookingStatus.objects.create(
             account=self.account,
+            company=self.company,
             title='Open',
             sort_order=0,
         )
@@ -102,6 +103,7 @@ class BookingItemPaginationTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         other_status = BookingStatus.objects.create(
             account=self.account,
+            company=self.company,
             title='Done',
             sort_order=1,
         )
@@ -154,6 +156,7 @@ class BookingItemPaginationTests(APITestCase):
         )
         tenant_status = BookingStatus.objects.create(
             account=self.account,
+            company=tenant,
             title='Open',
             sort_order=99,
         )
@@ -183,6 +186,7 @@ class BookingItemPaginationTests(APITestCase):
         )
         tenant_status = BookingStatus.objects.create(
             account=self.account,
+            company=tenant,
             title='Mystery',
             sort_order=99,
         )

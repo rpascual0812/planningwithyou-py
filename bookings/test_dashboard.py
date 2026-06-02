@@ -33,6 +33,7 @@ class DashboardSummaryTests(TestCase):
         )
         self.status = BookingStatus.objects.create(
             account=self.account,
+            company=self.main,
             title='Confirmed',
             color='#1f3a5f',
         )
@@ -74,21 +75,21 @@ class DashboardSummaryTests(TestCase):
         self.assertEqual(main['payouts']['pending_count'], 1)
 
     def test_profit_progress_sums_bookings_by_status_tag(self):
-        completed_tag = Tag.objects.create(
+        done_tag = Tag.objects.create(
             account=self.account,
             company=self.main,
-            tag='completed',
+            tag='done',
         )
-        self.status.tags.add(completed_tag)
+        self.status.tags.add(done_tag)
         Config.objects.create(
             account=self.account,
             scope='profit_progress',
             name='tag',
-            value=str(completed_tag.pk),
+            value=str(done_tag.pk),
         )
         res = self.client.get('/dashboard/profit-progress/')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data['tag_id'], completed_tag.pk)
-        self.assertEqual(res.data['tag_name'], 'completed')
+        self.assertEqual(res.data['tag_id'], done_tag.pk)
+        self.assertEqual(res.data['tag_name'], 'done')
         self.assertEqual(res.data['total_amount'], '10000.00')
         self.assertEqual(res.data['display_value'], '10.0K+')

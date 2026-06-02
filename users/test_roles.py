@@ -127,6 +127,7 @@ class RoleApiTests(TestCase):
         self.user.save(update_fields=['role_id'])
         status = BookingStatus.objects.create(
             account=self.account,
+            company=self.company,
             title='New',
             description='',
             color='#000',
@@ -156,6 +157,7 @@ class RoleApiTests(TestCase):
         self.user.save(update_fields=['role_id'])
         BookingStatus.objects.create(
             account=self.account,
+            company=self.company,
             title='Open',
             description='',
             color='#000',

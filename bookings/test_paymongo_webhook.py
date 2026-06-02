@@ -64,7 +64,7 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             supplier_type=supplier_type,
             is_main=True,
         )
-        self.status = BookingStatus.objects.create(account=self.account, title='New')
+        self.status = BookingStatus.objects.create(account=self.account, company=self.company, title='New')
         self.user = User.objects.create_user(
             username='booking-owner@example.com',
             email='booking-owner@example.com',

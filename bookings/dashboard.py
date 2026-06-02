@@ -95,7 +95,11 @@ def _sum_booking_financials(booking_ids: list[int]) -> dict:
     }
 
 
-def _bookings_by_status(booking_ids: list[int], account_id: int) -> list[dict]:
+def _bookings_by_status(
+    booking_ids: list[int],
+    account_id: int,
+    company_id: int,
+) -> list[dict]:
     if not booking_ids:
         return []
     counts = {
@@ -104,10 +108,10 @@ def _bookings_by_status(booking_ids: list[int], account_id: int) -> list[dict]:
         .values('status_id')
         .annotate(count=Count('id'))
     }
-    statuses = BookingStatus.objects.filter(account_id=account_id).order_by(
-        'sort_order',
-        'id',
-    )
+    statuses = BookingStatus.objects.filter(
+        account_id=account_id,
+        company_id=company_id,
+    ).order_by('sort_order', 'id')
     return [
         {
             'status_id': status.id,
@@ -194,14 +198,15 @@ def _resolve_profit_progress_tag_id(account_id: int, configured_value: str) -> i
             account_id=account_id,
         ).exists():
             return tag_id
-    completed = (
-        Tag.objects.filter(account_id=account_id, tag__iexact='completed')
-        .order_by('id')
-        .values_list('pk', flat=True)
-        .first()
-    )
-    if completed is not None:
-        return completed
+    for fallback_name in ('done', 'completed'):
+        tag_id = (
+            Tag.objects.filter(account_id=account_id, tag__iexact=fallback_name)
+            .order_by('id')
+            .values_list('pk', flat=True)
+            .first()
+        )
+        if tag_id is not None:
+            return tag_id
     return (
         Tag.objects.filter(account_id=account_id)
         .order_by('tag', 'id')
@@ -296,7 +301,11 @@ def build_dashboard_for_account(
             'is_user_company': company.id == user_company_id,
             'bookings_owned': {
                 'count': len(owned_ids),
-                'by_status': _bookings_by_status(owned_ids, account_id),
+                'by_status': _bookings_by_status(
+                    owned_ids,
+                    account_id,
+                    company.id,
+                ),
                 **_sum_booking_financials(owned_ids),
                 'upcoming': _upcoming_bookings(owned_qs),
             },

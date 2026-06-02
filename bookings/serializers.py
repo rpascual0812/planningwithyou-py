@@ -259,7 +259,11 @@ class BookingItemSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         aid = getattr(request.user, 'account_id', None) if request and request.user.is_authenticated else None
         if aid is not None and request and request.user.is_authenticated:
-            self.fields['status'].queryset = BookingStatus.objects.filter(account_id=aid)
+            status_qs = BookingStatus.objects.filter(account_id=aid)
+            company_id = getattr(request.user, 'company_id', None)
+            if company_id is not None:
+                status_qs = status_qs.filter(company_id=company_id)
+            self.fields['status'].queryset = status_qs
             self.fields['contact'].queryset = contacts_for_user(request.user)
 
     def _pop_field_values(self, validated_data):
@@ -319,6 +323,23 @@ class BookingItemSerializer(serializers.ModelSerializer):
         )
         if booking_status is not None and booking_status.account_id != aid:
             raise serializers.ValidationError({'status': ['Invalid status for this account.']})
+        booking_company = attrs.get('company') or (
+            self.instance.company if self.instance else None
+        )
+        if booking_company is None and request and request.user.is_authenticated:
+            booking_company_id = getattr(request.user, 'company_id', None)
+            if booking_company_id is not None:
+                from companies.models import Company
+
+                booking_company = Company.objects.filter(pk=booking_company_id).first()
+        if (
+            booking_status is not None
+            and booking_company is not None
+            and booking_status.company_id != booking_company.pk
+        ):
+            raise serializers.ValidationError(
+                {'status': ['Status must belong to the booking company.']},
+            )
         contact = attrs.get('contact')
         if contact is None and self.instance is not None:
             contact = self.instance.contact
@@ -443,11 +464,11 @@ class BookingStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookingStatus
         fields = [
-            'id', 'title', 'description', 'color',
+            'id', 'company', 'title', 'description', 'color',
             'sort_order', 'item_count', 'tags', 'tag_ids',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'company', 'created_at', 'updated_at']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

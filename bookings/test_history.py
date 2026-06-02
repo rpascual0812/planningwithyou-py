@@ -47,6 +47,7 @@ class BookingHistoryTests(TestCase):
         )
         self.status = BookingStatus.objects.create(
             account=self.account,
+            company=self.company,
             title='New',
         )
         self.user = User.objects.create_user(

@@ -111,6 +111,7 @@ class BookingLinePricingTests(TestCase):
         )
         self.status = BookingStatus.objects.create(
             account=self.account,
+            company=self.company,
             title='New',
         )
         self.booking = BookingItem.objects.create(
@@ -216,12 +217,16 @@ class BookingSupplierLineStorageTests(TestCase):
         self.assertEqual(pkg.id, self.package.id)
 
     def test_package_for_supplier_booking_line_uses_stored_fks(self):
-        status = BookingStatus.objects.create(account=self.account, title='New')
         main = Company.objects.create(
             account=self.account,
             name='Main',
             supplier_type=SupplierType.objects.create(name='MainType'),
             is_main=True,
+        )
+        status = BookingStatus.objects.create(
+            account=self.account,
+            company=main,
+            title='New',
         )
         booking = BookingItem.objects.create(
             account=self.account,
@@ -247,12 +252,16 @@ class BookingSupplierLineStorageTests(TestCase):
         self.assertEqual(pkg.id, self.package.id)
 
     def test_resolve_price_from_supplier_fks_without_value(self):
-        status = BookingStatus.objects.create(account=self.account, title='New')
         main = Company.objects.create(
             account=self.account,
             name='Main',
             supplier_type=SupplierType.objects.create(name='MainType'),
             is_main=True,
+        )
+        status = BookingStatus.objects.create(
+            account=self.account,
+            company=main,
+            title='New',
         )
         booking = BookingItem.objects.create(
             account=self.account,
@@ -382,12 +391,16 @@ class BookingPdfPackageItemsTests(TestCase):
         )
 
     def test_group_into_blocks_includes_package_items_for_supplier_line(self):
-        status = BookingStatus.objects.create(account=self.account, title='New')
         main = Company.objects.create(
             account=self.account,
             name='Main',
             supplier_type=SupplierType.objects.create(name='X'),
             is_main=True,
+        )
+        status = BookingStatus.objects.create(
+            account=self.account,
+            company=main,
+            title='New',
         )
         booking = BookingItem.objects.create(
             account=self.account,
@@ -421,12 +434,16 @@ class BookingPdfPackageItemsTests(TestCase):
         self.assertEqual(blocks[0].package_items, [(0, 'Included item')])
 
     def test_package_item_lines_for_supplier_booking_line(self):
-        status = BookingStatus.objects.create(account=self.account, title='New')
         main = Company.objects.create(
             account=self.account,
             name='Main',
             supplier_type=SupplierType.objects.create(name='X'),
             is_main=True,
+        )
+        status = BookingStatus.objects.create(
+            account=self.account,
+            company=main,
+            title='New',
         )
         booking = BookingItem.objects.create(
             account=self.account,
@@ -459,12 +476,16 @@ class BookingPdfPackageItemsTests(TestCase):
         self.assertEqual(found, [(0, 'Included item')])
 
     def test_package_item_lines_empty_without_package(self):
-        status = BookingStatus.objects.create(account=self.account, title='New')
         main = Company.objects.create(
             account=self.account,
             name='Main',
             supplier_type=SupplierType.objects.create(name='Y'),
             is_main=True,
+        )
+        status = BookingStatus.objects.create(
+            account=self.account,
+            company=main,
+            title='New',
         )
         booking = BookingItem.objects.create(
             account=self.account,
@@ -550,6 +571,7 @@ class SupplierBookingCapacityTests(TestCase):
         )
         self.status = BookingStatus.objects.create(
             account=self.account,
+            company=self.company,
             title='New',
         )
         self.event_day = timezone.datetime(2026, 6, 15, 14, 0, tzinfo=timezone.utc)
@@ -675,7 +697,11 @@ class BookingRequiredDownpaymentTests(TestCase):
             required_downpayment_amount=Decimal('250.00'),
             is_active=True,
         )
-        self.status = BookingStatus.objects.create(account=self.account, title='New')
+        self.status = BookingStatus.objects.create(
+            account=self.account,
+            company=self.main,
+            title='New',
+        )
 
     def test_sum_includes_package_and_line_downpayments(self):
         booking = BookingItem.objects.create(
@@ -768,7 +794,11 @@ class BookingCompanyVisibilityTests(TestCase):
             name='Other Co',
             supplier_type=supplier_type,
         )
-        self.status = BookingStatus.objects.create(account=self.account, title='New')
+        self.status = BookingStatus.objects.create(
+            account=self.account,
+            company=self.owner,
+            title='New',
+        )
         self.booking = BookingItem.objects.create(
             account=self.account,
             company=self.owner,
@@ -858,6 +888,7 @@ class BookingCompanyVisibilityTests(TestCase):
         )
         tenant_status = BookingStatus.objects.create(
             account=tenant_account,
+            company=tenant_owner,
             title='Confirmed',
         )
         tenant_booking = BookingItem.objects.create(

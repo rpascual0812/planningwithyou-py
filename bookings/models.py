@@ -61,6 +61,12 @@ class BookingStatus(models.Model):
         db_column='account_id',
         related_name='+',
     )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        db_column='company_id',
+        related_name='booking_statuses',
+    )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
     color = models.CharField(max_length=20, default='#1f3a5f')

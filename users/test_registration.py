@@ -77,13 +77,13 @@ class RegisterApiTests(TestCase):
         self.assertFalse(company.kyb_verified)
 
         titles = list(
-            BookingStatus.objects.filter(account=account)
+            BookingStatus.objects.filter(account=account, company=company)
             .order_by('sort_order')
             .values_list('title', flat=True),
         )
         self.assertEqual(
             titles,
-            ['New', 'Confirmed', 'In-progress', 'Cancelled', 'Completed'],
+            ['New', 'Confirmed', 'In-progress', 'Completed', 'Cancelled'],
         )
 
         cal_titles = list(
@@ -136,12 +136,16 @@ class RegisterApiTests(TestCase):
             {'welcome', 'verify_email', 'password_reset', 'payment_link'},
         )
 
-        completed_tag = Tag.objects.get(
-            account=account,
-            company=company,
-            tag__iexact='completed',
+        tag_names = set(
+            Tag.objects.filter(account=account, company=company).values_list(
+                'tag',
+                flat=True,
+            ),
         )
-        self.assertEqual(completed_tag.tag, 'completed')
+        self.assertEqual(
+            tag_names,
+            {'new', 'confirmed', 'cancelled', 'completed', 'done'},
+        )
 
         folder = DocumentFolder.objects.get(account=account, company=company)
         self.assertEqual(folder.name, 'General')
