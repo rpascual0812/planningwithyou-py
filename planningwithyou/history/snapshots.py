@@ -74,7 +74,27 @@ def snapshot_contact(contact) -> dict[str, Any]:
 
 
 def snapshot_booking_status(status) -> dict[str, Any]:
-    return {field: json_value(getattr(status, field)) for field in BOOKING_STATUS_FIELDS}
+    data = {field: json_value(getattr(status, field)) for field in BOOKING_STATUS_FIELDS}
+    data['tags'] = [
+        {'tag': json_value(t.tag)}
+        for t in status.tags.order_by('tag')
+    ]
+    return data
+
+
+def diff_booking_status(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    changes: dict[str, Any] = {}
+    field_changes = diff_field_map(before, after, BOOKING_STATUS_FIELDS)
+    if field_changes:
+        changes['fields'] = field_changes
+    tag_changes = diff_named_rows(
+        before.get('tags', []),
+        after.get('tags', []),
+        name_key='tag',
+    )
+    if tag_changes['added'] or tag_changes['removed']:
+        changes['tags'] = tag_changes
+    return changes
 
 
 def snapshot_email_template(template) -> dict[str, Any]:

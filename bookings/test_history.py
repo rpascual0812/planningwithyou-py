@@ -9,6 +9,7 @@ from bookings.models import (
     BookingStatus,
     FormTemplate,
     History,
+    Tag,
 )
 from companies.models import Company
 from countries.models import Country
@@ -184,6 +185,36 @@ class BookingHistoryTests(TestCase):
         )
         self.assertEqual(entry.changes['fields']['title']['old'], 'New')
         self.assertEqual(entry.changes['fields']['title']['new'], 'Confirmed')
+
+    def test_booking_status_tag_update_records_history(self):
+        tag_vip = Tag.objects.create(
+            account=self.account,
+            company=self.company,
+            tag='vip',
+            created_by=self.user,
+        )
+        tag_done = Tag.objects.create(
+            account=self.account,
+            company=self.company,
+            tag='done',
+            created_by=self.user,
+        )
+        self.status.tags.add(tag_vip)
+
+        res = self.client.patch(
+            f'/booking-statuses/{self.status.pk}/',
+            {'tag_ids': [tag_done.id]},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200)
+        entry = History.objects.get(
+            resource_type=History.ResourceType.BOOKING_STATUS,
+            resource_id=self.status.pk,
+            action=History.Action.UPDATE,
+        )
+        self.assertEqual(entry.changes['tags']['removed'], ['vip'])
+        self.assertEqual(entry.changes['tags']['added'], ['done'])
+        self.assertNotIn('fields', entry.changes)
 
     def test_booking_status_history_list_endpoint(self):
         History.objects.create(

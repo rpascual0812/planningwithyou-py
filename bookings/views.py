@@ -20,9 +20,8 @@ from planningwithyou.history.record import (
     record_resource_update,
 )
 from planningwithyou.history.snapshots import (
-    BOOKING_STATUS_FIELDS,
+    diff_booking_status,
     diff_form_template,
-    diff_simple,
     snapshot_form_template,
     snapshot_booking_status,
 )
@@ -129,10 +128,9 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         before = snapshot_booking_status(serializer.instance)
         status = serializer.save()
-        changes = diff_simple(
+        changes = diff_booking_status(
             before,
             snapshot_booking_status(status),
-            BOOKING_STATUS_FIELDS,
         )
         request = self.request
 
