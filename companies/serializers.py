@@ -4,6 +4,7 @@ from rest_framework import serializers
 from planningwithyou.file_storage import company_logo_public_url
 from suppliers.models import SupplierType
 
+from .contact_email import first_company_user_email
 from .logo_image import delete_company_logo, save_company_logo
 from .models import Company
 
@@ -96,6 +97,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'currency_code',
             'timezone',
             'contact_person',
+            'contact_email',
             'phone_number',
             'mobile_number',
             'address',
@@ -192,6 +194,9 @@ class CompanySerializer(serializers.ModelSerializer):
         return (value or '').strip()
 
     def validate_contact_person(self, value):
+        return (value or '').strip()
+
+    def validate_contact_email(self, value):
         return (value or '').strip()
 
     def validate_phone_number(self, value):

@@ -32,6 +32,7 @@ class Company(models.Model):
     )
     timezone = models.CharField(max_length=63, blank=True, default='')
     contact_person = models.CharField(max_length=255, blank=True, default='')
+    contact_email = models.EmailField(blank=True, default='')
     phone_number = models.CharField(max_length=63, blank=True, default='')
     mobile_number = models.CharField(max_length=63, blank=True, default='')
     address = models.TextField(blank=True, default='')

@@ -16,7 +16,14 @@ class CompanyAdmin(admin.ModelAdmin):
         'created_at',
     )
     list_filter = ('is_active', 'is_main', 'kyb_verified', 'account')
-    search_fields = ('name', 'website', 'contact_person', 'phone_number', 'mobile_number')
+    search_fields = (
+        'name',
+        'website',
+        'contact_person',
+        'contact_email',
+        'phone_number',
+        'mobile_number',
+    )
     readonly_fields = ('created_at',)
     raw_id_fields = ('account', 'created_by')
 

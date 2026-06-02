@@ -264,3 +264,40 @@ class CompanyCreateDefaultsApiTests(TestCase):
                 name='General',
             ).exists(),
         )
+
+    def test_company_detail_includes_contact_email_from_first_user(self):
+        from companies.models import Company
+
+        company = Company.objects.create(
+            account=self.account,
+            name='No Email Co',
+            supplier_type=self.supplier_type,
+            is_active=True,
+            contact_email='',
+        )
+        User.objects.create_user(
+            username='first@noemail.test',
+            email='first@noemail.test',
+            password='test-pass',
+            account=self.account,
+            company=company,
+        )
+        User.objects.create_user(
+            username='second@noemail.test',
+            email='second@noemail.test',
+            password='test-pass',
+            account=self.account,
+            company=company,
+        )
+
+        res = self.client.get(f'/companies/{company.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['contact_email'], 'first@noemail.test')
+
+        patch_res = self.client.patch(
+            f'/companies/{company.id}/',
+            {'contact_email': 'custom@example.com'},
+            format='json',
+        )
+        self.assertEqual(patch_res.status_code, 200)
+        self.assertEqual(patch_res.data['contact_email'], 'custom@example.com')

@@ -304,6 +304,7 @@ def register_tenant(data: RegistrationInput) -> RegistrationResult:
         is_main=True,
         sort_order=0,
         contact_person=contact_person,
+        contact_email=data.email.strip(),
         phone_number=data.phone_number.strip(),
         mobile_number=data.mobile_number.strip(),
         kyb_verified=False,
