@@ -62,6 +62,15 @@ class ErrorLog(models.Model):
     )
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True, default='')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='resolved_error_logs',
+        db_column='resolved_by_id',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -1,6 +1,11 @@
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
+from .admin_error_log_views import ErrorLogAdminViewSet
 from .views import BookingViewConfigView, BookingsGroupNameConfigView
+
+router = DefaultRouter()
+router.register('admin/error-logs', ErrorLogAdminViewSet, basename='admin-error-log')
 
 urlpatterns = [
     path(
@@ -13,4 +18,5 @@ urlpatterns = [
         BookingsGroupNameConfigView.as_view(),
         name='config-bookings-group-name',
     ),
+    path('', include(router.urls)),
 ]

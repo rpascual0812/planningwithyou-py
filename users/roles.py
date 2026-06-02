@@ -34,6 +34,7 @@ ADMIN_FEATURE_KEYS = (
     'admin_payouts',
     'admin_system_notifications',
     'admin_support',
+    'admin_error_logs',
     'admin_legal',
 )
 

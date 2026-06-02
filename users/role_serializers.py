@@ -39,6 +39,7 @@ FEATURE_LABELS = {
     'admin_payouts': 'Admin > Payouts',
     'admin_system_notifications': 'Admin > System Notifications',
     'admin_support': 'Admin > Support',
+    'admin_error_logs': 'Admin > Error Logs',
     'admin_legal': 'Admin > Legal Documents',
 }
 
