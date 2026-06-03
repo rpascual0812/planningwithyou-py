@@ -4,14 +4,14 @@ from .models import QuotationPayment
 
 
 class QuotationPaymentPayoutReportSerializer(serializers.ModelSerializer):
-    booking_unique_id = serializers.CharField(
-        source='booking.unique_id',
+    quotation_unique_id = serializers.CharField(
+        source='quotation.unique_id',
         read_only=True,
     )
-    quotation_title = serializers.CharField(source='booking.title', read_only=True)
-    booking_credit = serializers.DecimalField(
+    quotation_title = serializers.CharField(source='quotation.title', read_only=True)
+    quotation_credit = serializers.DecimalField(
         source='base_amount',
-        max_digits=10,
+        max_digits=12,
         decimal_places=2,
         read_only=True,
     )
@@ -22,10 +22,11 @@ class QuotationPaymentPayoutReportSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'quotation',
-            'booking_unique_id',
+            'quotation_unique_id',
             'quotation_title',
-            'booking_credit',
+            'quotation_credit',
             'payment_method',
+            'notes',
             'transaction_id',
             'transaction_status',
             'transaction_date',

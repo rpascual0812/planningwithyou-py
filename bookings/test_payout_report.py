@@ -53,6 +53,7 @@ class QuotationPaymentPayoutReportTests(TestCase):
             amount=Decimal('5000.00'),
             transaction_status='paid',
             transaction_id='pay_abc',
+            notes='Deposit via bank',
         )
         QuotationPayment.objects.create(
             quotation=self.booking,
@@ -79,8 +80,9 @@ class QuotationPaymentPayoutReportTests(TestCase):
         res = client.get('/booking-payouts/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)
-        self.assertEqual(res.data[0]['booking_unique_id'], '26-0100')
-        self.assertEqual(res.data[0]['booking_credit'], '5000.00')
+        self.assertEqual(res.data[0]['quotation_unique_id'], '26-0100')
+        self.assertEqual(res.data[0]['quotation_credit'], '5000.00')
+        self.assertEqual(res.data[0]['notes'], 'Deposit via bank')
 
     def test_filter_pending_payouts(self):
         from rest_framework.test import APIClient

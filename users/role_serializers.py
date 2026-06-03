@@ -36,7 +36,7 @@ FEATURE_LABELS = {
     'admin_accounts': 'Admin > Accounts',
     'admin_company_verification': 'Admin > Company Verification',
     'admin_emails': 'Admin > Emails',
-    'admin_payouts': 'Admin > Payouts',
+    'admin_payouts': 'Admin > Payment Received',
     'admin_system_notifications': 'Admin > System Notifications',
     'admin_support': 'Admin > Support',
     'admin_error_logs': 'Admin > Error Logs',

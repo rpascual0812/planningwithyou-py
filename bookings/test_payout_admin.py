@@ -55,6 +55,8 @@ class QuotationPaymentPayoutAdminTests(TestCase):
             amount=Decimal('5000.00'),
             transaction_status='paid',
             transaction_id='pay_abc',
+            payment_method='Bank Transfer',
+            notes='First installment',
         )
         from users.test_support import grant_platform_admin
 
@@ -83,6 +85,9 @@ class QuotationPaymentPayoutAdminTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]['company_name'], 'Payout Co')
+        self.assertEqual(res.data[0]['quotation_unique_id'], '26-0100')
+        self.assertEqual(res.data[0]['payment_method'], 'Bank Transfer')
+        self.assertEqual(res.data[0]['notes'], 'First installment')
         self.assertFalse(res.data[0]['payout_sent'])
 
     def test_filter_pending_payouts(self):

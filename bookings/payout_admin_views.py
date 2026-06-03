@@ -20,7 +20,7 @@ class QuotationPaymentPayoutAdminViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Admin list of successful booking payments and payout-sent tracking."""
+    """Admin list of successful quotation payments (Admin → Payment Received)."""
 
     feature_key = 'admin_payouts'
     permission_classes = [IsAuthenticated, FeatureAccess]
@@ -33,7 +33,7 @@ class QuotationPaymentPayoutAdminViewSet(
     def get_queryset(self):
         qs = (
             valid_booking_payments_queryset()
-            .select_related('company', 'booking')
+            .select_related('company', 'quotation')
             .order_by('-transaction_date', '-created_at')
         )
         company_id = self.request.query_params.get('company_id', '').strip()
