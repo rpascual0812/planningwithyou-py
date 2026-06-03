@@ -67,7 +67,7 @@ class EmailLog(models.Model):
         related_name='email_logs_created',
         db_column='created_by',
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField()
     sent_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

@@ -90,8 +90,8 @@ INSTALLED_APPS = [
     'countries',
     'config',
     'users',
-    'companies',
-    'emails',
+    'companies.apps.CompaniesConfig',
+    'emails.apps.EmailsConfig',
     'documents',
     'contacts',
     'bookings',
@@ -114,6 +114,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'companies.middleware.CompanyTimezoneMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]

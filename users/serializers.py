@@ -160,6 +160,7 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserSerializer(serializers.ModelSerializer):
     subscription_plan = serializers.SerializerMethodField()
     company_name = serializers.SerializerMethodField()
+    company_timezone = serializers.SerializerMethodField()
     company_logo_url = serializers.SerializerMethodField()
     photo_url = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
@@ -178,6 +179,7 @@ class UserSerializer(serializers.ModelSerializer):
             'account',
             'company',
             'company_name',
+            'company_timezone',
             'company_logo_url',
             'photo',
             'photo_url',
@@ -202,6 +204,7 @@ class UserSerializer(serializers.ModelSerializer):
             'account',
             'company',
             'company_name',
+            'company_timezone',
             'company_logo_url',
             'photo',
             'photo_url',
@@ -239,6 +242,14 @@ class UserSerializer(serializers.ModelSerializer):
         if company is None:
             return ''
         return company.name
+
+    def get_company_timezone(self, obj: User) -> str:
+        from companies.timezone import normalize_company_timezone_name
+
+        company = getattr(obj, 'company', None)
+        if company is None:
+            return 'UTC'
+        return normalize_company_timezone_name(company.timezone)
 
     def get_company_logo_url(self, obj: User) -> str:
         company = getattr(obj, 'company', None)

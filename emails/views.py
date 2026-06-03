@@ -23,6 +23,7 @@ from planningwithyou.history.snapshots import (
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import EmailLog, EmailTemplate
+from companies.timezone import now_in_company_timezone
 from users.company_access import effective_company_id
 
 from .scope import email_logs_for_platform_admin, email_logs_for_user
@@ -111,6 +112,11 @@ class EmailLogViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=status_filter)
         return qs
 
+    def _effective_company_id(self) -> int | None:
+        raw = self.request.query_params.get('company_id', '').strip()
+        requested = int(raw) if raw.isdigit() else None
+        return effective_company_id(self.request.user, requested)
+
     def list(self, request, *args, **kwargs):
         paginated = (
             request.query_params.get('paginated', '').strip().lower() in ('1', 'true', 'yes')
@@ -123,14 +129,16 @@ class EmailLogViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
+        company_id = self._effective_company_id()
         log = serializer.save(
             status=EmailLog.Status.QUEUED,
             account_id=self.request.user.account_id,
-            company_id=self.request.user.company_id,
+            company_id=company_id,
             created_by=self.request.user,
+            created_at=now_in_company_timezone(company_id),
             email_from=resolve_sender_email(
                 self.request.user.account_id,
-                self.request.user.company_id,
+                company_id,
             )
             or settings.MAILJET_SEND_FROM,
         )
@@ -147,7 +155,7 @@ class EmailLogViewSet(viewsets.ModelViewSet):
             error='',
             email_from=resolve_sender_email(
                 request.user.account_id,
-                request.user.company_id,
+                log.company_id,
             )
             or settings.MAILJET_SEND_FROM,
         )

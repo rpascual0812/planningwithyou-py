@@ -2,17 +2,26 @@ import logging
 import re
 
 from django.conf import settings
-from django.utils import timezone
 from django.utils.html import strip_tags
 from mailjet_rest import Client
 
 from users.models import Account
 
+from companies.timezone import now_in_company_timezone
+
 from .attachments import build_mailjet_attachments
 from .models import EmailLog, EmailTemplate
 from .recipients import resolve_template_cc_bcc
+from .timezone_helpers import email_log_company_id
 
 logger = logging.getLogger(__name__)
+
+
+def _persist_email_log(log: EmailLog, *, update_fields: list[str] | None = None) -> None:
+    if update_fields is not None:
+        log.save(update_fields=update_fields)
+    else:
+        log.save()
 
 
 def _html_to_plaintext(html: str) -> str:
@@ -87,10 +96,11 @@ def send_email(email_log_id: int):
             send_email_via_gmail(log, gmail)
             log.status = EmailLog.Status.SENT
             log.error = ''
-            log.sent_at = timezone.now()
+            log.sent_at = now_in_company_timezone(email_log_company_id(log))
             if (gmail.google_email or '').strip():
                 log.email_from = gmail.google_email.strip()
-            log.save(
+            _persist_email_log(
+                log,
                 update_fields=['status', 'error', 'sent_at', 'attempts', 'email_from'],
             )
             logger.info(
@@ -103,7 +113,7 @@ def send_email(email_log_id: int):
         except Exception as exc:
             log.status = EmailLog.Status.FAILED
             log.error = str(exc)
-            log.save(update_fields=['status', 'error', 'attempts'])
+            _persist_email_log(log, update_fields=['status', 'error', 'attempts'])
             raise
 
     to_list = [{'Email': addr} for addr in log.to]
@@ -163,12 +173,12 @@ def send_email(email_log_id: int):
         _raise_on_mailjet_errors(result)
         log.status = EmailLog.Status.SENT
         log.error = ''
-        log.sent_at = timezone.now()
-        log.save(update_fields=['status', 'error', 'sent_at', 'attempts'])
+        log.sent_at = now_in_company_timezone(email_log_company_id(log))
+        _persist_email_log(log, update_fields=['status', 'error', 'sent_at', 'attempts'])
     except Exception as exc:
         log.status = EmailLog.Status.FAILED
         log.error = str(exc)
-        log.save(update_fields=['status', 'error', 'attempts'])
+        _persist_email_log(log, update_fields=['status', 'error', 'attempts'])
         raise
 
 
@@ -228,4 +238,5 @@ def create_and_queue_email(
             kwargs['company_id'] = created_by.company_id
     if company is not None:
         kwargs['company'] = company
+    kwargs['created_at'] = now_in_company_timezone(company_id)
     return EmailLog.objects.create(**kwargs)

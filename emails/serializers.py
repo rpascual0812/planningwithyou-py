@@ -7,6 +7,7 @@ from .attachment_refs import (
     normalize_attachment_item,
 )
 from .mail import body_has_content
+from .datetime_utils import company_timezone_name_for_email_log
 from .models import EmailLog, EmailTemplate
 
 _EMAIL_VALIDATOR = EmailValidator()
@@ -42,6 +43,11 @@ def normalize_email_address_list(value) -> list[str]:
 
 
 class EmailLogSerializer(serializers.ModelSerializer):
+    company_timezone = serializers.SerializerMethodField()
+
+    def get_company_timezone(self, obj) -> str:
+        return company_timezone_name_for_email_log(obj)
+
     def validate_body(self, value):
         if not body_has_content(value):
             raise serializers.ValidationError('Message body is required.')
@@ -79,12 +85,12 @@ class EmailLogSerializer(serializers.ModelSerializer):
         model = EmailLog
         fields = [
             'id', 'to', 'cc', 'bcc', 'email_from', 'reply_to', 'subject',
-            'body', 'attachments', 'created_by', 'company_id',
+            'body', 'attachments', 'created_by', 'company_id', 'company_timezone',
             'status', 'error', 'attempts', 'created_at', 'sent_at',
         ]
         read_only_fields = [
-            'id', 'email_from', 'created_by', 'company_id', 'status', 'error',
-            'attempts', 'created_at', 'sent_at',
+            'id', 'email_from', 'created_by', 'company_id',
+            'status', 'error', 'attempts', 'created_at', 'sent_at',
         ]
 
 
