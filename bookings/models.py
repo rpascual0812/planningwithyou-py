@@ -462,20 +462,20 @@ class History(models.Model):
     """Append-only change log for bookings and other tenant resources."""
 
     class ResourceType(models.TextChoices):
-        BOOKING = 'booking', 'Booking'
+        BOOKING = 'booking', 'Quotation'
         ACCOUNT = 'account', 'Account'
         COMPANY = 'company', 'Company'
         USER = 'user', 'User'
         CONTACT = 'contact', 'Contact'
         SUPPLIER_SETTING = 'supplier_setting', 'Supplier setting'
-        BOOKING_STATUS = 'booking_status', 'Booking status'
+        BOOKING_STATUS = 'booking_status', 'Quotation status'
         EMAIL_TEMPLATE = 'email_template', 'Email template'
         FORM_TEMPLATE = 'form_template', 'Form template'
 
     class EntityType(models.TextChoices):
-        BOOKING = 'booking', 'Booking'
-        BOOKING_LINE = 'booking_line', 'Booking line'
-        BOOKING_GROUP = 'booking_group', 'Booking group'
+        BOOKING = 'booking', 'Quotation'
+        BOOKING_LINE = 'booking_line', 'Quotation line'
+        BOOKING_GROUP = 'booking_group', 'Quotation group'
         ACCOUNT = 'account', 'Account'
         COMPANY = 'company', 'Company'
         USER = 'user', 'User'

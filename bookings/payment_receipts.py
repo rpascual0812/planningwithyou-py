@@ -119,10 +119,10 @@ def _receipt_pdf_bytes(payment: BookingPayment, receipt_number: str) -> bytes:
         y = box_y - (4 * mm)
 
     section(
-        'Booking Information',
+        'Quotation Information',
         [
-            ('Booking ID', str(booking.unique_id or booking.pk)),
-            ('Booking Title', booking.title or '-'),
+            ('Quotation ID', str(booking.unique_id or booking.pk)),
+            ('Quotation Title', booking.title or '-'),
             ('Event Date', event_date),
             ('Booked By', created_by.email if created_by else '-'),
         ],
@@ -200,7 +200,7 @@ def _payment_received_email_content(
             apply_template_placeholders(
                 (
                     '<p>Your payment receipt is attached.</p>'
-                    '<p>Booking: {booking_title}</p>'
+                    '<p>Quotation: {booking_title}</p>'
                     '<p>Transaction ID: {transaction_id}</p>'
                     '<p>Amount paid: {amount_paid}</p>'
                 ),

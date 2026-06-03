@@ -364,7 +364,7 @@ def read_booking_pdf_file(
         qs = qs.filter(company_id=company_id)
     booking = qs.first()
     if booking is None:
-        raise FileNotFoundError('Booking PDF not found')
+        raise FileNotFoundError('Quotation PDF not found')
 
     storage_key = booking_pdf_storage_key(booking)
     try:
@@ -374,7 +374,7 @@ def read_booking_pdf_file(
         if legacy and not legacy.startswith(('http://', 'https://', '/')):
             data = _read_booking_pdf_bytes(legacy)
         else:
-            raise FileNotFoundError('Booking PDF not found') from None
+            raise FileNotFoundError('Quotation PDF not found') from None
     safe_title = re.sub(r'[^\w\s-]+', '', booking.title or 'booking').strip() or 'booking'
     safe_title = re.sub(r'[-\s]+', '-', safe_title)[:80]
     filename = f'{safe_title}.pdf'

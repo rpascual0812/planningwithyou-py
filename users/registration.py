@@ -151,7 +151,7 @@ EMAIL_TEMPLATES = [
         'subject': 'Payment receipt for booking {booking_id}',
         'body': (
             '<p>Your payment receipt is attached.</p>'
-            '<p>Booking: {booking_title}</p>'
+            '<p>Quotation: {booking_title}</p>'
             '<p>Transaction ID: {transaction_id}</p>'
             '<p>Amount paid: {amount_paid}</p>'
         ),

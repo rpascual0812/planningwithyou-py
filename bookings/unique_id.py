@@ -26,7 +26,7 @@ def allocate_booking_unique_id(company_id: int, account_id: int, *, when=None) -
             raise ValidationError(
                 {
                     'unique_id': [
-                        f'Booking ID limit reached for {year} ({MAX_SEQUENCE} per company).',
+                        f'Quotation ID limit reached for {year} ({MAX_SEQUENCE} per company).',
                     ],
                 },
             )

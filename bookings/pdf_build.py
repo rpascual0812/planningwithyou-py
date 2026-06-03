@@ -583,7 +583,7 @@ class BookingQuotePDF:
         # Title row
         self.c.setFont(self._label_font(), 18)
         self.c.setFillColor(NAVY)
-        title = (self.booking.title or 'Booking Quote').strip()[:60]
+        title = (self.booking.title or 'Quotation').strip()[:60]
         self.c.drawString(MARGIN_L, top - 6 * mm, title)
 
         quote_date = timezone.localtime(

@@ -36,7 +36,7 @@ def compute_payment_link_pricing(base_amount: Decimal) -> PaymentLinkPricing:
     """
     base = _quantize_php(Decimal(base_amount))
     if base <= 0:
-        raise ValueError('Booking total must be greater than zero.')
+        raise ValueError('Quotation total must be greater than zero.')
 
     platform_fee = _quantize_php(base * PLATFORM_FEE_RATE_ON_BASE)
     numerator = base + platform_fee + PAYMONGO_FIXED_FEE_PHP

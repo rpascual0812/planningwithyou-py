@@ -94,7 +94,7 @@ class DashboardProfitProgressView(APIView):
 
 
 class DashboardActiveProjectsView(APIView):
-    """Booking count for statuses tagged with the configured active-projects tag."""
+    """Quotation count for statuses tagged with the configured active-projects tag."""
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     feature_key = 'dashboard'

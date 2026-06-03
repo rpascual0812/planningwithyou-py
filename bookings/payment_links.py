@@ -115,7 +115,7 @@ def create_booking_payment_link(
         {
             'amount': amount_to_centavos(pricing.charge_amount),
             'currency': 'PHP',
-            'name': f'Booking {booking.unique_id or booking.title}',
+            'name': f'Quotation {booking.unique_id or booking.title}',
             'quantity': 1,
             'description': (
                 f'Quote {pricing.base_amount} PHP + fees '
