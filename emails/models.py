@@ -103,6 +103,16 @@ class EmailTemplate(models.Model):
 
     name = models.CharField(max_length=255)
     title = models.CharField(max_length=255, blank=True, default='')
+    cc = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Default CC email addresses for messages using this template.',
+    )
+    bcc = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Default BCC email addresses for messages using this template.',
+    )
     subject = models.CharField(max_length=255, blank=True, default='')
     body = models.TextField(blank=True, default='')
     template_type = models.CharField(

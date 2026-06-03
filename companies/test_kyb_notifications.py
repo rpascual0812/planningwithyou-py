@@ -5,8 +5,10 @@ from django.test import TestCase
 from companies.kyb_notifications import send_company_kyb_approved_email
 from companies.models import Company
 from countries.models import Country
+from emails.models import EmailTemplate
 from suppliers.models import SupplierType
 from users.models import Account, User
+from users.registration import seed_company_defaults
 
 
 class CompanyKybNotificationTests(TestCase):
@@ -27,6 +29,7 @@ class CompanyKybNotificationTests(TestCase):
             supplier_type=supplier_type,
             contact_email='billing@notifyco.test',
         )
+        seed_company_defaults(self.account, self.company)
 
     @patch('companies.kyb_notifications.send_email_task.delay')
     @patch('companies.kyb_notifications.create_and_queue_email')
@@ -57,3 +60,24 @@ class CompanyKybNotificationTests(TestCase):
 
         self.assertTrue(sent)
         self.assertEqual(mock_create.call_args.kwargs['to'], ['first@notifyco.test'])
+
+    @patch('companies.kyb_notifications.send_email_task.delay')
+    @patch('companies.kyb_notifications.create_and_queue_email')
+    def test_applies_template_cc_bcc(self, mock_create, mock_delay):
+        template = EmailTemplate.objects.get(
+            account=self.account,
+            company=self.company,
+            name='kyb_verified',
+        )
+        template.cc = ['ops@notifyco.test']
+        template.bcc = ['audit@notifyco.test']
+        template.save(update_fields=['cc', 'bcc'])
+        mock_create.return_value = type('Log', (), {'pk': 3})()
+
+        send_company_kyb_approved_email(self.company.pk)
+
+        self.assertEqual(
+            mock_create.call_args.kwargs['email_template'],
+            template,
+        )
+        mock_delay.assert_called_once_with(3)

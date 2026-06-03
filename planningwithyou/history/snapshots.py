@@ -30,7 +30,8 @@ CONTACT_FIELDS = (
 BOOKING_STATUS_FIELDS = ('title', 'description', 'color', 'sort_order')
 
 EMAIL_TEMPLATE_FIELDS = (
-    'name', 'title', 'subject', 'body', 'is_active', 'company_id', 'template_type',
+    'name', 'title', 'cc', 'bcc', 'subject', 'body', 'is_active', 'company_id',
+    'template_type',
 )
 FORM_TEMPLATE_FIELDS = (
     'name', 'description', 'is_active', 'is_default', 'company_id',

@@ -92,6 +92,7 @@ def send_calendar_event_email(event, *, template_name: str, fallback_subject: st
         cc=cc_list,
         subject=apply_template_placeholders(subject, context),
         body=apply_template_placeholders(body, context),
+        email_template=template,
         account=event.account,
         company=event.company,
         created_by=event.created_by,

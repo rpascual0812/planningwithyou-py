@@ -169,7 +169,9 @@ def _receipt_storage_key(payment: BookingPayment, receipt_number: str) -> str:
     )
 
 
-def _payment_received_email_content(payment: BookingPayment) -> tuple[str, str]:
+def _payment_received_email_content(
+    payment: BookingPayment,
+) -> tuple[str, str, EmailTemplate | None]:
     booking = payment.booking
     template = (
         EmailTemplate.objects.filter(
@@ -204,10 +206,12 @@ def _payment_received_email_content(payment: BookingPayment) -> tuple[str, str]:
                 ),
                 context,
             ),
+            None,
         )
     return (
         apply_template_placeholders(template.subject or '', context),
         apply_template_placeholders(template.body or '', context),
+        template,
     )
 
 
@@ -241,11 +245,12 @@ def ensure_paid_booking_payment_receipt(payment_id: int) -> BookingPaymentReceip
 
     recipient = (getattr(payment.booking.created_by, 'email', '') or '').strip()
     if recipient and receipt.emailed_at is None:
-        subject, body = _payment_received_email_content(payment)
+        subject, body, template = _payment_received_email_content(payment)
         log = create_and_queue_email(
             to=[recipient],
             subject=subject,
             body=body,
+            email_template=template,
             attachments=[receipt.receipt_url],
             account=payment.booking.account,
             company=payment.company,

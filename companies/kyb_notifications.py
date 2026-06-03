@@ -82,6 +82,7 @@ def send_company_kyb_approved_email(company_id: int) -> bool:
         to=[recipient],
         subject=apply_template_placeholders(subject, context),
         body=apply_template_placeholders(body, context),
+        email_template=template,
         account=company.account,
         company=company,
     )

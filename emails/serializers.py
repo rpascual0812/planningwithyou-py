@@ -1,3 +1,5 @@
+from django.core.validators import EmailValidator
+
 from rest_framework import serializers
 
 from .attachment_refs import (
@@ -6,6 +8,37 @@ from .attachment_refs import (
 )
 from .mail import body_has_content
 from .models import EmailLog, EmailTemplate
+
+_EMAIL_VALIDATOR = EmailValidator()
+
+
+def normalize_email_address_list(value) -> list[str]:
+    if value in (None, ''):
+        return []
+    if not isinstance(value, list):
+        raise serializers.ValidationError('Must be a list of email addresses.')
+    normalized: list[str] = []
+    seen: set[str] = set()
+    errors: list[str] = []
+    for item in value:
+        if item in (None, ''):
+            continue
+        addr = str(item).strip()
+        if not addr:
+            continue
+        key = addr.lower()
+        if key in seen:
+            continue
+        try:
+            _EMAIL_VALIDATOR(addr)
+        except Exception:
+            errors.append(f'Invalid email address: {addr}')
+            continue
+        seen.add(key)
+        normalized.append(addr)
+    if errors:
+        raise serializers.ValidationError(errors)
+    return normalized
 
 
 class EmailLogSerializer(serializers.ModelSerializer):
@@ -63,13 +96,19 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailTemplate
         fields = [
-            'id', 'name', 'title', 'subject', 'body', 'type', 'is_active',
-            'is_default',
-            'company_id', 'created_at', 'updated_at', 'deleted_at',
+            'id', 'name', 'title', 'cc', 'bcc', 'subject', 'body', 'type',
+            'is_active', 'is_default', 'company_id', 'created_at', 'updated_at',
+            'deleted_at',
         ]
         read_only_fields = [
             'id', 'type', 'is_default', 'created_at', 'updated_at', 'deleted_at',
         ]
+
+    def validate_cc(self, value):
+        return normalize_email_address_list(value)
+
+    def validate_bcc(self, value):
+        return normalize_email_address_list(value)
 
     def validate_company_id(self, value):
         if value is None:

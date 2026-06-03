@@ -80,6 +80,27 @@ class EmailCalendarTemplateApiTests(TestCase):
         self.assertEqual(tpl.template_type, EmailTemplate.TemplateType.CALENDAR)
         self.assertFalse(tpl.is_default)
 
+    def test_update_calendar_template_cc_bcc(self):
+        tpl = EmailTemplate.objects.get(
+            account=self.account,
+            company=self.company,
+            name='calendar_event_creation',
+        )
+        res = self.client.patch(
+            f'/email-templates/calendar/{tpl.pk}/',
+            {
+                'cc': ['ops@example.com', 'ops@example.com'],
+                'bcc': ['audit@example.com'],
+            },
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['cc'], ['ops@example.com'])
+        self.assertEqual(res.data['bcc'], ['audit@example.com'])
+        tpl.refresh_from_db()
+        self.assertEqual(tpl.cc, ['ops@example.com'])
+        self.assertEqual(tpl.bcc, ['audit@example.com'])
+
     def test_cannot_delete_default_calendar_template(self):
         tpl = EmailTemplate.objects.get(
             account=self.account,

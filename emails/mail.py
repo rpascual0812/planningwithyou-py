@@ -9,7 +9,8 @@ from mailjet_rest import Client
 from users.models import Account
 
 from .attachments import build_mailjet_attachments
-from .models import EmailLog
+from .models import EmailLog, EmailTemplate
+from .recipients import resolve_template_cc_bcc
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +179,7 @@ def create_and_queue_email(
     body: str,
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
+    email_template: EmailTemplate | None = None,
     email_from: str = '',
     reply_to: str = '',
     attachments: list | None = None,
@@ -201,10 +203,17 @@ def create_and_queue_email(
     if not resolved_from:
         resolved_from = settings.MAILJET_SEND_FROM
 
+    resolved_cc, resolved_bcc = resolve_template_cc_bcc(
+        email_template,
+        cc=cc,
+        bcc=bcc,
+        exclude_to=to,
+    )
+
     kwargs = dict(
         to=to,
-        cc=cc or [],
-        bcc=bcc or [],
+        cc=resolved_cc,
+        bcc=resolved_bcc,
         email_from=resolved_from,
         reply_to=reply_to or '',
         subject=subject,

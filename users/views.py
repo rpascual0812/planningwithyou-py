@@ -138,6 +138,7 @@ def _send_reset_email(user):
         to=[user.email],
         subject=subject,
         body=body,
+        email_template=tmpl,
         account=getattr(user, 'account', None),
         created_by=user,
     )
@@ -188,6 +189,7 @@ def _send_verification_email(user):
         to=[user.email],
         subject=subject,
         body=body,
+        email_template=tmpl,
         account=getattr(user, 'account', None),
         created_by=None,
     )
