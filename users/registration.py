@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
-from bookings.models import BookingStatus, Tag
+from bookings.models import QuotationStatus, Tag
 from calendars.models import CalendarStatus
 from companies.models import Company
 from config.models import Config
@@ -148,10 +148,10 @@ EMAIL_TEMPLATES = [
         'name': 'payment_received',
         'template_type': EmailTemplate.TemplateType.BOOKINGS,
         'title': 'Payment Received',
-        'subject': 'Payment receipt for booking {booking_id}',
+        'subject': 'Payment receipt for booking {quotation_id}',
         'body': (
             '<p>Your payment receipt is attached.</p>'
-            '<p>Quotation: {booking_title}</p>'
+            '<p>Quotation: {quotation_title}</p>'
             '<p>Transaction ID: {transaction_id}</p>'
             '<p>Amount paid: {amount_paid}</p>'
         ),
@@ -207,13 +207,13 @@ EMAIL_TEMPLATES = [
 def seed_booking_statuses_for_company(account: Account, company: Company) -> None:
     """Default kanban columns for a company."""
     for sort_order, (title, color) in enumerate(BOOKING_STATUSES):
-        if BookingStatus.objects.filter(
+        if QuotationStatus.objects.filter(
             account=account,
             company=company,
             title__iexact=title,
         ).exists():
             continue
-        BookingStatus.objects.create(
+        QuotationStatus.objects.create(
             account=account,
             company=company,
             title=title,

@@ -54,7 +54,7 @@ class Tag(models.Model):
         return self.tag
 
 
-class BookingStatus(models.Model):
+class QuotationStatus(models.Model):
     account = models.ForeignKey(
         'users.Account',
         on_delete=models.CASCADE,
@@ -65,25 +65,25 @@ class BookingStatus(models.Model):
         'companies.Company',
         on_delete=models.CASCADE,
         db_column='company_id',
-        related_name='booking_statuses',
+        related_name='quotation_statuses',
     )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
     color = models.CharField(max_length=20, default='#1f3a5f')
     sort_order = models.PositiveIntegerField(default=0)
-    tags = models.ManyToManyField(Tag, related_name='booking_statuses', blank=True)
+    tags = models.ManyToManyField(Tag, related_name='quotation_statuses', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'booking_statuses'
+        db_table = 'quotation_statuses'
         ordering = ['sort_order', 'id']
 
     def __str__(self):
         return self.title
 
 
-class BookingItem(models.Model):
+class Quotation(models.Model):
     account = models.ForeignKey(
         'users.Account',
         on_delete=models.CASCADE,
@@ -94,10 +94,10 @@ class BookingItem(models.Model):
         'companies.Company',
         on_delete=models.PROTECT,
         db_column='company_id',
-        related_name='bookings',
+        related_name='quotations',
     )
     status = models.ForeignKey(
-        BookingStatus,
+        QuotationStatus,
         on_delete=models.CASCADE,
         related_name='items',
         db_column='status_id',
@@ -107,7 +107,7 @@ class BookingItem(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='bookings',
+        related_name='quotations',
         db_column='contact_id',
     )
     unique_id = models.CharField(max_length=7)
@@ -123,7 +123,7 @@ class BookingItem(models.Model):
     pdf = models.TextField(
         blank=True,
         default='',
-        help_text='Absolute API URL for the secured booking PDF download route.',
+        help_text='Absolute API URL for the secured quotation PDF download route.',
     )
     sort_order = models.PositiveIntegerField(default=0)
     created_by = models.ForeignKey(
@@ -131,19 +131,19 @@ class BookingItem(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='bookings_created',
+        related_name='quotations_created',
         db_column='created_by',
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'bookings'
+        db_table = 'quotations'
         ordering = ['sort_order', 'id']
         constraints = [
             models.UniqueConstraint(
                 fields=['account', 'unique_id'],
-                name='bookings_account_unique_id_uniq',
+                name='quotations_account_unique_id_uniq',
             ),
         ]
 
@@ -151,12 +151,12 @@ class BookingItem(models.Model):
         return self.unique_id or self.title
 
 
-class BookingPayment(models.Model):
-    booking = models.ForeignKey(
-        BookingItem,
+class QuotationPayment(models.Model):
+    quotation = models.ForeignKey(
+        Quotation,
         on_delete=models.CASCADE,
         related_name='payments',
-        db_column='booking_id',
+        db_column='quotation_id',
     )
     account = models.ForeignKey(
         'users.Account',
@@ -168,7 +168,7 @@ class BookingPayment(models.Model):
         'companies.Company',
         on_delete=models.PROTECT,
         db_column='company_id',
-        related_name='booking_payments',
+        related_name='quotation_payments',
     )
     payment_method = models.CharField(max_length=63, blank=True, default='')
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -182,7 +182,7 @@ class BookingPayment(models.Model):
         max_digits=12,
         decimal_places=2,
         default=0,
-        help_text='Quote portion credited to the booking balance.',
+        help_text='Quote portion credited to the quotation balance.',
     )
     platform_fee = models.DecimalField(
         max_digits=12,
@@ -218,25 +218,25 @@ class BookingPayment(models.Model):
     deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        db_table = 'booking_payments'
+        db_table = 'quotation_payments'
         ordering = ['-transaction_date', '-created_at']
 
     def __str__(self):
-        return f'Payment {self.pk} booking={self.booking_id}'
+        return f'Payment {self.pk} quotation={self.quotation_id}'
 
 
-class BookingPaymentReceipt(models.Model):
-    booking_payment = models.OneToOneField(
-        BookingPayment,
+class QuotationPaymentReceipt(models.Model):
+    quotation_payment = models.OneToOneField(
+        QuotationPayment,
         on_delete=models.CASCADE,
         related_name='receipt',
-        db_column='booking_payment_id',
+        db_column='quotation_payment_id',
     )
-    booking = models.ForeignKey(
-        BookingItem,
+    quotation = models.ForeignKey(
+        Quotation,
         on_delete=models.CASCADE,
         related_name='payment_receipts',
-        db_column='booking_id',
+        db_column='quotation_id',
     )
     account = models.ForeignKey(
         'users.Account',
@@ -248,7 +248,7 @@ class BookingPaymentReceipt(models.Model):
         'companies.Company',
         on_delete=models.PROTECT,
         db_column='company_id',
-        related_name='booking_payment_receipts',
+        related_name='quotation_payment_receipts',
     )
     receipt_url = models.TextField(blank=True, default='')
     storage_key = models.TextField(blank=True, default='')
@@ -257,15 +257,15 @@ class BookingPaymentReceipt(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'booking_payment_receipts'
+        db_table = 'quotation_payment_receipts'
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Receipt payment={self.booking_payment_id}'
+        return f'Receipt payment={self.quotation_payment_id}'
 
 
-class BookingPaymentLink(models.Model):
-    """Public PayMongo checkout link for a booking (platform merchant account)."""
+class QuotationPaymentLink(models.Model):
+    """Public PayMongo checkout link for a quotation (platform merchant account)."""
 
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending'
@@ -273,11 +273,11 @@ class BookingPaymentLink(models.Model):
         EXPIRED = 'expired', 'Expired'
         CANCELLED = 'cancelled', 'Cancelled'
 
-    booking = models.ForeignKey(
-        BookingItem,
+    quotation = models.ForeignKey(
+        Quotation,
         on_delete=models.CASCADE,
         related_name='payment_links',
-        db_column='booking_id',
+        db_column='quotation_id',
     )
     account = models.ForeignKey(
         'users.Account',
@@ -289,7 +289,7 @@ class BookingPaymentLink(models.Model):
         'companies.Company',
         on_delete=models.PROTECT,
         db_column='company_id',
-        related_name='booking_payment_links',
+        related_name='quotation_payment_links',
     )
     public_token = models.UUIDField(unique=True, db_index=True)
     paymongo_checkout_session_id = models.CharField(max_length=255, blank=True, default='')
@@ -312,21 +312,21 @@ class BookingPaymentLink(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='booking_payment_links_created',
+        related_name='quotation_payment_links_created',
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'booking_payment_links'
+        db_table = 'quotation_payment_links'
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Payment link {self.public_token} booking={self.booking_id}'
+        return f'Payment link {self.public_token} quotation={self.quotation_id}'
 
 
-class BookingUniqueIdSequence(models.Model):
-    """Per-company, per-year counter for ``BookingItem.unique_id`` (YY-####)."""
+class QuotationUniqueIdSequence(models.Model):
+    """Per-company, per-year counter for ``Quotation.unique_id`` (YY-####)."""
 
     account = models.ForeignKey(
         'users.Account',
@@ -344,11 +344,11 @@ class BookingUniqueIdSequence(models.Model):
     last_sequence = models.PositiveIntegerField(default=0)
 
     class Meta:
-        db_table = 'booking_unique_id_sequences'
+        db_table = 'quotation_unique_id_sequences'
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'year'],
-                name='booking_unique_id_seq_company_year_uniq',
+                name='quotation_unique_id_seq_company_year_uniq',
             ),
         ]
 
@@ -356,22 +356,22 @@ class BookingUniqueIdSequence(models.Model):
         return f'account={self.account_id} year={self.year} seq={self.last_sequence}'
 
 
-class BookingGroup(models.Model):
-    booking = models.ForeignKey(
-        BookingItem,
+class QuotationGroup(models.Model):
+    quotation = models.ForeignKey(
+        Quotation,
         on_delete=models.CASCADE,
         related_name='groups',
-        db_column='booking_id',
+        db_column='quotation_id',
     )
     name = models.TextField()
 
     class Meta:
-        db_table = 'booking_groups'
+        db_table = 'quotation_groups'
         ordering = ['id']
         constraints = [
             models.UniqueConstraint(
-                fields=['booking', 'name'],
-                name='booking_groups_booking_name_uniq',
+                fields=['quotation', 'name'],
+                name='quotation_groups_quotation_name_uniq',
             ),
         ]
 
@@ -379,8 +379,8 @@ class BookingGroup(models.Model):
         return self.name
 
 
-class BookingLine(models.Model):
-    """Per-booking custom field row; stored in the ``booking_items`` table."""
+class QuotationLine(models.Model):
+    """Per-quotation custom field row; stored in the ``quotation_lines`` table."""
 
     account = models.ForeignKey(
         'users.Account',
@@ -401,8 +401,8 @@ class BookingLine(models.Model):
         ('supplier', 'Supplier'),
     ]
 
-    booking = models.ForeignKey(
-        BookingItem,
+    quotation = models.ForeignKey(
+        Quotation,
         on_delete=models.CASCADE,
         related_name='lines',
     )
@@ -412,7 +412,7 @@ class BookingLine(models.Model):
         null=True,
         blank=True,
         db_column='company_id',
-        related_name='booking_lines',
+        related_name='quotation_lines',
     )
     tier = models.ForeignKey(
         'suppliers.Tier',
@@ -420,7 +420,7 @@ class BookingLine(models.Model):
         null=True,
         blank=True,
         db_column='tier_id',
-        related_name='booking_lines',
+        related_name='quotation_lines',
     )
     package_version = models.ForeignKey(
         'packages.PackageVersion',
@@ -428,14 +428,14 @@ class BookingLine(models.Model):
         null=True,
         blank=True,
         db_column='package_version_id',
-        related_name='booking_lines',
+        related_name='quotation_lines',
     )
     label = models.CharField(max_length=255)
-    booking_group = models.ForeignKey(
-        BookingGroup,
+    quotation_group = models.ForeignKey(
+        QuotationGroup,
         on_delete=models.CASCADE,
         related_name='lines',
-        db_column='booking_group_id',
+        db_column='quotation_group_id',
     )
     field_type = models.CharField(max_length=20, choices=FIELD_TYPES, default='text')
     is_required = models.BooleanField(default=False)
@@ -451,7 +451,7 @@ class BookingLine(models.Model):
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        db_table = 'booking_items'
+        db_table = 'quotation_lines'
         ordering = ['sort_order', 'id']
 
     def __str__(self):
@@ -459,29 +459,29 @@ class BookingLine(models.Model):
 
 
 class History(models.Model):
-    """Append-only change log for bookings and other tenant resources."""
+    """Append-only change log for quotations and other tenant resources."""
 
     class ResourceType(models.TextChoices):
-        BOOKING = 'booking', 'Quotation'
+        QUOTATION = 'quotation', 'Quotation'
         ACCOUNT = 'account', 'Account'
         COMPANY = 'company', 'Company'
         USER = 'user', 'User'
         CONTACT = 'contact', 'Contact'
         SUPPLIER_SETTING = 'supplier_setting', 'Supplier setting'
-        BOOKING_STATUS = 'booking_status', 'Quotation status'
+        QUOTATION_STATUS = 'quotation_status', 'Quotation status'
         EMAIL_TEMPLATE = 'email_template', 'Email template'
         FORM_TEMPLATE = 'form_template', 'Form template'
 
     class EntityType(models.TextChoices):
-        BOOKING = 'booking', 'Quotation'
-        BOOKING_LINE = 'booking_line', 'Quotation line'
-        BOOKING_GROUP = 'booking_group', 'Quotation group'
+        QUOTATION = 'quotation', 'Quotation'
+        QUOTATION_LINE = 'quotation_line', 'Quotation line'
+        QUOTATION_GROUP = 'quotation_group', 'Quotation group'
         ACCOUNT = 'account', 'Account'
         COMPANY = 'company', 'Company'
         USER = 'user', 'User'
         CONTACT = 'contact', 'Contact'
         SUPPLIER_SETTING = 'supplier_setting', 'Supplier setting'
-        BOOKING_STATUS = 'booking_status', 'Booking status'
+        QUOTATION_STATUS = 'quotation_status', 'Quotation status'
         EMAIL_TEMPLATE = 'email_template', 'Email template'
         FORM_TEMPLATE = 'form_template', 'Form template'
 
@@ -500,16 +500,16 @@ class History(models.Model):
     resource_type = models.CharField(
         max_length=32,
         choices=ResourceType.choices,
-        default=ResourceType.BOOKING,
+        default=ResourceType.QUOTATION,
     )
     resource_id = models.PositiveIntegerField(default=0)
-    booking = models.ForeignKey(
-        BookingItem,
+    quotation = models.ForeignKey(
+        Quotation,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='history_entries',
-        db_column='booking_id',
+        db_column='quotation_id',
     )
     entity_type = models.CharField(max_length=32)
     entity_id = models.PositiveIntegerField(null=True, blank=True)
@@ -519,7 +519,7 @@ class History(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='booking_history_entries',
+        related_name='quotation_history_entries',
         db_column='actor_id',
     )
     changes = models.JSONField(default=dict)
@@ -531,7 +531,7 @@ class History(models.Model):
         ordering = ['-created_at', '-id']
         indexes = [
             models.Index(fields=['resource_type', 'resource_id', '-created_at']),
-            models.Index(fields=['booking', '-created_at']),
+            models.Index(fields=['quotation', '-created_at']),
             models.Index(fields=['account', '-created_at']),
         ]
 

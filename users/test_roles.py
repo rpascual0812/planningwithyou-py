@@ -50,14 +50,14 @@ class RoleApiTests(TestCase):
             {
                 'name': 'Coordinator',
                 'is_default': False,
-                'permissions': {'bookings': 'read', 'contacts': 'read'},
+                'permissions': {'quotations': 'read', 'contacts': 'read'},
             },
             format='json',
         )
         self.assertEqual(response.status_code, 201)
         role = Role.objects.get(name='Coordinator', account=self.account)
         self.assertEqual(
-            role.permissions.get(feature_key='bookings').access,
+            role.permissions.get(feature_key='quotations').access,
             'read',
         )
 
@@ -100,7 +100,7 @@ class RoleApiTests(TestCase):
         )
         RolePermission.objects.create(
             role=reader,
-            feature_key='bookings',
+            feature_key='quotations',
             access='read',
         )
         self.user.role = reader
@@ -109,23 +109,23 @@ class RoleApiTests(TestCase):
         response = self.client.get('/users/me/')
         self.assertEqual(response.status_code, 200)
         perms = response.json()['permissions']
-        self.assertEqual(perms['bookings'], 'read')
+        self.assertEqual(perms['quotations'], 'read')
         self.assertEqual(perms['users'], 'none')
         for key in FEATURE_KEYS:
             self.assertIn(key, perms)
 
     def test_read_only_bookings_cannot_create_booking(self):
-        from bookings.models import BookingStatus
+        from bookings.models import QuotationStatus
 
         reader = Role.objects.create(account=self.account, name='Reader')
         RolePermission.objects.create(
             role=reader,
-            feature_key='bookings',
+            feature_key='quotations',
             access='read',
         )
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
-        status = BookingStatus.objects.create(
+        status = QuotationStatus.objects.create(
             account=self.account,
             company=self.company,
             title='New',
@@ -134,7 +134,7 @@ class RoleApiTests(TestCase):
             sort_order=0,
         )
         response = self.client.post(
-            '/bookings/items/',
+            '/quotation-items/',
             {
                 'title': 'Blocked',
                 'status': status.pk,
@@ -145,17 +145,17 @@ class RoleApiTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_read_bookings_can_get_statuses_and_items(self):
-        from bookings.models import BookingStatus
+        from bookings.models import QuotationStatus
 
         reader = Role.objects.create(account=self.account, name='Reader')
         RolePermission.objects.create(
             role=reader,
-            feature_key='bookings',
+            feature_key='quotations',
             access='read',
         )
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
-        BookingStatus.objects.create(
+        QuotationStatus.objects.create(
             account=self.account,
             company=self.company,
             title='Open',
@@ -164,24 +164,24 @@ class RoleApiTests(TestCase):
             sort_order=0,
         )
 
-        statuses = self.client.get('/booking-statuses/')
+        statuses = self.client.get('/quotation-statuses/')
         self.assertEqual(statuses.status_code, 200)
 
-        items = self.client.get('/bookings/items/')
+        items = self.client.get('/quotation-items/')
         self.assertEqual(items.status_code, 200)
 
     def test_read_bookings_cannot_post_status(self):
         reader = Role.objects.create(account=self.account, name='Reader')
         RolePermission.objects.create(
             role=reader,
-            feature_key='bookings',
+            feature_key='quotations',
             access='read',
         )
         self.user.role = reader
         self.user.save(update_fields=['role_id'])
 
         response = self.client.post(
-            '/booking-statuses/',
+            '/quotation-statuses/',
             {'title': 'Blocked', 'description': '', 'color': '#111'},
             format='json',
         )
@@ -250,7 +250,7 @@ class RoleApiTests(TestCase):
             {
                 'name': 'Blocked',
                 'is_default': False,
-                'permissions': {'bookings': 'read'},
+                'permissions': {'quotations': 'read'},
             },
             format='json',
         )

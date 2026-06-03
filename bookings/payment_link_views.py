@@ -11,10 +11,10 @@ from django.utils.decorators import method_decorator
 
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
-from .models import BookingPayment, BookingPaymentLink
+from .models import QuotationPayment, QuotationPaymentLink
 from .payment_link_serializers import (
-    BookingPaymentLinkSerializer,
-    BookingPaymentSerializer,
+    QuotationPaymentLinkSerializer,
+    QuotationPaymentSerializer,
 )
 from .payment_links import PaymentLinkError, create_booking_payment_link, serialize_public_payment_link
 from .payment_summary import booking_payment_summary
@@ -35,25 +35,25 @@ from .scope import assert_booking_editable, bookings_for_user
 logger = logging.getLogger(__name__)
 
 
-class BookingPaymentLinkListCreateView(APIView):
+class QuotationPaymentLinkListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
-    feature_key = 'bookings'
+    feature_key = 'quotations'
 
-    def get(self, request, booking_id: int):
-        booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)
-        links = BookingPaymentLink.objects.filter(booking=booking).order_by('-created_at')
+    def get(self, request, quotation_id: int):
+        booking = get_object_or_404(bookings_for_user(request.user), pk=quotation_id)
+        links = QuotationPaymentLink.objects.filter(quotation=booking).order_by('-created_at')
         payments = (
-            BookingPayment.objects.filter(booking=booking, deleted_at__isnull=True)
+            QuotationPayment.objects.filter(quotation=booking, deleted_at__isnull=True)
             .order_by('-transaction_date', '-created_at')
         )
         return Response({
-            'links': BookingPaymentLinkSerializer(links, many=True).data,
-            'payments': BookingPaymentSerializer(payments, many=True).data,
+            'links': QuotationPaymentLinkSerializer(links, many=True).data,
+            'payments': QuotationPaymentSerializer(payments, many=True).data,
             'summary': booking_payment_summary(booking),
         })
 
-    def post(self, request, booking_id: int):
-        booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)
+    def post(self, request, quotation_id: int):
+        booking = get_object_or_404(bookings_for_user(request.user), pk=quotation_id)
         assert_booking_editable(booking, request.user)
         amount = request.data.get('amount')
         try:
@@ -65,27 +65,27 @@ class BookingPaymentLinkListCreateView(APIView):
         except PaymentLinkError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(
-            BookingPaymentLinkSerializer(link).data,
+            QuotationPaymentLinkSerializer(link).data,
             status=status.HTTP_201_CREATED,
         )
 
 
-class BookingPaymentLinkDetailView(APIView):
+class QuotationPaymentLinkDetailView(APIView):
     """Cancel a pending payment link (soft status change)."""
 
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
-    feature_key = 'bookings'
+    feature_key = 'quotations'
 
-    def delete(self, request, booking_id: int, link_id: int):
-        booking = get_object_or_404(bookings_for_user(request.user), pk=booking_id)
+    def delete(self, request, quotation_id: int, link_id: int):
+        booking = get_object_or_404(bookings_for_user(request.user), pk=quotation_id)
         assert_booking_editable(booking, request.user)
-        link = get_object_or_404(BookingPaymentLink, pk=link_id, booking_id=booking.pk)
-        if link.status == BookingPaymentLink.Status.PAID:
+        link = get_object_or_404(QuotationPaymentLink, pk=link_id, quotation_id=booking.pk)
+        if link.status == QuotationPaymentLink.Status.PAID:
             return Response(
                 {'detail': 'Paid payment links cannot be cancelled.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        link.status = BookingPaymentLink.Status.CANCELLED
+        link.status = QuotationPaymentLink.Status.CANCELLED
         link.save(update_fields=['status', 'updated_at'])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -95,10 +95,10 @@ class PublicPaymentLinkView(APIView):
 
     def get(self, request, token: str):
         link = (
-            BookingPaymentLink.objects.select_related(
-                'booking',
-                'booking__account',
-                'booking__account__country',
+            QuotationPaymentLink.objects.select_related(
+                'quotation',
+                'quotation__account',
+                'quotation__account__country',
                 'company',
             )
             .filter(public_token=token)
@@ -107,10 +107,10 @@ class PublicPaymentLinkView(APIView):
         if link is None:
             return Response({'detail': 'Payment link not found.'}, status=status.HTTP_404_NOT_FOUND)
         if (
-            link.status == BookingPaymentLink.Status.PENDING
+            link.status == QuotationPaymentLink.Status.PENDING
             and link.expires_at < timezone.now()
         ):
-            link.status = BookingPaymentLink.Status.EXPIRED
+            link.status = QuotationPaymentLink.Status.EXPIRED
             link.save(update_fields=['status', 'updated_at'])
         return Response(serialize_public_payment_link(link))
 

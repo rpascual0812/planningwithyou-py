@@ -61,7 +61,7 @@ class BookingSupplierPackageView(APIView):
     """
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'bookings'
+    feature_key = 'quotations'
 
     def get(self, request):
         query = BookingSupplierPackageQuerySerializer(

@@ -2,14 +2,14 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from bookings.models import BookingItem, BookingPayment, BookingStatus
+from bookings.models import Quotation, QuotationPayment, QuotationStatus
 from companies.models import Company
 from countries.models import Country
 from suppliers.models import SupplierType
 from users.models import Account, User
 
 
-class BookingPaymentPayoutReportTests(TestCase):
+class QuotationPaymentPayoutReportTests(TestCase):
     def setUp(self):
         country = Country.objects.create(
             name='Testland',
@@ -32,21 +32,21 @@ class BookingPaymentPayoutReportTests(TestCase):
             name='Other Co',
             supplier_type=supplier_type,
         )
-        self.status = BookingStatus.objects.create(
+        self.status = QuotationStatus.objects.create(
             account=self.account,
             company=self.company,
             title='New',
             sort_order=0,
         )
-        self.booking = BookingItem.objects.create(
+        self.booking = Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
             unique_id='26-0100',
             title='Wedding',
         )
-        self.payment = BookingPayment.objects.create(
-            booking=self.booking,
+        self.payment = QuotationPayment.objects.create(
+            quotation=self.booking,
             account=self.account,
             company=self.company,
             base_amount=Decimal('5000.00'),
@@ -54,8 +54,8 @@ class BookingPaymentPayoutReportTests(TestCase):
             transaction_status='paid',
             transaction_id='pay_abc',
         )
-        BookingPayment.objects.create(
-            booking=self.booking,
+        QuotationPayment.objects.create(
+            quotation=self.booking,
             account=self.account,
             company=self.other_company,
             base_amount=Decimal('100.00'),

@@ -98,7 +98,7 @@ class SupplierOptionListView(APIView):
     """
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'bookings'
+    feature_key = 'quotations'
 
     def get(self, request):
         query = SupplierOptionQuerySerializer(
@@ -127,7 +127,7 @@ class SupplierTierListView(APIView):
     """Tiers configured for a supplier through supplier_setting_tiers."""
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'bookings'
+    feature_key = 'quotations'
 
     def get(self, request):
         query = SupplierTierQuerySerializer(

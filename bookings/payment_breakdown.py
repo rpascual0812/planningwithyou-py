@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.db.models import Case, DecimalField, F, Sum, When
 
-from .models import BookingItem
+from .models import Quotation
 from .payment_validity import valid_booking_payments_queryset
 
 TWOPLACES = Decimal('0.01')
@@ -21,16 +21,16 @@ def _booking_credit_amount_field():
     )
 
 
-def booking_payments_paid_base_total(booking_id: int) -> Decimal:
+def booking_payments_paid_base_total(quotation_id: int) -> Decimal:
     """Sum of quote portions credited from successful ``booking_payments``."""
-    agg = valid_booking_payments_queryset().filter(booking_id=booking_id).aggregate(
+    agg = valid_booking_payments_queryset().filter(quotation_id=quotation_id).aggregate(
         total=Sum(_booking_credit_amount_field()),
     )
     return (agg['total'] or Decimal('0')).quantize(TWOPLACES)
 
 
-def booking_payment_fee_totals(booking_id: int) -> dict[str, Decimal]:
-    qs = valid_booking_payments_queryset().filter(booking_id=booking_id)
+def booking_payment_fee_totals(quotation_id: int) -> dict[str, Decimal]:
+    qs = valid_booking_payments_queryset().filter(quotation_id=quotation_id)
     agg = qs.aggregate(
         charge_total=Sum('charge_amount'),
         processing_total=Sum('processing_fee'),
@@ -45,7 +45,7 @@ def booking_payment_fee_totals(booking_id: int) -> dict[str, Decimal]:
     }
 
 
-def booking_remaining_balance(booking: BookingItem) -> Decimal:
+def booking_remaining_balance(booking: Quotation) -> Decimal:
     paid = booking_payments_paid_base_total(booking.pk)
     remaining = (booking.total_amount or Decimal('0')) - paid
     if remaining < Decimal('0'):
@@ -53,11 +53,11 @@ def booking_remaining_balance(booking: BookingItem) -> Decimal:
     return remaining.quantize(TWOPLACES)
 
 
-def booking_is_fully_paid(booking: BookingItem) -> bool:
+def booking_is_fully_paid(booking: Quotation) -> bool:
     return booking_remaining_balance(booking) <= Decimal('0')
 
 
-def booking_payment_summary(booking: BookingItem) -> dict[str, str]:
+def booking_payment_summary(booking: Quotation) -> dict[str, str]:
     paid_base = booking_payments_paid_base_total(booking.pk)
     fees = booking_payment_fee_totals(booking.pk)
     total = booking.total_amount or Decimal('0')

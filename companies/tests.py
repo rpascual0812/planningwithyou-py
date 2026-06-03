@@ -265,10 +265,10 @@ class CompanyCreateDefaultsApiTests(TestCase):
             ).exists(),
         )
 
-        from bookings.models import BookingStatus, Tag
+        from bookings.models import QuotationStatus, Tag
 
         status_titles = list(
-            BookingStatus.objects.filter(
+            QuotationStatus.objects.filter(
                 account=self.account,
                 company_id=company_id,
             )

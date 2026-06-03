@@ -3,10 +3,10 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from bookings.models import (
-    BookingGroup,
-    BookingItem,
-    BookingLine,
-    BookingStatus,
+    QuotationGroup,
+    Quotation,
+    QuotationLine,
+    QuotationStatus,
     FormTemplate,
     History,
     Tag,
@@ -46,7 +46,7 @@ class BookingHistoryTests(TestCase):
             is_main=True,
             is_active=True,
         )
-        self.status = BookingStatus.objects.create(
+        self.status = QuotationStatus.objects.create(
             account=self.account,
             company=self.company,
             title='New',
@@ -63,7 +63,7 @@ class BookingHistoryTests(TestCase):
 
     def test_create_booking_records_history(self):
         res = self.client.post(
-            '/booking-items/',
+            '/quotation-items/',
             {
                 'status': self.status.pk,
                 'title': 'Wedding',
@@ -79,16 +79,16 @@ class BookingHistoryTests(TestCase):
             format='json',
         )
         self.assertEqual(res.status_code, 201)
-        booking_id = res.json()['id']
-        entry = History.objects.get(booking_id=booking_id, action=History.Action.CREATE)
+        quotation_id = res.json()['id']
+        entry = History.objects.get(quotation_id=quotation_id, action=History.Action.CREATE)
         self.assertEqual(entry.actor_id, self.user.pk)
-        self.assertEqual(entry.entity_type, History.EntityType.BOOKING)
-        self.assertEqual(entry.resource_type, History.ResourceType.BOOKING)
-        self.assertEqual(entry.resource_id, booking_id)
+        self.assertEqual(entry.entity_type, History.EntityType.QUOTATION)
+        self.assertEqual(entry.resource_type, History.ResourceType.QUOTATION)
+        self.assertEqual(entry.resource_id, quotation_id)
         self.assertIn('snapshot', entry.changes)
 
     def test_update_title_records_history(self):
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
@@ -96,37 +96,37 @@ class BookingHistoryTests(TestCase):
             title='Before',
         )
         res = self.client.patch(
-            f'/booking-items/{booking.pk}/',
+            f'/quotation-items/{booking.pk}/',
             {'title': 'After'},
             format='json',
         )
         self.assertEqual(res.status_code, 200)
         entry = History.objects.filter(
-            booking_id=booking.pk,
+            quotation_id=booking.pk,
             action=History.Action.UPDATE,
         ).latest('created_at')
-        self.assertEqual(entry.changes['booking']['title']['old'], 'Before')
-        self.assertEqual(entry.changes['booking']['title']['new'], 'After')
+        self.assertEqual(entry.changes['quotation']['title']['old'], 'Before')
+        self.assertEqual(entry.changes['quotation']['title']['new'], 'After')
 
     def test_replace_lines_records_replace_action(self):
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
             unique_id='26-0100',
             title='Event',
         )
-        group = BookingGroup.objects.create(booking=booking, name='Services')
-        BookingLine.objects.create(
+        group = QuotationGroup.objects.create(quotation=booking, name='Services')
+        QuotationLine.objects.create(
             account=self.account,
-            booking=booking,
-            booking_group=group,
+            quotation=booking,
+            quotation_group=group,
             label='DJ',
             field_type='text',
             value='Old',
         )
         res = self.client.patch(
-            f'/booking-items/{booking.pk}/',
+            f'/quotation-items/{booking.pk}/',
             {
                 'field_values': [
                     {
@@ -141,13 +141,13 @@ class BookingHistoryTests(TestCase):
         )
         self.assertEqual(res.status_code, 200)
         entry = History.objects.filter(
-            booking_id=booking.pk,
+            quotation_id=booking.pk,
             action=History.Action.REPLACE,
         ).latest('created_at')
         self.assertIn('lines', entry.changes)
 
     def test_history_list_endpoint(self):
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
@@ -156,16 +156,16 @@ class BookingHistoryTests(TestCase):
         )
         History.objects.create(
             account_id=self.account.pk,
-            resource_type=History.ResourceType.BOOKING,
+            resource_type=History.ResourceType.QUOTATION,
             resource_id=booking.pk,
-            booking=booking,
-            entity_type=History.EntityType.BOOKING,
+            quotation=booking,
+            entity_type=History.EntityType.QUOTATION,
             entity_id=booking.pk,
             action=History.Action.CREATE,
             actor=self.user,
             changes={'snapshot': {}},
         )
-        res = self.client.get(f'/booking-items/{booking.pk}/history/')
+        res = self.client.get(f'/quotation-items/{booking.pk}/history/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
         self.assertEqual(res.json()[0]['actor_name'], self.user.username)
@@ -173,13 +173,13 @@ class BookingHistoryTests(TestCase):
 
     def test_booking_status_update_records_history(self):
         res = self.client.patch(
-            f'/booking-statuses/{self.status.pk}/',
+            f'/quotation-statuses/{self.status.pk}/',
             {'title': 'Confirmed', 'color': '#52b585'},
             format='json',
         )
         self.assertEqual(res.status_code, 200)
         entry = History.objects.get(
-            resource_type=History.ResourceType.BOOKING_STATUS,
+            resource_type=History.ResourceType.QUOTATION_STATUS,
             resource_id=self.status.pk,
             action=History.Action.UPDATE,
         )
@@ -202,13 +202,13 @@ class BookingHistoryTests(TestCase):
         self.status.tags.add(tag_vip)
 
         res = self.client.patch(
-            f'/booking-statuses/{self.status.pk}/',
+            f'/quotation-statuses/{self.status.pk}/',
             {'tag_ids': [tag_done.id]},
             format='json',
         )
         self.assertEqual(res.status_code, 200)
         entry = History.objects.get(
-            resource_type=History.ResourceType.BOOKING_STATUS,
+            resource_type=History.ResourceType.QUOTATION_STATUS,
             resource_id=self.status.pk,
             action=History.Action.UPDATE,
         )
@@ -219,15 +219,15 @@ class BookingHistoryTests(TestCase):
     def test_booking_status_history_list_endpoint(self):
         History.objects.create(
             account_id=self.account.pk,
-            resource_type=History.ResourceType.BOOKING_STATUS,
+            resource_type=History.ResourceType.QUOTATION_STATUS,
             resource_id=self.status.pk,
-            entity_type=History.EntityType.BOOKING_STATUS,
+            entity_type=History.EntityType.QUOTATION_STATUS,
             entity_id=self.status.pk,
             action=History.Action.UPDATE,
             actor=self.user,
             changes={'fields': {'title': {'old': 'A', 'new': 'B'}}},
         )
-        res = self.client.get(f'/booking-statuses/{self.status.pk}/history/')
+        res = self.client.get(f'/quotation-statuses/{self.status.pk}/history/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
 

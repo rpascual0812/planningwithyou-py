@@ -31,7 +31,7 @@ from .history import (
     record_booking_field_updates,
     record_group_delete,
 )
-from .models import BookingGroup, BookingItem, BookingStatus, FormTemplate, Tag
+from .models import QuotationGroup, Quotation, QuotationStatus, FormTemplate, Tag
 from .supplier_capacity import supplier_booking_capacity_status
 from users.company_access import effective_company_id
 
@@ -43,9 +43,9 @@ from .board_list import (
 )
 from .scope import assert_booking_editable, bookings_for_user
 from .serializers import (
-    BookingItemBoardSerializer,
-    BookingItemSerializer,
-    BookingStatusSerializer,
+    QuotationBoardSerializer,
+    QuotationSerializer,
+    QuotationStatusSerializer,
     TagSerializer,
     TagWriteSerializer,
     FormTemplateSerializer,
@@ -55,7 +55,7 @@ from .serializers import (
 class TagViewSet(viewsets.ModelViewSet):
     """List and create tags for booking status labels."""
 
-    feature_key = 'booking_settings_statuses'
+    feature_key = 'quotation_settings_statuses'
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     http_method_names = ['get', 'post', 'head', 'options']
 
@@ -87,15 +87,15 @@ class TagViewSet(viewsets.ModelViewSet):
         return TagSerializer
 
 
-class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
-    history_resource_type = 'booking_status'
-    feature_key = 'booking_settings_statuses'
+class QuotationStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
+    history_resource_type = 'quotation_status'
+    feature_key = 'quotation_settings_statuses'
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    serializer_class = BookingStatusSerializer
+    serializer_class = QuotationStatusSerializer
 
     def get_queryset(self):
         company_id = self.request.user.company_id
-        qs = BookingStatus.objects.filter(account_id=self.request.user.account_id)
+        qs = QuotationStatus.objects.filter(account_id=self.request.user.account_id)
         if company_id is not None:
             qs = qs.filter(company_id=company_id)
         return qs.prefetch_related('tags')
@@ -105,7 +105,7 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
         aid = user.account_id
         company_id = user.company_id
         max_order = (
-            BookingStatus.objects.filter(account_id=aid, company_id=company_id)
+            QuotationStatus.objects.filter(account_id=aid, company_id=company_id)
             .order_by('-sort_order')
             .values_list('sort_order', flat=True)
             .first()
@@ -118,7 +118,7 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
         )
         record_resource_create(
             account_id=aid,
-            resource_type='booking_status',
+            resource_type='quotation_status',
             resource_id=status.pk,
             snapshot=snapshot_booking_status(status),
             actor=self.request.user,
@@ -137,7 +137,7 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
         def _record():
             record_resource_update(
                 account_id=status.account_id,
-                resource_type='booking_status',
+                resource_type='quotation_status',
                 resource_id=status.pk,
                 changes=changes,
                 actor=request.user,
@@ -149,7 +149,7 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         record_resource_delete(
             account_id=instance.account_id,
-            resource_type='booking_status',
+            resource_type='quotation_status',
             resource_id=instance.pk,
             changes={'title': instance.title},
             actor=self.request.user,
@@ -168,7 +168,7 @@ class BookingStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
         aid = request.user.account_id
         company_id = request.user.company_id
         for idx, status_id in enumerate(ids):
-            BookingStatus.objects.filter(
+            QuotationStatus.objects.filter(
                 pk=status_id,
                 account_id=aid,
                 company_id=company_id,
@@ -196,21 +196,21 @@ def filter_booking_items_list(queryset, request):
     )
 
 
-class BookingItemPagination(PageNumberPagination):
+class QuotationPagination(PageNumberPagination):
     page_size = 10
 
 
-class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
-    history_resource_type = 'booking'
-    feature_key = 'bookings'
+class QuotationViewSet(HistoryListMixin, viewsets.ModelViewSet):
+    history_resource_type = 'quotation'
+    feature_key = 'quotations'
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
-    serializer_class = BookingItemSerializer
-    pagination_class = BookingItemPagination
+    serializer_class = QuotationSerializer
+    pagination_class = QuotationPagination
 
     def get_serializer_class(self):
         if self.action == 'list' and booking_list_board_view_requested(self.request):
-            return BookingItemBoardSerializer
-        return BookingItemSerializer
+            return QuotationBoardSerializer
+        return QuotationSerializer
 
     def list(self, request, *args, **kwargs):
         if _booking_list_all_requested(request):
@@ -230,7 +230,7 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
         if not board_list and not _booking_list_all_requested(self.request):
             qs = qs.prefetch_related(
                 'groups',
-                'lines__booking_group',
+                'lines__quotation_group',
                 'lines__company',
             )
         if board_list:
@@ -307,7 +307,7 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
                 {'status': ['Status ID is required.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        booking_status = BookingStatus.objects.filter(
+        booking_status = QuotationStatus.objects.filter(
             pk=status_id,
             account_id=request.user.account_id,
             company_id=item.company_id,
@@ -346,7 +346,7 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
     def delete_group(self, request, pk=None, group_id=None):
         item = self.get_object()
         assert_booking_editable(item, request.user)
-        group = get_object_or_404(BookingGroup, pk=group_id, booking=item)
+        group = get_object_or_404(QuotationGroup, pk=group_id, quotation=item)
         record_group_delete(
             item,
             group,
@@ -378,7 +378,7 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
             fields = {}
             if 'status' in entry:
                 new_status_id = entry['status']
-                if not BookingStatus.objects.filter(
+                if not QuotationStatus.objects.filter(
                     pk=new_status_id,
                     account_id=request.user.account_id,
                     company_id=booking.company_id,
@@ -406,10 +406,10 @@ class BookingItemViewSet(HistoryListMixin, viewsets.ModelViewSet):
         return Response({'status': 'ok'})
 
 
-class SupplierBookingCapacityQuerySerializer(serializers.Serializer):
+class SupplierQuotationCapacityQuerySerializer(serializers.Serializer):
     supplier_id = serializers.IntegerField()
     date_of_event = serializers.DateField()
-    exclude_booking_id = serializers.IntegerField(required=False, allow_null=True)
+    exclude_quotation_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate_supplier_id(self, value):
         if not Company.objects.filter(pk=value, deleted_at__isnull=True).exists():
@@ -417,14 +417,14 @@ class SupplierBookingCapacityQuerySerializer(serializers.Serializer):
         return value
 
 
-class SupplierBookingCapacityView(APIView):
+class SupplierQuotationCapacityView(APIView):
     """Check whether a supplier has reached ``max_bookings_per_day`` for a date."""
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'bookings'
+    feature_key = 'quotations'
 
     def get(self, request):
-        query = SupplierBookingCapacityQuerySerializer(data=request.query_params)
+        query = SupplierQuotationCapacityQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         data = query.validated_data
         return Response(
@@ -432,14 +432,14 @@ class SupplierBookingCapacityView(APIView):
                 request.user.account_id,
                 data['supplier_id'],
                 data['date_of_event'],
-                exclude_booking_id=data.get('exclude_booking_id'),
+                exclude_quotation_id=data.get('exclude_quotation_id'),
             ),
         )
 
 
 class FormTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
     history_resource_type = 'form_template'
-    feature_key = 'booking_settings_statuses'
+    feature_key = 'quotation_settings_statuses'
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     serializer_class = FormTemplateSerializer
 

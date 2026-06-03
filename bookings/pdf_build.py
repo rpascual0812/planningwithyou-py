@@ -27,7 +27,7 @@ from planningwithyou.file_storage import (
     read_account_brand_logo_file,
 )
 
-from .models import BookingItem, BookingLine
+from .models import Quotation, QuotationLine
 from .pricing import (
     client_detail_lines,
     is_client_group_name,
@@ -150,7 +150,7 @@ def _format_money(
 
 
 def _format_line_value(
-    line: BookingLine,
+    line: QuotationLine,
     supplier_names: dict[int, str],
     tier_names: dict[int, str],
 ) -> str:
@@ -214,7 +214,7 @@ def _package_item_text_max_width(depth: int) -> float:
     return PAGE_W - MARGIN_R - text_x
 
 
-def _package_item_lines_for_supplier_line(line: BookingLine) -> list[tuple[int, str]]:
+def _package_item_lines_for_supplier_line(line: QuotationLine) -> list[tuple[int, str]]:
     package = package_for_supplier_booking_line(line)
     if package is None:
         return []
@@ -222,7 +222,7 @@ def _package_item_lines_for_supplier_line(line: BookingLine) -> list[tuple[int, 
 
 
 def _line_spec_text(
-    line: BookingLine,
+    line: QuotationLine,
     supplier_names: dict[int, str],
     tier_names: dict[int, str],
 ) -> str | None:
@@ -233,7 +233,7 @@ def _line_spec_text(
 
 
 def _group_into_blocks(
-    group_lines: list[BookingLine],
+    group_lines: list[QuotationLine],
     supplier_names: dict[int, str],
     tier_names: dict[int, str],
 ) -> list[ProductBlock]:
@@ -272,21 +272,21 @@ def _group_into_blocks(
 
 
 def _organize_sections(
-    lines: list[BookingLine],
+    lines: list[QuotationLine],
     supplier_names: dict[int, str],
     tier_names: dict[int, str],
 ) -> tuple[list[GroupSection], list[SummaryRow]]:
-    groups: dict[int, list[BookingLine]] = {}
+    groups: dict[int, list[QuotationLine]] = {}
     group_names: dict[int, str] = {}
     group_order: list[int] = []
 
     for line in lines:
-        gid = line.booking_group_id or 0
+        gid = line.quotation_group_id or 0
         if gid not in groups:
             groups[gid] = []
             group_order.append(gid)
             group_names[gid] = (
-                line.booking_group.name if line.booking_group_id else 'Items'
+                line.quotation_group.name if line.quotation_group_id else 'Items'
             )
         groups[gid].append(line)
 
@@ -378,7 +378,7 @@ def _wrap_text_lines(
 
 
 def _metadata_from_lines(
-    lines: list[BookingLine],
+    lines: list[QuotationLine],
     supplier_names: dict[int, str],
     tier_names: dict[int, str],
 ) -> dict[str, str]:
@@ -399,7 +399,7 @@ def _metadata_from_lines(
 
 
 class BookingQuotePDF:
-    def __init__(self, booking: BookingItem, lines: list[BookingLine]):
+    def __init__(self, booking: Quotation, lines: list[QuotationLine]):
         self.booking = booking
         self.lines = lines
         self.supplier_names, self.tier_names = _load_supplier_and_tier_names(lines)
@@ -954,16 +954,16 @@ class BookingQuotePDF:
         return buffer.getvalue()
 
 
-def build_booking_pdf(booking: BookingItem) -> None:
+def build_booking_pdf(booking: Quotation) -> None:
     """Build the quote PDF and store it on default storage (S3/local)."""
     lines = list(
         booking.lines.select_related(
-            'booking_group',
+            'quotation_group',
             'company',
             'tier',
             'package_version',
         ).order_by(
-            'booking_group__id', 'sort_order', 'id',
+            'quotation_group__id', 'sort_order', 'id',
         ),
     )
     storage_key = booking_pdf_storage_key(booking)

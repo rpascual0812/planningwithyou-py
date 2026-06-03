@@ -37,7 +37,7 @@ class CalendarSerializer(serializers.ModelSerializer):
             'repeat_end',
             'status',
             'contact',
-            'booking',
+            'quotation',
             'company',
             'created_by',
             'created_at',
@@ -51,7 +51,7 @@ class CalendarSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             self.fields['status'].queryset = calendar_statuses_for_user(request.user)
             self.fields['contact'].queryset = contacts_for_user(request.user)
-            self.fields['booking'].queryset = bookings_for_user(request.user)
+            self.fields['quotation'].queryset = bookings_for_user(request.user)
 
     def validate(self, attrs):
         request = self.context.get('request')
@@ -78,13 +78,13 @@ class CalendarSerializer(serializers.ModelSerializer):
             if contact.company_org_id != company_id:
                 raise serializers.ValidationError({'contact': ['Invalid contact for this company.']})
 
-        booking = attrs.get('booking')
+        booking = attrs.get('quotation')
         if booking is None and self.instance is not None:
-            booking = self.instance.booking
+            booking = self.instance.quotation
         if booking is not None:
             if booking.account_id != aid:
-                raise serializers.ValidationError({'booking': ['Invalid booking for this account.']})
+                raise serializers.ValidationError({'quotation': ['Invalid booking for this account.']})
             if booking.company_id != company_id:
-                raise serializers.ValidationError({'booking': ['Invalid booking for this company.']})
+                raise serializers.ValidationError({'quotation': ['Invalid booking for this company.']})
 
         return attrs

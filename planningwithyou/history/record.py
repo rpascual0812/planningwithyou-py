@@ -26,7 +26,7 @@ def record_resource_history(
     entity_type: str = '',
     entity_id: int | None = None,
     metadata: dict[str, Any] | None = None,
-    booking_id: int | None = None,
+    quotation_id: int | None = None,
 ) -> History | None:
     if not changes and action == History.Action.UPDATE:
         return None
@@ -37,7 +37,7 @@ def record_resource_history(
         account_id=account_id,
         resource_type=resource_type,
         resource_id=resource_id,
-        booking_id=booking_id,
+        quotation_id=quotation_id,
         entity_type=resolved_entity_type,
         entity_id=entity_id,
         action=action,
@@ -55,7 +55,7 @@ def record_resource_create(
     snapshot: dict[str, Any],
     actor=None,
     metadata: dict[str, Any] | None = None,
-    booking_id: int | None = None,
+    quotation_id: int | None = None,
 ) -> History:
     return record_resource_history(
         account_id=account_id,
@@ -65,7 +65,7 @@ def record_resource_create(
         changes={'snapshot': snapshot},
         actor=actor,
         metadata=metadata,
-        booking_id=booking_id,
+        quotation_id=quotation_id,
     )
 
 
@@ -78,7 +78,7 @@ def record_resource_update(
     actor=None,
     metadata: dict[str, Any] | None = None,
     replace: bool = False,
-    booking_id: int | None = None,
+    quotation_id: int | None = None,
 ) -> History | None:
     if not changes:
         return None
@@ -91,7 +91,7 @@ def record_resource_update(
         changes=changes,
         actor=actor,
         metadata=metadata,
-        booking_id=booking_id,
+        quotation_id=quotation_id,
     )
 
 
@@ -103,7 +103,7 @@ def record_resource_delete(
     changes: dict[str, Any],
     actor=None,
     metadata: dict[str, Any] | None = None,
-    booking_id: int | None = None,
+    quotation_id: int | None = None,
 ) -> History:
     meta = dict(metadata or {})
     meta['resource_id'] = resource_id
@@ -115,7 +115,7 @@ def record_resource_delete(
         changes=changes,
         actor=actor,
         metadata=meta,
-        booking_id=booking_id,
+        quotation_id=quotation_id,
     )
 
 
@@ -127,7 +127,7 @@ def record_resource_field_updates(
     field_changes: dict[str, dict[str, Any]],
     actor=None,
     metadata: dict[str, Any] | None = None,
-    booking_id: int | None = None,
+    quotation_id: int | None = None,
 ) -> History | None:
     if not field_changes:
         return None
@@ -139,5 +139,5 @@ def record_resource_field_updates(
         changes={'fields': field_changes},
         actor=actor,
         metadata=metadata,
-        booking_id=booking_id,
+        quotation_id=quotation_id,
     )

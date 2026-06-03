@@ -30,7 +30,7 @@ class CalendarAdmin(admin.ModelAdmin):
         'end',
         'status',
         'contact',
-        'booking',
+        'quotation',
         'company',
         'account',
         'created_by',

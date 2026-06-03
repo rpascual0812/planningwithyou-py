@@ -21,10 +21,10 @@ from .tasks import generate_booking_pdf_task
 from contacts.scope import contacts_for_user
 
 from .models import (
-    BookingGroup,
-    BookingItem,
-    BookingLine,
-    BookingStatus,
+    QuotationGroup,
+    Quotation,
+    QuotationLine,
+    QuotationStatus,
     Tag,
     FormTemplate,
     FormTemplateField,
@@ -52,23 +52,23 @@ from .unique_id import allocate_booking_unique_id
 DEFAULT_BOOKING_GROUP_NAME = 'Suppliers'
 
 
-class BookingGroupSerializer(serializers.ModelSerializer):
+class QuotationGroupSerializer(serializers.ModelSerializer):
     class Meta:
-        model = BookingGroup
+        model = QuotationGroup
         fields = ['id', 'name']
         read_only_fields = ['id']
 
 
-class BookingLineSerializer(serializers.ModelSerializer):
-    booking_group_id = serializers.IntegerField(read_only=True)
+class QuotationLineSerializer(serializers.ModelSerializer):
+    quotation_group_id = serializers.IntegerField(read_only=True)
     group_name = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     class Meta:
-        model = BookingLine
+        model = QuotationLine
         fields = [
             'id',
             'label',
-            'booking_group_id',
+            'quotation_group_id',
             'group_name',
             'company',
             'tier',
@@ -81,17 +81,17 @@ class BookingLineSerializer(serializers.ModelSerializer):
             'options',
             'sort_order',
         ]
-        read_only_fields = ['id', 'booking_group_id']
+        read_only_fields = ['id', 'quotation_group_id']
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['group_name'] = (
-            instance.booking_group.name
-            if instance.booking_group_id
+            instance.quotation_group.name
+            if instance.quotation_group_id
             else DEFAULT_BOOKING_GROUP_NAME
         )
-        if instance.booking_group_id:
-            data['booking_group_id'] = instance.booking_group_id
+        if instance.quotation_group_id:
+            data['quotation_group_id'] = instance.quotation_group_id
         if instance.field_type == 'supplier':
             data['value'] = supplier_value_json_for_line(instance)
             company_id = instance.company_id
@@ -120,7 +120,7 @@ class BookingLineSerializer(serializers.ModelSerializer):
         return data
 
 
-class BookingItemBoardSerializer(serializers.ModelSerializer):
+class QuotationBoardSerializer(serializers.ModelSerializer):
     """Slim booking payload for kanban board / cards lazy loading."""
 
     paid_amount = serializers.SerializerMethodField()
@@ -130,7 +130,7 @@ class BookingItemBoardSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source='company.name', read_only=True)
 
     class Meta:
-        model = BookingItem
+        model = Quotation
         fields = [
             'id',
             'unique_id',
@@ -149,19 +149,19 @@ class BookingItemBoardSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_can_edit(self, obj: BookingItem) -> bool:
+    def get_can_edit(self, obj: Quotation) -> bool:
         request = self.context.get('request')
         if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
             return False
         return booking_user_can_edit(obj, request.user)
 
-    def get_paid_amount(self, obj: BookingItem) -> str:
+    def get_paid_amount(self, obj: Quotation) -> str:
         annotated = getattr(obj, '_paid_amount', None)
         if annotated is not None:
             return str(Decimal(annotated).quantize(TWOPLACES))
         return str(booking_payments_paid_base_total(obj.pk))
 
-    def get_remaining_amount(self, obj: BookingItem) -> str:
+    def get_remaining_amount(self, obj: Quotation) -> str:
         total = obj.total_amount or Decimal('0')
         annotated = getattr(obj, '_paid_amount', None)
         if annotated is not None:
@@ -174,14 +174,14 @@ class BookingItemBoardSerializer(serializers.ModelSerializer):
         return str(remaining.quantize(TWOPLACES))
 
 
-class BookingItemSerializer(serializers.ModelSerializer):
-    field_values = BookingLineSerializer(
+class QuotationSerializer(serializers.ModelSerializer):
+    field_values = QuotationLineSerializer(
         source='lines',
         many=True,
         required=False,
         default=[],
     )
-    groups = BookingGroupSerializer(many=True, required=False)
+    groups = QuotationGroupSerializer(many=True, required=False)
     pdf_url = serializers.SerializerMethodField()
     paid_amount = serializers.SerializerMethodField()
     paid_charge_amount = serializers.SerializerMethodField()
@@ -193,7 +193,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source='company.name', read_only=True)
 
     class Meta:
-        model = BookingItem
+        model = Quotation
         fields = [
             'id', 'unique_id', 'company', 'company_name', 'status', 'status_title', 'contact', 'title', 'date_of_event',
             'total_amount', 'required_downpayment_amount',
@@ -208,32 +208,32 @@ class BookingItemSerializer(serializers.ModelSerializer):
             'remaining_amount', 'can_edit', 'created_at', 'updated_at',
         ]
 
-    def get_can_edit(self, obj: BookingItem) -> bool:
+    def get_can_edit(self, obj: Quotation) -> bool:
         request = self.context.get('request')
         if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
             return False
         return booking_user_can_edit(obj, request.user)
 
-    def _fee_totals(self, obj: BookingItem) -> dict[str, Decimal]:
+    def _fee_totals(self, obj: Quotation) -> dict[str, Decimal]:
         if not hasattr(self, '_fee_totals_cache'):
             self._fee_totals_cache = {}
         if obj.pk not in self._fee_totals_cache:
             self._fee_totals_cache[obj.pk] = booking_payment_fee_totals(obj.pk)
         return self._fee_totals_cache[obj.pk]
 
-    def get_paid_amount(self, obj: BookingItem) -> str:
+    def get_paid_amount(self, obj: Quotation) -> str:
         return str(booking_payments_paid_base_total(obj.pk))
 
-    def get_paid_charge_amount(self, obj: BookingItem) -> str:
+    def get_paid_charge_amount(self, obj: Quotation) -> str:
         return str(self._fee_totals(obj)['charge_total'])
 
-    def get_paid_processing_fees(self, obj: BookingItem) -> str:
+    def get_paid_processing_fees(self, obj: Quotation) -> str:
         return str(self._fee_totals(obj)['processing_total'])
 
-    def get_paid_platform_fees(self, obj: BookingItem) -> str:
+    def get_paid_platform_fees(self, obj: Quotation) -> str:
         return str(self._fee_totals(obj)['platform_total'])
 
-    def get_remaining_amount(self, obj: BookingItem) -> str:
+    def get_remaining_amount(self, obj: Quotation) -> str:
         return str(booking_remaining_balance(obj))
 
     def get_pdf_url(self, obj):
@@ -249,9 +249,9 @@ class BookingItemSerializer(serializers.ModelSerializer):
         return booking_pdf_file_url(obj.pk, request=request)
 
     def _enqueue_pdf_generation(self, booking):
-        booking_id = booking.pk
+        quotation_id = booking.pk
         transaction.on_commit(
-            lambda: generate_booking_pdf_task.delay(booking_id),
+            lambda: generate_booking_pdf_task.delay(quotation_id),
         )
 
     def __init__(self, *args, **kwargs):
@@ -259,7 +259,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         aid = getattr(request.user, 'account_id', None) if request and request.user.is_authenticated else None
         if aid is not None and request and request.user.is_authenticated:
-            status_qs = BookingStatus.objects.filter(account_id=aid)
+            status_qs = QuotationStatus.objects.filter(account_id=aid)
             company_id = getattr(request.user, 'company_id', None)
             if company_id is not None:
                 status_qs = status_qs.filter(company_id=company_id)
@@ -281,15 +281,15 @@ class BookingItemSerializer(serializers.ModelSerializer):
         for entry in groups_data:
             raw_name = entry.get('name') if isinstance(entry, dict) else entry
             name = (raw_name or '').strip() or DEFAULT_BOOKING_GROUP_NAME
-            BookingGroup.objects.get_or_create(booking=booking, name=name)
+            QuotationGroup.objects.get_or_create(quotation=booking, name=name)
 
     def _resolve_booking_group(self, booking, fv):
-        fv.pop('booking_group', None)
-        fv.pop('booking_group_id', None)
+        fv.pop('quotation_group', None)
+        fv.pop('quotation_group_id', None)
         group_name = (fv.pop('group_name', None) or '').strip() or DEFAULT_BOOKING_GROUP_NAME
 
-        group, _created = BookingGroup.objects.get_or_create(
-            booking=booking,
+        group, _created = QuotationGroup.objects.get_or_create(
+            quotation=booking,
             name=group_name,
         )
         return group
@@ -306,10 +306,10 @@ class BookingItemSerializer(serializers.ModelSerializer):
             prepare_supplier_field_dict(fv)
             validate_field_value_downpayment(fv)
             booking_group = self._resolve_booking_group(booking, fv)
-            BookingLine.objects.create(
-                booking=booking,
+            QuotationLine.objects.create(
+                quotation=booking,
                 account_id=booking.account_id,
-                booking_group=booking_group,
+                quotation_group=booking_group,
                 **fv,
             )
 
@@ -361,7 +361,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         company_id = validated_data.get('company_id') or request.user.company_id
         validated_data['unique_id'] = allocate_booking_unique_id(company_id, account_id)
         validated_data.setdefault('company_id', company_id)
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             **validated_data,
             account_id=account_id,
         )
@@ -451,7 +451,7 @@ class TagWriteSerializer(serializers.ModelSerializer):
         )
 
 
-class BookingStatusSerializer(serializers.ModelSerializer):
+class QuotationStatusSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
     tag_ids = serializers.PrimaryKeyRelatedField(
@@ -462,7 +462,7 @@ class BookingStatusSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        model = BookingStatus
+        model = QuotationStatus
         fields = [
             'id', 'company', 'title', 'description', 'color',
             'sort_order', 'item_count', 'tags', 'tag_ids',

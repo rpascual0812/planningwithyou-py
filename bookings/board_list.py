@@ -17,7 +17,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 
-from .models import BookingStatus
+from .models import QuotationStatus
 from .payment_validity import valid_booking_payments_queryset
 
 TWOPLACES = Decimal('0.01')
@@ -36,8 +36,8 @@ def annotate_booking_board_payments(queryset: QuerySet) -> QuerySet:
     )
     paid_subq = (
         valid_booking_payments_queryset()
-        .filter(booking_id=OuterRef('pk'))
-        .values('booking_id')
+        .filter(quotation_id=OuterRef('pk'))
+        .values('quotation_id')
         .annotate(total=Sum(credit))
         .values('total')[:1]
     )
@@ -54,7 +54,7 @@ def _local_status_ids(
     account_id: int,
     company_id: int | None = None,
 ) -> list[int]:
-    qs = BookingStatus.objects.filter(account_id=account_id)
+    qs = QuotationStatus.objects.filter(account_id=account_id)
     if company_id is not None:
         qs = qs.filter(company_id=company_id)
     return list(qs.values_list('id', flat=True))
@@ -80,7 +80,7 @@ def filter_booking_items_board_column(
     - Cross-company bookings whose status title matches the column title
       when their status id is not one of this account's column ids.
     """
-    status_qs = BookingStatus.objects.filter(pk=column_id, account_id=account_id)
+    status_qs = QuotationStatus.objects.filter(pk=column_id, account_id=account_id)
     if company_id is not None:
         status_qs = status_qs.filter(company_id=company_id)
     status = status_qs.first()
@@ -104,7 +104,7 @@ def filter_booking_items_board_foreign_slot(
     if user_company_id is None:
         return queryset.none()
 
-    status_qs = BookingStatus.objects.filter(account_id=account_id)
+    status_qs = QuotationStatus.objects.filter(account_id=account_id)
     if user_company_id is not None:
         status_qs = status_qs.filter(company_id=user_company_id)
     local_statuses = list(status_qs.values('id', 'title'))

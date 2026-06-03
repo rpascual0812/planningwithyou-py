@@ -16,7 +16,7 @@ from .roles import (
 FEATURE_LABELS = {
     'dashboard': 'Dashboard',
     'calendar': 'Calendar',
-    'bookings': 'Quotations',
+    'quotations': 'Quotations',
     'contacts': 'Contacts',
     'users': 'Users',
     'emails': 'Emails',
@@ -27,7 +27,7 @@ FEATURE_LABELS = {
     'account_settings': 'Settings > Account Settings',
     'companies_settings': 'Settings > Company Settings',
     'supplier_settings': 'Settings > Supplier Settings',
-    'booking_settings_statuses': 'Settings > Quotation Settings',
+    'quotation_settings_statuses': 'Settings > Quotation Settings',
     'email_templates': 'Settings > Email Templates',
     'roles_permissions': 'Settings > Roles and Permissions',
     'calendar_settings': 'Settings > Calendar Settings',

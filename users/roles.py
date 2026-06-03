@@ -7,7 +7,7 @@ from users.models import Account, Role, RolePermission
 TENANT_FEATURE_KEYS = (
     'dashboard',
     'calendar',
-    'bookings',
+    'quotations',
     'contacts',
     'users',
     'emails',
@@ -18,7 +18,7 @@ TENANT_FEATURE_KEYS = (
     'account_settings',
     'companies_settings',
     'supplier_settings',
-    'booking_settings_statuses',
+    'quotation_settings_statuses',
     'email_templates',
     'roles_permissions',
     'calendar_settings',
@@ -47,7 +47,7 @@ PLATFORM_ADMIN_KEY = 'platform_admin'
 # Safe (GET/HEAD/OPTIONS) requests on these features may also be allowed when the
 # user has read or write on any of the listed grant keys (first match wins).
 GET_READ_GRANTS: dict[str, tuple[str, ...]] = {
-    'booking_settings_statuses': ('bookings',),
+    'quotation_settings_statuses': ('quotations',),
     'email_templates': ('emails',),
     'calendar_settings': ('calendar',),
     'companies_settings': ('change_company',),

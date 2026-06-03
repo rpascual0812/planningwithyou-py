@@ -21,8 +21,8 @@ class HistoryListMixin:
             resource_type=self.history_resource_type,
             resource_id=obj.pk,
         )
-        if self.history_resource_type == History.ResourceType.BOOKING:
-            filters |= Q(account_id=account_id, booking_id=obj.pk)
+        if self.history_resource_type == History.ResourceType.QUOTATION:
+            filters |= Q(account_id=account_id, quotation_id=obj.pk)
         rows = (
             History.objects.filter(filters)
             .distinct()

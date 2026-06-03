@@ -2,14 +2,14 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from bookings.models import BookingItem, BookingPayment
+from bookings.models import Quotation, QuotationPayment
 from companies.models import Company
 from config.models import Country
 from suppliers.models import SupplierType
 from users.models import Account, User
 
 
-class BookingPaymentPayoutAdminTests(TestCase):
+class QuotationPaymentPayoutAdminTests(TestCase):
     def setUp(self):
         country = Country.objects.create(
             name='Testland',
@@ -32,23 +32,23 @@ class BookingPaymentPayoutAdminTests(TestCase):
             name='Other Co',
             supplier_type=supplier_type,
         )
-        from bookings.models import BookingStatus
+        from bookings.models import QuotationStatus
 
-        self.status = BookingStatus.objects.create(
+        self.status = QuotationStatus.objects.create(
             account=self.account,
             company=self.company,
             title='New',
             sort_order=0,
         )
-        self.booking = BookingItem.objects.create(
+        self.booking = Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
             unique_id='26-0100',
             title='Wedding',
         )
-        self.payment = BookingPayment.objects.create(
-            booking=self.booking,
+        self.payment = QuotationPayment.objects.create(
+            quotation=self.booking,
             account=self.account,
             company=self.company,
             base_amount=Decimal('5000.00'),
@@ -79,7 +79,7 @@ class BookingPaymentPayoutAdminTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.admin)
-        res = client.get('/admin/booking-payments/')
+        res = client.get('/admin/quotation-payments/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]['company_name'], 'Payout Co')
@@ -93,11 +93,11 @@ class BookingPaymentPayoutAdminTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.admin)
-        pending = client.get('/admin/booking-payments/', {'payout': 'pending'})
+        pending = client.get('/admin/quotation-payments/', {'payout': 'pending'})
         self.assertEqual(pending.status_code, 200)
         self.assertEqual(len(pending.data), 0)
 
-        sent = client.get('/admin/booking-payments/', {'payout': 'sent'})
+        sent = client.get('/admin/quotation-payments/', {'payout': 'sent'})
         self.assertEqual(len(sent.data), 1)
 
     def test_mark_payout_sent(self):
@@ -106,7 +106,7 @@ class BookingPaymentPayoutAdminTests(TestCase):
         client = APIClient()
         client.force_authenticate(user=self.admin)
         res = client.post(
-            f'/admin/booking-payments/{self.payment.pk}/mark-payout-sent/',
+            f'/admin/quotation-payments/{self.payment.pk}/mark-payout-sent/',
         )
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.data['payout_sent'])
@@ -118,5 +118,5 @@ class BookingPaymentPayoutAdminTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.user)
-        res = client.get('/admin/booking-payments/')
+        res = client.get('/admin/quotation-payments/')
         self.assertEqual(res.status_code, 403)

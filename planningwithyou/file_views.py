@@ -65,12 +65,12 @@ class BookingPdfFileView(APIView):
     """Download a booking quote PDF by booking id."""
 
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
-    feature_key = 'bookings'
+    feature_key = 'quotations'
 
-    def get(self, request, booking_id: int):
+    def get(self, request, quotation_id: int):
         try:
             data, filename, content_type = read_booking_pdf_file(
-                booking_id,
+                quotation_id,
                 account_id=request.user.account_id,
                 company_id=request.user.company_id,
             )

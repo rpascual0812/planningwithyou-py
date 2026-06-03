@@ -12,7 +12,7 @@ class HistorySerializer(serializers.ModelSerializer):
             'id',
             'resource_type',
             'resource_id',
-            'booking_id',
+            'quotation_id',
             'entity_type',
             'entity_id',
             'action',

@@ -2,40 +2,40 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .payment_link_views import (
-    BookingPaymentLinkDetailView,
-    BookingPaymentLinkListCreateView,
+    QuotationPaymentLinkDetailView,
+    QuotationPaymentLinkListCreateView,
     PayMongoWebhookView,
     PublicPaymentLinkView,
 )
-from .payout_admin_views import BookingPaymentPayoutAdminViewSet
-from .payout_report_views import BookingPaymentPayoutReportViewSet
+from .payout_admin_views import QuotationPaymentPayoutAdminViewSet
+from .payout_report_views import QuotationPaymentPayoutReportViewSet
 from .dashboard_views import (
     DashboardActiveProjectsView,
     DashboardProfitProgressView,
     DashboardSummaryView,
 )
 from .views import (
-    BookingItemViewSet,
-    BookingStatusViewSet,
+    QuotationViewSet,
+    QuotationStatusViewSet,
     FormTemplateViewSet,
-    SupplierBookingCapacityView,
+    SupplierQuotationCapacityView,
     TagViewSet,
 )
 
 router = DefaultRouter()
-router.register('booking-statuses', BookingStatusViewSet, basename='booking-status')
+router.register('quotation-statuses', QuotationStatusViewSet, basename='quotation-status')
 router.register('tags', TagViewSet, basename='tag')
-router.register('booking-items', BookingItemViewSet, basename='booking-item')
+router.register('quotation-items', QuotationViewSet, basename='quotation-item')
 router.register('form-templates', FormTemplateViewSet, basename='form-template')
 router.register(
-    'admin/booking-payments',
-    BookingPaymentPayoutAdminViewSet,
-    basename='admin-booking-payment',
+    'admin/quotation-payments',
+    QuotationPaymentPayoutAdminViewSet,
+    basename='admin-quotation-payment',
 )
 router.register(
     'booking-payouts',
-    BookingPaymentPayoutReportViewSet,
-    basename='booking-payout',
+    QuotationPaymentPayoutReportViewSet,
+    basename='quotation-payout',
 )
 
 urlpatterns = [
@@ -55,19 +55,19 @@ urlpatterns = [
         name='dashboard-active-projects',
     ),
     path(
-        'supplier-booking-capacity/',
-        SupplierBookingCapacityView.as_view(),
-        name='supplier-booking-capacity',
+        'supplier-quotation-capacity/',
+        SupplierQuotationCapacityView.as_view(),
+        name='supplier-quotation-capacity',
     ),
     path(
-        'booking-items/<int:booking_id>/payment-links/',
-        BookingPaymentLinkListCreateView.as_view(),
-        name='booking-payment-links',
+        'quotation-items/<int:quotation_id>/payment-links/',
+        QuotationPaymentLinkListCreateView.as_view(),
+        name='quotation-payment-links',
     ),
     path(
-        'booking-items/<int:booking_id>/payment-links/<int:link_id>/',
-        BookingPaymentLinkDetailView.as_view(),
-        name='booking-payment-link-detail',
+        'quotation-items/<int:quotation_id>/payment-links/<int:link_id>/',
+        QuotationPaymentLinkDetailView.as_view(),
+        name='quotation-payment-link-detail',
     ),
     path(
         'public/payment-links/<uuid:token>/',

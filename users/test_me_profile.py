@@ -28,7 +28,7 @@ class MeProfileUpdateTests(TestCase):
         )
         RolePermission.objects.update_or_create(
             role=limited,
-            feature_key='bookings',
+            feature_key='quotations',
             defaults={'access': 'read'},
         )
 

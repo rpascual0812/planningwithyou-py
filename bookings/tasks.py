@@ -3,15 +3,15 @@ from django.db import transaction
 
 from planningwithyou.file_storage import booking_pdf_api_url
 
-from .models import BookingItem
+from .models import Quotation
 from .pdf_build import build_booking_pdf
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
-def generate_booking_pdf_task(self, booking_id: int):
+def generate_booking_pdf_task(self, quotation_id: int):
     try:
         booking = (
-            BookingItem.objects.select_related(
+            Quotation.objects.select_related(
                 'status',
                 'account',
                 'account__country',
@@ -21,19 +21,19 @@ def generate_booking_pdf_task(self, booking_id: int):
                 'contact__phone_numbers', 'contact__addresses',
             )
             .prefetch_related(
-                'lines__booking_group',
+                'lines__quotation_group',
                 'lines__company',
                 'lines__tier',
                 'lines__package_version',
             )
-            .get(pk=booking_id)
+            .get(pk=quotation_id)
         )
         with transaction.atomic():
-            locked = BookingItem.objects.select_for_update().get(pk=booking_id)
+            locked = Quotation.objects.select_for_update().get(pk=quotation_id)
             build_booking_pdf(booking)
             locked.pdf = booking_pdf_api_url(locked.pk)
             locked.save(update_fields=['pdf', 'updated_at'])
-    except BookingItem.DoesNotExist:
+    except Quotation.DoesNotExist:
         return
     except Exception as exc:
         raise self.retry(exc=exc)

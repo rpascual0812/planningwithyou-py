@@ -17,9 +17,9 @@ router.register(
     basename='email-template-users',
 )
 router.register(
-    'email-templates/bookings',
+    'email-templates/quotations',
     EmailBookingTemplateViewSet,
-    basename='email-template-bookings',
+    basename='email-template-quotations',
 )
 router.register(
     'email-templates/calendar',

@@ -14,14 +14,14 @@ router.register('admin/error-logs', ErrorLogAdminViewSet, basename='admin-error-
 
 urlpatterns = [
     path(
-        'config/booking-view/',
+        'config/quotation-view/',
         BookingViewConfigView.as_view(),
-        name='config-booking-view',
+        name='config-quotation-view',
     ),
     path(
-        'config/bookings-group-name/',
+        'config/quotations-group-name/',
         BookingsGroupNameConfigView.as_view(),
-        name='config-bookings-group-name',
+        name='config-quotations-group-name',
     ),
     path(
         'config/profit-progress-tag/',

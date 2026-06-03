@@ -6,10 +6,10 @@ from decimal import Decimal
 
 from django.db.models import Q, QuerySet
 
-from .models import BookingPayment
+from .models import QuotationPayment
 
 
-def _payment_credit_amount(payment: BookingPayment) -> Decimal:
+def _payment_credit_amount(payment: QuotationPayment) -> Decimal:
     base = payment.base_amount or Decimal('0')
     if base > Decimal('0'):
         return base
@@ -27,7 +27,7 @@ _INVALID_PAYMENT_STATUSES = frozenset({
 })
 
 
-def is_valid_booking_payment(payment: BookingPayment) -> bool:
+def is_valid_booking_payment(payment: QuotationPayment) -> bool:
     """Return True when a payment row should reserve supplier capacity."""
     if payment.deleted_at is not None:
         return False
@@ -39,9 +39,9 @@ def is_valid_booking_payment(payment: BookingPayment) -> bool:
     return True
 
 
-def valid_booking_payments_queryset() -> QuerySet[BookingPayment]:
+def valid_booking_payments_queryset() -> QuerySet[QuotationPayment]:
     """Non-deleted payments with positive amount and a non-failed status."""
-    qs = BookingPayment.objects.filter(deleted_at__isnull=True).filter(
+    qs = QuotationPayment.objects.filter(deleted_at__isnull=True).filter(
         Q(base_amount__gt=0) | Q(amount__gt=0) | Q(charge_amount__gt=0),
     )
     status_filters = Q()
@@ -50,5 +50,5 @@ def valid_booking_payments_queryset() -> QuerySet[BookingPayment]:
     return qs.exclude(status_filters)
 
 
-def booking_has_valid_payment(booking_id: int) -> bool:
-    return valid_booking_payments_queryset().filter(booking_id=booking_id).exists()
+def booking_has_valid_payment(quotation_id: int) -> bool:
+    return valid_booking_payments_queryset().filter(quotation_id=quotation_id).exists()

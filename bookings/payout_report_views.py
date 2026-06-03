@@ -7,15 +7,15 @@ from rest_framework.permissions import IsAuthenticated
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .payment_validity import valid_booking_payments_queryset
-from .payout_report_serializers import BookingPaymentPayoutReportSerializer
+from .payout_report_serializers import QuotationPaymentPayoutReportSerializer
 
 
-class BookingPaymentPayoutReportViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+class QuotationPaymentPayoutReportViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """Company-scoped payout report for Reports → Payouts."""
 
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
     feature_key = 'reports'
-    serializer_class = BookingPaymentPayoutReportSerializer
+    serializer_class = QuotationPaymentPayoutReportSerializer
 
     class Pagination(PageNumberPagination):
         page_size = 10
@@ -41,7 +41,7 @@ class BookingPaymentPayoutReportViewSet(mixins.ListModelMixin, viewsets.GenericV
                 account_id=user.account_id,
                 company_id=user.company_id,
             )
-            .select_related('booking')
+            .select_related('quotation')
             .order_by('-transaction_date', '-created_at')
         )
 
@@ -54,8 +54,8 @@ class BookingPaymentPayoutReportViewSet(mixins.ListModelMixin, viewsets.GenericV
         search = self.request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
-                Q(booking__unique_id__icontains=search)
-                | Q(booking__title__icontains=search)
+                Q(quotation__unique_id__icontains=search)
+                | Q(quotation__title__icontains=search)
                 | Q(transaction_id__icontains=search),
             )
         return qs

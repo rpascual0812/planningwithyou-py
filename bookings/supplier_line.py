@@ -7,7 +7,7 @@ from typing import Any
 
 from packages.models import Package
 
-from .models import BookingLine
+from .models import QuotationLine
 
 
 def parse_supplier_field_value(raw: str) -> dict[str, Any]:
@@ -110,7 +110,7 @@ def prepare_supplier_field_dict(field_value: dict) -> None:
     field_value['value'] = ''
 
 
-def supplier_selection_from_line(line: BookingLine) -> dict[str, Any]:
+def supplier_selection_from_line(line: QuotationLine) -> dict[str, Any]:
     if line.field_type != 'supplier':
         return {'tier_id': None, 'supplier_id': None, 'price': None}
     if line.company_id and line.tier_id:
@@ -123,7 +123,7 @@ def supplier_selection_from_line(line: BookingLine) -> dict[str, Any]:
     return parse_supplier_field_value(line.value or '')
 
 
-def supplier_value_json_for_line(line: BookingLine) -> str:
+def supplier_value_json_for_line(line: QuotationLine) -> str:
     parsed = supplier_selection_from_line(line)
     tier_id = parsed.get('tier_id')
     supplier_id = parsed.get('supplier_id')
@@ -152,7 +152,7 @@ def _package_query_for_supplier_line(
     return qs.order_by('-is_active', '-id').first()
 
 
-def package_for_supplier_booking_line(line: BookingLine) -> Package | None:
+def package_for_supplier_booking_line(line: QuotationLine) -> Package | None:
     """
     Package row for a supplier booking line using stored FK columns.
 

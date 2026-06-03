@@ -9,9 +9,9 @@ urlpatterns = [
         name='secured-file-document',
     ),
     path(
-        'files/b/<int:booking_id>/pdf/',
+        'files/b/<int:quotation_id>/pdf/',
         file_views.BookingPdfFileView.as_view(),
-        name='secured-file-booking-pdf',
+        name='secured-file-quotation-pdf',
     ),
     path(
         'files/c/<int:company_id>/logo/',

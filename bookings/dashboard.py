@@ -11,7 +11,7 @@ from django.utils import timezone
 from calendars.models import Calendar
 from companies.models import Company
 
-from .models import BookingItem, BookingPayment, BookingStatus, Tag
+from .models import Quotation, QuotationPayment, QuotationStatus, Tag
 from .payment_breakdown import (
     TWOPLACES,
     _booking_credit_amount_field,
@@ -36,8 +36,8 @@ def _decimal_str(value: Decimal | None) -> str:
     return str(value.quantize(TWOPLACES))
 
 
-def _sum_booking_financials(booking_ids: list[int]) -> dict:
-    if not booking_ids:
+def _sum_booking_financials(quotation_ids: list[int]) -> dict:
+    if not quotation_ids:
         zero = _decimal_str(Decimal('0'))
         return {
             'total_amount': zero,
@@ -49,7 +49,7 @@ def _sum_booking_financials(booking_ids: list[int]) -> dict:
         }
 
     bookings = list(
-        BookingItem.objects.filter(pk__in=booking_ids).only(
+        Quotation.objects.filter(pk__in=quotation_ids).only(
             'id',
             'total_amount',
             'required_downpayment_amount',
@@ -64,10 +64,10 @@ def _sum_booking_financials(booking_ids: list[int]) -> dict:
 
     credit = _booking_credit_amount_field()
     paid_by_booking = {
-        row['booking_id']: row['paid'] or Decimal('0')
+        row['quotation_id']: row['paid'] or Decimal('0')
         for row in valid_booking_payments_queryset()
-        .filter(booking_id__in=booking_ids)
-        .values('booking_id')
+        .filter(quotation_id__in=quotation_ids)
+        .values('quotation_id')
         .annotate(paid=Sum(credit))
     }
 
@@ -96,19 +96,19 @@ def _sum_booking_financials(booking_ids: list[int]) -> dict:
 
 
 def _bookings_by_status(
-    booking_ids: list[int],
+    quotation_ids: list[int],
     account_id: int,
     company_id: int,
 ) -> list[dict]:
-    if not booking_ids:
+    if not quotation_ids:
         return []
     counts = {
         row['status_id']: row['count']
-        for row in BookingItem.objects.filter(pk__in=booking_ids)
+        for row in Quotation.objects.filter(pk__in=quotation_ids)
         .values('status_id')
         .annotate(count=Count('id'))
     }
-    statuses = BookingStatus.objects.filter(
+    statuses = QuotationStatus.objects.filter(
         account_id=account_id,
         company_id=company_id,
     ).order_by('sort_order', 'id')
@@ -167,7 +167,7 @@ def _payout_summary(company_id: int, account_id: int) -> dict:
 
 
 def _failed_payment_count(company_id: int, account_id: int) -> int:
-    return BookingPayment.objects.filter(
+    return QuotationPayment.objects.filter(
         account_id=account_id,
         company_id=company_id,
         deleted_at__isnull=True,
@@ -223,14 +223,14 @@ def profit_progress_total_for_tag(
 ) -> Decimal:
     if tag_id is None:
         return Decimal('0')
-    status_ids = BookingStatus.objects.filter(
+    status_ids = QuotationStatus.objects.filter(
         account_id=account_id,
         company_id=company_id,
         tags__id=tag_id,
     ).values_list('pk', flat=True)
     if not status_ids:
         return Decimal('0')
-    total = BookingItem.objects.filter(
+    total = Quotation.objects.filter(
         account_id=account_id,
         company_id=company_id,
         status_id__in=status_ids,
@@ -266,14 +266,14 @@ def active_projects_count_for_tag(
 ) -> int:
     if tag_id is None:
         return 0
-    status_ids = BookingStatus.objects.filter(
+    status_ids = QuotationStatus.objects.filter(
         account_id=account_id,
         company_id=company_id,
         tags__id=tag_id,
     ).values_list('pk', flat=True)
     if not status_ids:
         return 0
-    return BookingItem.objects.filter(
+    return Quotation.objects.filter(
         account_id=account_id,
         company_id=company_id,
         status_id__in=status_ids,
@@ -366,13 +366,13 @@ def build_dashboard_for_account(
     )
     company_payloads = []
     for company in companies:
-        owned_qs = BookingItem.objects.filter(
+        owned_qs = Quotation.objects.filter(
             account_id=account_id,
             company_id=company.id,
         )
         owned_ids = list(owned_qs.values_list('id', flat=True))
         supplier_qs = (
-            BookingItem.objects.filter(
+            Quotation.objects.filter(
                 account_id=account_id,
                 lines__company_id=company.id,
             )

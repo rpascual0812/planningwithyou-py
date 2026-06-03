@@ -15,7 +15,7 @@ class PackageViewSet(viewsets.ModelViewSet):
     """CRUD for packages (soft-delete on destroy)."""
 
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
-    feature_key = 'bookings'
+    feature_key = 'quotations'
     serializer_class = PackageSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'tier', 'total_price', 'created_at']
@@ -100,7 +100,7 @@ class PackageVersionViewSet(viewsets.ModelViewSet):
     """CRUD for package versions (soft-delete on destroy)."""
 
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
-    feature_key = 'bookings'
+    feature_key = 'quotations'
     serializer_class = PackageVersionSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'title', 'created_at']

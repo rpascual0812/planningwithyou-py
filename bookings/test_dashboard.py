@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from bookings.models import BookingItem, BookingPayment, BookingStatus, Tag
+from bookings.models import Quotation, QuotationPayment, QuotationStatus, Tag
 from config.models import Config
 from companies.models import Company
 from countries.models import Country
@@ -31,13 +31,13 @@ class DashboardSummaryTests(TestCase):
             supplier_type=supplier_type,
             is_main=True,
         )
-        self.status = BookingStatus.objects.create(
+        self.status = QuotationStatus.objects.create(
             account=self.account,
             company=self.main,
             title='Confirmed',
             color='#1f3a5f',
         )
-        self.booking = BookingItem.objects.create(
+        self.booking = Quotation.objects.create(
             account=self.account,
             company=self.main,
             status=self.status,
@@ -47,8 +47,8 @@ class DashboardSummaryTests(TestCase):
             required_downpayment_amount=Decimal('2000.00'),
             date_of_event=timezone.now() + timedelta(days=3),
         )
-        BookingPayment.objects.create(
-            booking=self.booking,
+        QuotationPayment.objects.create(
+            quotation=self.booking,
             account=self.account,
             company=self.main,
             base_amount=Decimal('3000.00'),

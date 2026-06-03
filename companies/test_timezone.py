@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
 
-from bookings.models import BookingItem, BookingStatus
+from bookings.models import Quotation, QuotationStatus
 from companies.middleware import (
     MUTATING_METHODS,
     CompanyTimezoneMiddleware,
@@ -178,14 +178,14 @@ class CompanyTimezoneSaveSignalTests(TestCase):
             supplier_type=supplier_type,
             timezone='Asia/Manila',
         )
-        cls.status = BookingStatus.objects.create(
+        cls.status = QuotationStatus.objects.create(
             account=cls.account,
             company=cls.company,
             title='New',
         )
 
     def test_pre_save_activates_instance_company_timezone(self):
-        booking = BookingItem(
+        booking = Quotation(
             account=self.account,
             company=self.company,
             status=self.status,
@@ -201,7 +201,7 @@ class CompanyTimezoneSaveSignalTests(TestCase):
         utc_now = datetime(2025, 6, 15, 6, 30, 0, tzinfo=ZoneInfo('UTC'))
         with patch('django.utils.timezone.now', return_value=utc_now):
             with timezone.override(ZoneInfo('UTC')):
-                booking = BookingItem.objects.create(
+                booking = Quotation.objects.create(
                     account=self.account,
                     company=self.company,
                     status=self.status,
@@ -231,18 +231,18 @@ class CompanyTimezoneDrfTests(TestCase):
             supplier_type=supplier_type,
             timezone='Asia/Manila',
         )
-        cls.status = BookingStatus.objects.create(
+        cls.status = QuotationStatus.objects.create(
             account=cls.account,
             company=cls.company,
             title='New',
         )
 
     def test_booking_serializer_created_at_uses_company_timezone(self):
-        from bookings.serializers import BookingItemSerializer
+        from bookings.serializers import QuotationSerializer
 
         manila = ZoneInfo('Asia/Manila')
         utc = datetime(2025, 6, 15, 1, 0, 0, tzinfo=ZoneInfo('UTC'))
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
@@ -250,5 +250,5 @@ class CompanyTimezoneDrfTests(TestCase):
             title='Event',
             created_at=utc.astimezone(manila),
         )
-        data = BookingItemSerializer(booking).data
+        data = QuotationSerializer(booking).data
         self.assertTrue(str(data['created_at']).startswith('2025-06-15T09:00:00'))

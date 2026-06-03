@@ -6,11 +6,11 @@ from django.test import TestCase
 from django.utils import timezone
 
 from bookings.models import (
-    BookingGroup,
-    BookingItem,
-    BookingLine,
-    BookingPayment,
-    BookingStatus,
+    QuotationGroup,
+    Quotation,
+    QuotationLine,
+    QuotationPayment,
+    QuotationStatus,
 )
 from bookings.payment_validity import booking_has_valid_payment, is_valid_booking_payment
 from companies.models import Company
@@ -88,7 +88,7 @@ class BookingUniqueIdTests(TestCase):
         self.assertEqual(allocate_booking_unique_id(other.id, when=when), '26-0001')
 
 
-class BookingLinePricingTests(TestCase):
+class QuotationLinePricingTests(TestCase):
     def setUp(self):
         country = Country.objects.create(
             name='Testland',
@@ -109,31 +109,31 @@ class BookingLinePricingTests(TestCase):
             supplier_type=supplier_type,
             is_main=True,
         )
-        self.status = BookingStatus.objects.create(
+        self.status = QuotationStatus.objects.create(
             account=self.account,
             company=self.company,
             title='New',
         )
-        self.booking = BookingItem.objects.create(
+        self.booking = Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
             unique_id='26-0001',
             title='Wedding',
         )
-        self.group = BookingGroup.objects.create(booking=self.booking, name='Services')
+        self.group = QuotationGroup.objects.create(quotation=self.booking, name='Services')
 
     def _line(self, **kwargs):
         defaults = {
             'account': self.account,
             'booking': self.booking,
-            'booking_group': self.group,
+            'quotation_group': self.group,
             'label': 'Item',
             'field_type': 'text',
             'value': '',
         }
         defaults.update(kwargs)
-        return BookingLine.objects.create(**defaults)
+        return QuotationLine.objects.create(**defaults)
 
     def test_checkbox_price_only_when_checked(self):
         line = self._line(field_type='checkbox', price=Decimal('25.00'), value='false')
@@ -223,23 +223,23 @@ class BookingSupplierLineStorageTests(TestCase):
             supplier_type=SupplierType.objects.create(name='MainType'),
             is_main=True,
         )
-        status = BookingStatus.objects.create(
+        status = QuotationStatus.objects.create(
             account=self.account,
             company=main,
             title='New',
         )
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=main,
             status=status,
             unique_id='26-0201',
             title='Event',
         )
-        group = BookingGroup.objects.create(booking=booking, name='Services')
-        line = BookingLine.objects.create(
+        group = QuotationGroup.objects.create(quotation=booking, name='Services')
+        line = QuotationLine.objects.create(
             account=self.account,
-            booking=booking,
-            booking_group=group,
+            quotation=booking,
+            quotation_group=group,
             label='Venue',
             field_type='supplier',
             company=self.supplier,
@@ -258,23 +258,23 @@ class BookingSupplierLineStorageTests(TestCase):
             supplier_type=SupplierType.objects.create(name='MainType'),
             is_main=True,
         )
-        status = BookingStatus.objects.create(
+        status = QuotationStatus.objects.create(
             account=self.account,
             company=main,
             title='New',
         )
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=main,
             status=status,
             unique_id='26-0200',
             title='Event',
         )
-        group = BookingGroup.objects.create(booking=booking, name='Services')
-        line = BookingLine.objects.create(
+        group = QuotationGroup.objects.create(quotation=booking, name='Services')
+        line = QuotationLine.objects.create(
             account=self.account,
-            booking=booking,
-            booking_group=group,
+            quotation=booking,
+            quotation_group=group,
             label='Venue',
             field_type='supplier',
             company=self.supplier,
@@ -397,19 +397,19 @@ class BookingPdfPackageItemsTests(TestCase):
             supplier_type=SupplierType.objects.create(name='X'),
             is_main=True,
         )
-        status = BookingStatus.objects.create(
+        status = QuotationStatus.objects.create(
             account=self.account,
             company=main,
             title='New',
         )
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=main,
             status=status,
             unique_id='26-0098',
             title='Event',
         )
-        group = BookingGroup.objects.create(booking=booking, name='Suppliers')
+        group = QuotationGroup.objects.create(quotation=booking, name='Suppliers')
         PackageItem.objects.create(
             package=self.package,
             parent=None,
@@ -417,10 +417,10 @@ class BookingPdfPackageItemsTests(TestCase):
             company=self.supplier,
             account=self.account,
         )
-        line = BookingLine.objects.create(
+        line = QuotationLine.objects.create(
             account=self.account,
-            booking=booking,
-            booking_group=group,
+            quotation=booking,
+            quotation_group=group,
             label='Venue',
             field_type='supplier',
             company=self.supplier,
@@ -440,19 +440,19 @@ class BookingPdfPackageItemsTests(TestCase):
             supplier_type=SupplierType.objects.create(name='X'),
             is_main=True,
         )
-        status = BookingStatus.objects.create(
+        status = QuotationStatus.objects.create(
             account=self.account,
             company=main,
             title='New',
         )
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=main,
             status=status,
             unique_id='26-0099',
             title='Event',
         )
-        group = BookingGroup.objects.create(booking=booking, name='Services')
+        group = QuotationGroup.objects.create(quotation=booking, name='Services')
         PackageItem.objects.create(
             package=self.package,
             parent=None,
@@ -460,10 +460,10 @@ class BookingPdfPackageItemsTests(TestCase):
             company=self.supplier,
             account=self.account,
         )
-        line = BookingLine.objects.create(
+        line = QuotationLine.objects.create(
             account=self.account,
-            booking=booking,
-            booking_group=group,
+            quotation=booking,
+            quotation_group=group,
             label='Venue',
             field_type='supplier',
             company=self.supplier,
@@ -482,23 +482,23 @@ class BookingPdfPackageItemsTests(TestCase):
             supplier_type=SupplierType.objects.create(name='Y'),
             is_main=True,
         )
-        status = BookingStatus.objects.create(
+        status = QuotationStatus.objects.create(
             account=self.account,
             company=main,
             title='New',
         )
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=main,
             status=status,
             unique_id='26-0100',
             title='Event',
         )
-        group = BookingGroup.objects.create(booking=booking, name='Services')
-        line = BookingLine.objects.create(
+        group = QuotationGroup.objects.create(quotation=booking, name='Services')
+        line = QuotationLine.objects.create(
             account=self.account,
-            booking=booking,
-            booking_group=group,
+            quotation=booking,
+            quotation_group=group,
             label='Venue',
             field_type='supplier',
             price=Decimal('10.00'),
@@ -545,7 +545,7 @@ class BookingPdfPackageItemsTests(TestCase):
         )
 
 
-class SupplierBookingCapacityTests(TestCase):
+class SupplierQuotationCapacityTests(TestCase):
     def setUp(self):
         country = Country.objects.create(
             name='Testland',
@@ -569,7 +569,7 @@ class SupplierBookingCapacityTests(TestCase):
             supplier_type=supplier_type,
             max_bookings_per_day=1,
         )
-        self.status = BookingStatus.objects.create(
+        self.status = QuotationStatus.objects.create(
             account=self.account,
             company=self.company,
             title='New',
@@ -580,7 +580,7 @@ class SupplierBookingCapacityTests(TestCase):
     def _booking_with_supplier_line(self, *, supplier=None, when=None):
         supplier = supplier or self.supplier
         when = when or self.event_day
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=self.tenant_company,
             status=self.status,
@@ -588,11 +588,11 @@ class SupplierBookingCapacityTests(TestCase):
             title='Event',
             date_of_event=when,
         )
-        group = BookingGroup.objects.create(booking=booking, name=self.group_name)
-        BookingLine.objects.create(
+        group = QuotationGroup.objects.create(quotation=booking, name=self.group_name)
+        QuotationLine.objects.create(
             account=self.account,
-            booking=booking,
-            booking_group=group,
+            quotation=booking,
+            quotation_group=group,
             company=supplier,
             label='Florist',
             field_type='supplier',
@@ -610,7 +610,7 @@ class SupplierBookingCapacityTests(TestCase):
             'transaction_id': 'txn_test',
         }
         defaults.update(kwargs)
-        return BookingPayment.objects.create(booking=booking, **defaults)
+        return QuotationPayment.objects.create(quotation=booking, **defaults)
 
     def test_unpaid_booking_does_not_count_toward_capacity(self):
         self._booking_with_supplier_line()
@@ -641,7 +641,7 @@ class SupplierBookingCapacityTests(TestCase):
             self.account.id,
             self.supplier.id,
             self.event_day.date(),
-            exclude_booking_id=booking.id,
+            exclude_quotation_id=booking.id,
         )
         self.assertFalse(status['at_capacity'])
         self.assertEqual(status['booking_count'], 0)
@@ -697,26 +697,26 @@ class BookingRequiredDownpaymentTests(TestCase):
             required_downpayment_amount=Decimal('250.00'),
             is_active=True,
         )
-        self.status = BookingStatus.objects.create(
+        self.status = QuotationStatus.objects.create(
             account=self.account,
             company=self.main,
             title='New',
         )
 
     def test_sum_includes_package_and_line_downpayments(self):
-        booking = BookingItem.objects.create(
+        booking = Quotation.objects.create(
             account=self.account,
             company=self.main,
             status=self.status,
             unique_id='26-0100',
             title='Event',
         )
-        supplier_group = BookingGroup.objects.create(booking=booking, name='Suppliers')
-        services_group = BookingGroup.objects.create(booking=booking, name='Services')
-        BookingLine.objects.create(
+        supplier_group = QuotationGroup.objects.create(quotation=booking, name='Suppliers')
+        services_group = QuotationGroup.objects.create(quotation=booking, name='Services')
+        QuotationLine.objects.create(
             account=self.account,
-            booking=booking,
-            booking_group=supplier_group,
+            quotation=booking,
+            quotation_group=supplier_group,
             label='Venue',
             field_type='supplier',
             company=self.supplier,
@@ -725,10 +725,10 @@ class BookingRequiredDownpaymentTests(TestCase):
             price=Decimal('1000.00'),
             value='',
         )
-        BookingLine.objects.create(
+        QuotationLine.objects.create(
             account=self.account,
-            booking=booking,
-            booking_group=services_group,
+            quotation=booking,
+            quotation_group=services_group,
             label='Extras',
             field_type='text',
             price=Decimal('100.00'),
@@ -794,23 +794,23 @@ class BookingCompanyVisibilityTests(TestCase):
             name='Other Co',
             supplier_type=supplier_type,
         )
-        self.status = BookingStatus.objects.create(
+        self.status = QuotationStatus.objects.create(
             account=self.account,
             company=self.owner,
             title='New',
         )
-        self.booking = BookingItem.objects.create(
+        self.booking = Quotation.objects.create(
             account=self.account,
             company=self.owner,
             status=self.status,
             unique_id='26-0500',
             title='Wedding',
         )
-        group = BookingGroup.objects.create(booking=self.booking, name='Suppliers')
-        BookingLine.objects.create(
+        group = QuotationGroup.objects.create(quotation=self.booking, name='Suppliers')
+        QuotationLine.objects.create(
             account=self.account,
-            booking=self.booking,
-            booking_group=group,
+            quotation=self.booking,
+            quotation_group=group,
             label='Florist',
             field_type='supplier',
             company=self.supplier,
@@ -886,23 +886,23 @@ class BookingCompanyVisibilityTests(TestCase):
             name='External Supplier',
             supplier_type=self.owner.supplier_type,
         )
-        tenant_status = BookingStatus.objects.create(
+        tenant_status = QuotationStatus.objects.create(
             account=tenant_account,
             company=tenant_owner,
             title='Confirmed',
         )
-        tenant_booking = BookingItem.objects.create(
+        tenant_booking = Quotation.objects.create(
             account=tenant_account,
             company=tenant_owner,
             status=tenant_status,
             unique_id='26-0999',
             title='Cross-account wedding',
         )
-        group = BookingGroup.objects.create(booking=tenant_booking, name='Suppliers')
-        BookingLine.objects.create(
+        group = QuotationGroup.objects.create(quotation=tenant_booking, name='Suppliers')
+        QuotationLine.objects.create(
             account=tenant_account,
-            booking=tenant_booking,
-            booking_group=group,
+            quotation=tenant_booking,
+            quotation_group=group,
             label='Coordinator',
             field_type='supplier',
             company=supplier_co,

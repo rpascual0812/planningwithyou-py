@@ -9,12 +9,12 @@ from planningwithyou.permissions import FeatureAccess, HasAccount
 from .models import Config
 
 BOOKING_VIEW_SCOPE = 'account'
-BOOKING_VIEW_NAME = 'booking_view'
+BOOKING_VIEW_NAME = 'quotation_view'
 BOOKING_VIEW_DEFAULT = 'board'
 BOOKING_VIEW_CHOICES = frozenset({'board', 'cards', 'list'})
 
 BOOKINGS_GROUP_NAME_SCOPE = 'account'
-BOOKINGS_GROUP_NAME_NAME = 'bookings_group_name'
+BOOKINGS_GROUP_NAME_NAME = 'quotations_group_name'
 BOOKINGS_GROUP_NAME_MAX_LENGTH = 255
 
 PROFIT_PROGRESS_SCOPE = 'profit_progress'
@@ -48,7 +48,7 @@ def _dashboard_metric_company_id(request):
 
 
 class BookingViewConfigView(APIView):
-    feature_key = 'booking_settings_statuses'
+    feature_key = 'quotation_settings_statuses'
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
 
     def get(self, request):
@@ -87,7 +87,7 @@ class BookingViewConfigView(APIView):
 
 
 class BookingsGroupNameConfigView(APIView):
-    feature_key = 'booking_settings_statuses'
+    feature_key = 'quotation_settings_statuses'
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
 
     def get(self, request):

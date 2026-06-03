@@ -6,11 +6,11 @@ from django.test import TestCase
 from django.utils import timezone
 
 from bookings.models import (
-    BookingItem,
-    BookingPayment,
-    BookingPaymentReceipt,
-    BookingPaymentLink,
-    BookingStatus,
+    Quotation,
+    QuotationPayment,
+    QuotationPaymentReceipt,
+    QuotationPaymentLink,
+    QuotationStatus,
 )
 from bookings.paymongo_webhook import (
     _extract_payment_from_event,
@@ -64,14 +64,14 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             supplier_type=supplier_type,
             is_main=True,
         )
-        self.status = BookingStatus.objects.create(account=self.account, company=self.company, title='New')
+        self.status = QuotationStatus.objects.create(account=self.account, company=self.company, title='New')
         self.user = User.objects.create_user(
             username='booking-owner@example.com',
             email='booking-owner@example.com',
             password='test-pass',
             account=self.account,
         )
-        self.booking = BookingItem.objects.create(
+        self.booking = Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
@@ -81,8 +81,8 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             required_downpayment_amount=Decimal('500.00'),
             created_by=self.user,
         )
-        self.link = BookingPaymentLink.objects.create(
-            booking=self.booking,
+        self.link = QuotationPaymentLink.objects.create(
+            quotation=self.booking,
             account_id=self.account.id,
             company_id=self.company.id,
             public_token='11111111-2222-3333-4444-555555555555',
@@ -91,7 +91,7 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             processing_fee_estimate=Decimal('20.00'),
             charge_amount=Decimal('525.00'),
             currency='PHP',
-            status=BookingPaymentLink.Status.PENDING,
+            status=QuotationPaymentLink.Status.PENDING,
             expires_at=timezone.now() + timedelta(days=7),
             paymongo_checkout_session_id='cs_test_123',
         )
@@ -122,14 +122,14 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             ),
         )
         self.assertTrue(handled)
-        payment = BookingPayment.objects.get(transaction_id='pay_failed_1')
+        payment = QuotationPayment.objects.get(transaction_id='pay_failed_1')
         self.assertEqual(payment.transaction_status, 'failed')
         self.assertEqual(payment.charge_amount, Decimal('1500.00'))
         self.assertEqual(payment.base_amount, Decimal('500.00'))
         self.assertEqual(payment.platform_fee, Decimal('5.00'))
         self.assertEqual(payment.amount, Decimal('500.00'))
         self.link.refresh_from_db()
-        self.assertEqual(self.link.status, BookingPaymentLink.Status.PENDING)
+        self.assertEqual(self.link.status, QuotationPaymentLink.Status.PENDING)
 
     @patch('bookings.payment_receipts.send_email_task.delay')
     def test_handle_webhook_records_paid_and_marks_link(self, mock_send_email_task):
@@ -141,17 +141,17 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             ),
         )
         self.assertTrue(handled)
-        payment = BookingPayment.objects.get(transaction_id='pay_ok_1')
+        payment = QuotationPayment.objects.get(transaction_id='pay_ok_1')
         self.assertEqual(payment.transaction_status, 'paid')
         self.assertEqual(payment.base_amount, Decimal('500.00'))
         self.assertEqual(payment.charge_amount, Decimal('1500.00'))
         self.assertEqual(payment.platform_fee, Decimal('5.00'))
-        receipt = BookingPaymentReceipt.objects.get(booking_payment_id=payment.pk)
+        receipt = QuotationPaymentReceipt.objects.get(quotation_payment_id=payment.pk)
         self.assertTrue(receipt.receipt_url)
         self.assertIsNotNone(receipt.emailed_at)
         mock_send_email_task.assert_called_once()
         self.link.refresh_from_db()
-        self.assertEqual(self.link.status, BookingPaymentLink.Status.PAID)
+        self.assertEqual(self.link.status, QuotationPaymentLink.Status.PAID)
         self.assertIsNotNone(self.link.paid_at)
 
     def test_record_upserts_same_payment_id(self):
@@ -179,10 +179,10 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
             api_response={'second': True},
         )
         self.assertEqual(
-            BookingPayment.objects.filter(transaction_id='pay_dup').count(),
+            QuotationPayment.objects.filter(transaction_id='pay_dup').count(),
             1,
         )
-        payment = BookingPayment.objects.get(transaction_id='pay_dup')
+        payment = QuotationPayment.objects.get(transaction_id='pay_dup')
         self.assertEqual(payment.transaction_status, 'paid')
         self.assertEqual(payment.base_amount, Decimal('100.00'))
         self.assertEqual(payment.charge_amount, Decimal('120.00'))
@@ -197,7 +197,7 @@ class PayMongoWebhookPaymentRecordTests(TestCase):
         event['data']['attributes']['data']['attributes']['net_amount'] = 147500
         handled = handle_paymongo_webhook_event(event)
         self.assertTrue(handled)
-        payment = BookingPayment.objects.get(transaction_id='pay_fees_1')
+        payment = QuotationPayment.objects.get(transaction_id='pay_fees_1')
         self.assertEqual(payment.charge_amount, Decimal('1500.00'))
         self.assertEqual(payment.processing_fee, Decimal('25.00'))
         self.assertEqual(payment.net_amount, Decimal('1475.00'))

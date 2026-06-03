@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 from django.db import transaction
 from django.utils import timezone
 
-from .models import BookingPayment, BookingPaymentLink
+from .models import QuotationPayment, QuotationPaymentLink
 from payments.paymongo_config import webhook_secrets_to_try
 
 from payments.paymongo_config import platform_secret_key
@@ -111,7 +111,7 @@ def company_id_from_webhook_body(body: dict) -> int | None:
     return None
 
 
-def _payment_link_from_metadata(metadata: dict) -> BookingPaymentLink | None:
+def _payment_link_from_metadata(metadata: dict) -> QuotationPaymentLink | None:
     link_id = metadata.get('booking_payment_link_id')
     if not link_id:
         return None
@@ -120,7 +120,7 @@ def _payment_link_from_metadata(metadata: dict) -> BookingPaymentLink | None:
     except (TypeError, ValueError):
         return None
     return (
-        BookingPaymentLink.objects.select_related('booking', 'company')
+        QuotationPaymentLink.objects.select_related('quotation', 'company')
         .filter(pk=pk)
         .first()
     )
@@ -129,7 +129,7 @@ def _payment_link_from_metadata(metadata: dict) -> BookingPaymentLink | None:
 def _resolve_payment_link(
     metadata: dict,
     checkout_session_id: str = '',
-) -> BookingPaymentLink | None:
+) -> QuotationPaymentLink | None:
     link = _payment_link_from_metadata(metadata)
     if link is not None:
         return link
@@ -137,7 +137,7 @@ def _resolve_payment_link(
     if not session_id:
         return None
     return (
-        BookingPaymentLink.objects.select_related('booking', 'company')
+        QuotationPaymentLink.objects.select_related('quotation', 'company')
         .filter(paymongo_checkout_session_id=session_id)
         .first()
     )
@@ -158,7 +158,7 @@ def _amount_php_from_paymongo_attributes(
 
 
 def _payment_breakdown_for_link(
-    link: BookingPaymentLink,
+    link: QuotationPaymentLink,
     payment_attrs: dict,
 ) -> dict[str, Decimal]:
     """
@@ -373,14 +373,14 @@ def _extract_payment_from_checkout_session(
 
 @transaction.atomic
 def _record_booking_payment(
-    link: BookingPaymentLink,
+    link: QuotationPaymentLink,
     *,
     transaction_id: str,
     transaction_status: str,
     payment_method: str,
     breakdown: dict[str, Decimal],
     api_response: dict,
-) -> BookingPayment:
+) -> QuotationPayment:
     """Persist PayMongo payment details on ``booking_payments`` (upsert by payment id)."""
     payment_id = (transaction_id or '').strip()
     status = (transaction_status or 'unknown').strip()
@@ -412,8 +412,8 @@ def _record_booking_payment(
     existing = None
     if payment_id:
         existing = (
-            BookingPayment.objects.filter(
-                booking_id=link.booking_id,
+            QuotationPayment.objects.filter(
+                quotation_id=link.quotation_id,
                 transaction_id=payment_id,
                 deleted_at__isnull=True,
             )
@@ -436,8 +436,8 @@ def _record_booking_payment(
         existing.save(update_fields=breakdown_fields)
         payment = existing
     else:
-        payment = BookingPayment.objects.create(
-            booking_id=link.booking_id,
+        payment = QuotationPayment.objects.create(
+            quotation_id=link.quotation_id,
             account_id=link.account_id,
             company_id=link.company_id,
             payment_method=payment_method or 'paymongo',
@@ -457,12 +457,12 @@ def _record_booking_payment(
 
     status_lower = status.lower()
     if status_lower in _PAYMONGO_LINK_PAID_STATUSES:
-        if link.status != BookingPaymentLink.Status.PAID:
-            link.status = BookingPaymentLink.Status.PAID
+        if link.status != QuotationPaymentLink.Status.PAID:
+            link.status = QuotationPaymentLink.Status.PAID
             link.paid_at = now
             link.save(update_fields=['status', 'paid_at', 'updated_at'])
     elif status_lower in {'failed', 'cancelled', 'canceled'}:
-        if link.status == BookingPaymentLink.Status.PENDING:
+        if link.status == QuotationPaymentLink.Status.PENDING:
             link.save(update_fields=['updated_at'])
 
     return payment
@@ -533,10 +533,10 @@ def handle_paymongo_webhook_event(event: dict) -> bool:
     if (
         link.expires_at
         and link.expires_at < timezone.now()
-        and link.status == BookingPaymentLink.Status.PENDING
+        and link.status == QuotationPaymentLink.Status.PENDING
         and payment_info['status'].lower() not in _PAYMONGO_LINK_PAID_STATUSES
     ):
-        link.status = BookingPaymentLink.Status.EXPIRED
+        link.status = QuotationPaymentLink.Status.EXPIRED
         link.save(update_fields=['status', 'updated_at'])
 
     api_response = {

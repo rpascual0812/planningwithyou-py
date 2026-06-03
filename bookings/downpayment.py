@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.db.models import Sum
 
-from .models import BookingItem
+from .models import Quotation
 from .supplier_line import package_for_supplier_booking_line
 
 
@@ -42,7 +42,7 @@ def _line_required_downpayment(line) -> Decimal:
     return line.required_downpayment
 
 
-def sum_booking_required_downpayment(booking: BookingItem) -> Decimal:
+def sum_booking_required_downpayment(booking: Quotation) -> Decimal:
     """Sum package and per-line required downpayments on the booking."""
     lines = booking.lines.select_related('company', 'tier', 'package_version')
     total = Decimal('0')

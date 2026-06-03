@@ -70,7 +70,7 @@ class CalendarViewSet(viewsets.ModelViewSet):
         qs = calendar_events_for_user(self.request.user).select_related(
             'status',
             'contact',
-            'booking',
+            'quotation',
         )
         start = self.request.query_params.get('start')
         end = self.request.query_params.get('end')

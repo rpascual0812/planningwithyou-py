@@ -1,7 +1,7 @@
 import re
 from decimal import Decimal, InvalidOperation
 
-from .models import BookingLine
+from .models import QuotationLine
 from .supplier_line import parse_supplier_field_value, supplier_selection_from_line
 
 CLIENT_GROUP_RE = re.compile(r'client|customer|contact', re.IGNORECASE)
@@ -16,13 +16,13 @@ def _parse_amount(raw) -> Decimal | None:
         return None
 
 
-def _configured_line_price(line: BookingLine) -> Decimal | None:
+def _configured_line_price(line: QuotationLine) -> Decimal | None:
     if line.price is None:
         return None
     return line.price
 
 
-def resolve_booking_line_price(line: BookingLine) -> Decimal | None:
+def resolve_booking_line_price(line: QuotationLine) -> Decimal | None:
     if not (line.label or '').strip():
         return None
 
@@ -55,11 +55,11 @@ def is_client_group_name(name: str) -> bool:
     return bool(CLIENT_GROUP_RE.search(name or ''))
 
 
-def client_detail_lines(lines) -> list[BookingLine]:
+def client_detail_lines(lines) -> list[QuotationLine]:
     """Lines in client/customer/contact groups, excluding supplier fields."""
     result = []
     for line in lines:
-        group_name = line.booking_group.name if line.booking_group_id else ''
+        group_name = line.quotation_group.name if line.quotation_group_id else ''
         if not is_client_group_name(group_name):
             continue
         if line.field_type == 'supplier':

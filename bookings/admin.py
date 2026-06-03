@@ -1,19 +1,19 @@
 from django.contrib import admin
 
 from .models import (
-    BookingItem,
-    BookingPayment,
-    BookingPaymentLink,
-    BookingStatus,
-    BookingUniqueIdSequence,
+    Quotation,
+    QuotationPayment,
+    QuotationPaymentLink,
+    QuotationStatus,
+    QuotationUniqueIdSequence,
     FormTemplate,
     FormTemplateField,
     FormTemplateFieldOption,
 )
 
 
-class BookingPaymentInline(admin.TabularInline):
-    model = BookingPayment
+class QuotationPaymentInline(admin.TabularInline):
+    model = QuotationPayment
     extra = 0
     fields = [
         'payment_method',
@@ -27,27 +27,27 @@ class BookingPaymentInline(admin.TabularInline):
     ordering = ['-transaction_date', '-created_at']
 
 
-class BookingItemInline(admin.TabularInline):
-    model = BookingItem
+class QuotationInline(admin.TabularInline):
+    model = Quotation
     extra = 0
     ordering = ['sort_order', 'id']
 
 
-@admin.register(BookingStatus)
-class BookingStatusAdmin(admin.ModelAdmin):
+@admin.register(QuotationStatus)
+class QuotationStatusAdmin(admin.ModelAdmin):
     list_display = ['title', 'color', 'sort_order', 'created_at']
     ordering = ['sort_order', 'id']
-    inlines = [BookingItemInline]
+    inlines = [QuotationInline]
 
 
-@admin.register(BookingUniqueIdSequence)
-class BookingUniqueIdSequenceAdmin(admin.ModelAdmin):
+@admin.register(QuotationUniqueIdSequence)
+class QuotationUniqueIdSequenceAdmin(admin.ModelAdmin):
     list_display = ['account_id', 'year', 'last_sequence']
     list_filter = ['year']
 
 
-@admin.register(BookingItem)
-class BookingItemAdmin(admin.ModelAdmin):
+@admin.register(Quotation)
+class QuotationAdmin(admin.ModelAdmin):
     list_display = [
         'unique_id',
         'title',
@@ -61,14 +61,14 @@ class BookingItemAdmin(admin.ModelAdmin):
     search_fields = ['unique_id', 'title']
     list_filter = ['status']
     ordering = ['sort_order', 'id']
-    inlines = [BookingPaymentInline]
+    inlines = [QuotationPaymentInline]
 
 
-@admin.register(BookingPaymentLink)
-class BookingPaymentLinkAdmin(admin.ModelAdmin):
+@admin.register(QuotationPaymentLink)
+class QuotationPaymentLinkAdmin(admin.ModelAdmin):
     list_display = [
         'id',
-        'booking',
+        'quotation',
         'status',
         'charge_amount',
         'base_amount',
@@ -78,16 +78,16 @@ class BookingPaymentLinkAdmin(admin.ModelAdmin):
         'created_at',
     ]
     list_filter = ['status', 'company']
-    search_fields = ['public_token', 'booking__unique_id', 'paymongo_checkout_session_id']
+    search_fields = ['public_token', 'quotation__unique_id', 'paymongo_checkout_session_id']
     readonly_fields = ['created_at', 'updated_at', 'public_token']
-    raw_id_fields = ['booking', 'company', 'account', 'created_by']
+    raw_id_fields = ['quotation', 'company', 'account', 'created_by']
 
 
-@admin.register(BookingPayment)
-class BookingPaymentAdmin(admin.ModelAdmin):
+@admin.register(QuotationPayment)
+class QuotationPaymentAdmin(admin.ModelAdmin):
     list_display = [
         'id',
-        'booking',
+        'quotation',
         'payment_method',
         'base_amount',
         'charge_amount',
@@ -100,9 +100,9 @@ class BookingPaymentAdmin(admin.ModelAdmin):
         'created_at',
     ]
     list_filter = ['transaction_status', 'payment_method', 'company', 'payout_sent_at']
-    search_fields = ['transaction_id', 'booking__unique_id', 'booking__title']
+    search_fields = ['transaction_id', 'quotation__unique_id', 'quotation__title']
     readonly_fields = ['created_at', 'updated_at']
-    raw_id_fields = ['booking', 'company', 'account']
+    raw_id_fields = ['quotation', 'company', 'account']
 
 
 class FormTemplateFieldOptionInline(admin.TabularInline):

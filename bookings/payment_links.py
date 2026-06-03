@@ -12,7 +12,7 @@ from django.utils import timezone
 from companies.kyb import live_payments_allowed
 from companies.models import Company
 
-from .models import BookingItem, BookingPaymentLink
+from .models import Quotation, QuotationPaymentLink
 from .payment_pricing import PaymentLinkPricing, amount_to_centavos, compute_payment_link_pricing
 from .payment_summary import booking_is_fully_paid, booking_remaining_balance
 from payments.paymongo_config import company_can_accept_paymongo_payments, get_paymongo_company_context
@@ -40,12 +40,12 @@ def public_payment_url(token: uuid.UUID | str) -> str:
 
 
 def create_booking_payment_link(
-    booking: BookingItem,
+    booking: Quotation,
     *,
     charge_base_amount=None,
     created_by=None,
     expires_in_days: int = 14,
-) -> BookingPaymentLink:
+) -> QuotationPaymentLink:
     if not paymongo_configured(booking.company_id):
         raise PaymentLinkError('PayMongo is not configured on the server.')
     if not company_can_accept_paymongo_payments(booking.company_id):
@@ -96,8 +96,8 @@ def create_booking_payment_link(
     success_url = f'{public_url}?status=success'
     cancel_url = f'{public_url}?status=cancelled'
 
-    link = BookingPaymentLink(
-        booking=booking,
+    link = QuotationPaymentLink(
+        quotation=booking,
         account_id=booking.account_id,
         company_id=booking.company_id,
         public_token=token,
@@ -106,7 +106,7 @@ def create_booking_payment_link(
         processing_fee_estimate=pricing.processing_fee_estimate,
         charge_amount=pricing.charge_amount,
         currency='PHP',
-        status=BookingPaymentLink.Status.PENDING,
+        status=QuotationPaymentLink.Status.PENDING,
         expires_at=expires_at,
         created_by=created_by,
     )
@@ -125,16 +125,16 @@ def create_booking_payment_link(
     ]
     metadata = {
         'booking_payment_link_id': '',  # filled after save
-        'booking_id': str(booking.pk),
+        'quotation_id': str(booking.pk),
         'account_id': str(booking.account_id),
         'company_id': str(booking.company_id),
     }
 
     try:
-        BookingPaymentLink.objects.filter(
-            booking_id=booking.pk,
-            status=BookingPaymentLink.Status.PENDING,
-        ).update(status=BookingPaymentLink.Status.CANCELLED)
+        QuotationPaymentLink.objects.filter(
+            quotation_id=booking.pk,
+            status=QuotationPaymentLink.Status.PENDING,
+        ).update(status=QuotationPaymentLink.Status.CANCELLED)
 
         link.save()
         metadata['booking_payment_link_id'] = str(link.pk)
@@ -172,8 +172,8 @@ def create_booking_payment_link(
     return link
 
 
-def serialize_public_payment_link(link: BookingPaymentLink) -> dict:
-    booking = link.booking
+def serialize_public_payment_link(link: QuotationPaymentLink) -> dict:
+    booking = link.quotation
     company = link.company
     currency_symbol = '₱'
     currency_code = link.currency or 'PHP'
@@ -188,11 +188,11 @@ def serialize_public_payment_link(link: BookingPaymentLink) -> dict:
         processing_fee_estimate=link.processing_fee_estimate,
         charge_amount=link.charge_amount,
     )
-    expired = link.expires_at < timezone.now() and link.status == BookingPaymentLink.Status.PENDING
+    expired = link.expires_at < timezone.now() and link.status == QuotationPaymentLink.Status.PENDING
     return {
         'token': str(link.public_token),
-        'status': BookingPaymentLink.Status.EXPIRED if expired else link.status,
-        'booking_title': booking.title,
+        'status': QuotationPaymentLink.Status.EXPIRED if expired else link.status,
+        'quotation_title': booking.title,
         'booking_unique_id': booking.unique_id,
         'company_name': company.name if company else '',
         'currency': currency_code,
@@ -202,7 +202,7 @@ def serialize_public_payment_link(link: BookingPaymentLink) -> dict:
         'processing_fee_estimate': str(link.processing_fee_estimate),
         'charge_amount': str(link.charge_amount),
         'fees_total': str(pricing.fees_total),
-        'checkout_url': link.paymongo_checkout_url if link.status == BookingPaymentLink.Status.PENDING and not expired else '',
+        'checkout_url': link.paymongo_checkout_url if link.status == QuotationPaymentLink.Status.PENDING and not expired else '',
         'public_url': public_payment_url(link.public_token),
         'expires_at': link.expires_at.isoformat(),
         'paid_at': link.paid_at.isoformat() if link.paid_at else None,

@@ -1,11 +1,11 @@
 from rest_framework.test import APITestCase
 
-from bookings.models import BookingItem, BookingStatus
+from bookings.models import Quotation, QuotationStatus
 from companies.models import Company
 from users.test_support import assign_owner_role
 
 
-class BookingItemPaginationTests(APITestCase):
+class QuotationPaginationTests(APITestCase):
     def setUp(self):
         from django.contrib.auth import get_user_model
         from companies.models import Company
@@ -28,7 +28,7 @@ class BookingItemPaginationTests(APITestCase):
             is_verified=True,
         )
         assign_owner_role(self.user)
-        self.status = BookingStatus.objects.create(
+        self.status = QuotationStatus.objects.create(
             account=self.account,
             company=self.company,
             title='Open',
@@ -37,7 +37,7 @@ class BookingItemPaginationTests(APITestCase):
 
     def test_list_all_returns_unpaginated_array(self):
         self.client.force_authenticate(user=self.user)
-        BookingItem.objects.create(
+        Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
@@ -45,7 +45,7 @@ class BookingItemPaginationTests(APITestCase):
             title='One',
             sort_order=0,
         )
-        response = self.client.get('/booking-items/', {'all': 'true'})
+        response = self.client.get('/quotation-items/', {'all': 'true'})
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertIsInstance(payload, list)
@@ -54,7 +54,7 @@ class BookingItemPaginationTests(APITestCase):
     def test_list_paginates_ten_per_page(self):
         self.client.force_authenticate(user=self.user)
         for i in range(11):
-            BookingItem.objects.create(
+            Quotation.objects.create(
                 account=self.account,
                 company=self.company,
                 status=self.status,
@@ -63,14 +63,14 @@ class BookingItemPaginationTests(APITestCase):
                 sort_order=i,
             )
 
-        page_one = self.client.get('/booking-items/')
+        page_one = self.client.get('/quotation-items/')
         self.assertEqual(page_one.status_code, 200)
         body_one = page_one.json()
         self.assertEqual(body_one['count'], 11)
         self.assertEqual(len(body_one['results']), 10)
         self.assertIsNotNone(body_one['next'])
 
-        page_two = self.client.get('/booking-items/', {'page': 2})
+        page_two = self.client.get('/quotation-items/', {'page': 2})
         self.assertEqual(page_two.status_code, 200)
         body_two = page_two.json()
         self.assertEqual(len(body_two['results']), 1)
@@ -78,7 +78,7 @@ class BookingItemPaginationTests(APITestCase):
 
     def test_board_view_returns_slim_payload(self):
         self.client.force_authenticate(user=self.user)
-        BookingItem.objects.create(
+        Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=self.status,
@@ -87,7 +87,7 @@ class BookingItemPaginationTests(APITestCase):
             sort_order=0,
         )
         response = self.client.get(
-            '/booking-items/',
+            '/quotation-items/',
             {'view': 'board', 'board_column': str(self.status.id)},
         )
         self.assertEqual(response.status_code, 200)
@@ -101,14 +101,14 @@ class BookingItemPaginationTests(APITestCase):
 
     def test_board_column_paginates_per_status(self):
         self.client.force_authenticate(user=self.user)
-        other_status = BookingStatus.objects.create(
+        other_status = QuotationStatus.objects.create(
             account=self.account,
             company=self.company,
             title='Done',
             sort_order=1,
         )
         for i in range(11):
-            BookingItem.objects.create(
+            Quotation.objects.create(
                 account=self.account,
                 company=self.company,
                 status=self.status,
@@ -116,7 +116,7 @@ class BookingItemPaginationTests(APITestCase):
                 title=f'Open {i}',
                 sort_order=i,
             )
-        BookingItem.objects.create(
+        Quotation.objects.create(
             account=self.account,
             company=self.company,
             status=other_status,
@@ -126,7 +126,7 @@ class BookingItemPaginationTests(APITestCase):
         )
 
         page_one = self.client.get(
-            '/booking-items/',
+            '/quotation-items/',
             {'view': 'board', 'board_column': str(self.status.id), 'page': 1},
         )
         self.assertEqual(page_one.status_code, 200)
@@ -136,13 +136,13 @@ class BookingItemPaginationTests(APITestCase):
         self.assertIsNotNone(body_one['next'])
 
         page_two = self.client.get(
-            '/booking-items/',
+            '/quotation-items/',
             {'view': 'board', 'board_column': str(self.status.id), 'page': 2},
         )
         self.assertEqual(len(page_two.json()['results']), 1)
 
         done_page = self.client.get(
-            '/booking-items/',
+            '/quotation-items/',
             {'view': 'board', 'board_column': str(other_status.id)},
         )
         self.assertEqual(done_page.json()['count'], 1)
@@ -154,13 +154,13 @@ class BookingItemPaginationTests(APITestCase):
             name='Tenant Co',
             is_active=True,
         )
-        tenant_status = BookingStatus.objects.create(
+        tenant_status = QuotationStatus.objects.create(
             account=self.account,
             company=tenant,
             title='Open',
             sort_order=99,
         )
-        BookingItem.objects.create(
+        Quotation.objects.create(
             account=self.account,
             company=tenant,
             status=tenant_status,
@@ -170,7 +170,7 @@ class BookingItemPaginationTests(APITestCase):
         )
 
         response = self.client.get(
-            '/booking-items/',
+            '/quotation-items/',
             {'view': 'board', 'board_column': str(self.status.id)},
         )
         self.assertEqual(response.status_code, 200)
@@ -184,13 +184,13 @@ class BookingItemPaginationTests(APITestCase):
             name='Tenant Co',
             is_active=True,
         )
-        tenant_status = BookingStatus.objects.create(
+        tenant_status = QuotationStatus.objects.create(
             account=self.account,
             company=tenant,
             title='Mystery',
             sort_order=99,
         )
-        BookingItem.objects.create(
+        Quotation.objects.create(
             account=self.account,
             company=tenant,
             status=tenant_status,
@@ -200,7 +200,7 @@ class BookingItemPaginationTests(APITestCase):
         )
 
         response = self.client.get(
-            '/booking-items/',
+            '/quotation-items/',
             {'view': 'board', 'board_slot': 'foreign'},
         )
         self.assertEqual(response.status_code, 200)
@@ -208,7 +208,7 @@ class BookingItemPaginationTests(APITestCase):
         self.assertIn('Unmatched foreign', titles)
 
         matched = self.client.get(
-            '/booking-items/',
+            '/quotation-items/',
             {
                 'view': 'board',
                 'board_column': str(self.status.id),

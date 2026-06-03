@@ -62,7 +62,7 @@ def _storage_key_from_url(url: str) -> str | None:
     if path.startswith(
         (
             'documents/',
-            'booking_pdfs/',
+            'quotation_pdfs/',
             'booking_payment_receipts/',
         ),
     ):

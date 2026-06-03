@@ -98,7 +98,7 @@ class EmailTemplate(models.Model):
     )
     class TemplateType(models.TextChoices):
         USERS = 'users', 'Users'
-        BOOKINGS = 'bookings', 'Quotations'
+        BOOKINGS = 'quotations', 'Quotations'
         CALENDAR = 'calendar', 'Calendar'
 
     name = models.CharField(max_length=255)

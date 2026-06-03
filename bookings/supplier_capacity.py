@@ -8,7 +8,7 @@ from django.db.models import Exists, OuterRef
 
 from companies.models import Company
 
-from .models import BookingItem
+from .models import Quotation
 from .payment_validity import valid_booking_payments_queryset
 
 
@@ -17,17 +17,17 @@ def count_supplier_bookings_on_date(
     supplier_company_id: int,
     event_date: date,
     *,
-    exclude_booking_id: int | None = None,
+    exclude_quotation_id: int | None = None,
 ) -> int:
     """
     Distinct bookings on ``event_date`` with a supplier line for ``supplier_company_id``
     and at least one valid payment on ``booking_payments``.
     """
     valid_payment = valid_booking_payments_queryset().filter(
-        booking_id=OuterRef('pk'),
+        quotation_id=OuterRef('pk'),
     )
     qs = (
-        BookingItem.objects.filter(
+        Quotation.objects.filter(
             account_id=account_id,
             date_of_event__date=event_date,
             lines__company_id=supplier_company_id,
@@ -36,8 +36,8 @@ def count_supplier_bookings_on_date(
         .filter(_has_valid_payment=True)
         .distinct()
     )
-    if exclude_booking_id is not None:
-        qs = qs.exclude(pk=exclude_booking_id)
+    if exclude_quotation_id is not None:
+        qs = qs.exclude(pk=exclude_quotation_id)
     return qs.count()
 
 
@@ -46,7 +46,7 @@ def supplier_booking_capacity_status(
     supplier_company_id: int,
     event_date: date,
     *,
-    exclude_booking_id: int | None = None,
+    exclude_quotation_id: int | None = None,
 ) -> dict:
     company = Company.objects.filter(
         pk=supplier_company_id,
@@ -67,7 +67,7 @@ def supplier_booking_capacity_status(
         account_id,
         supplier_company_id,
         event_date,
-        exclude_booking_id=exclude_booking_id,
+        exclude_quotation_id=exclude_quotation_id,
     )
     at_capacity = booking_count >= max_allowed
     return {

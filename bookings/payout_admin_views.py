@@ -7,15 +7,15 @@ from rest_framework.response import Response
 
 from planningwithyou.permissions import FeatureAccess
 
-from .models import BookingPayment
+from .models import QuotationPayment
 from .payment_validity import valid_booking_payments_queryset
 from .payout_admin_serializers import (
-    BookingPaymentPayoutAdminSerializer,
-    BookingPaymentPayoutMarkSerializer,
+    QuotationPaymentPayoutAdminSerializer,
+    QuotationPaymentPayoutMarkSerializer,
 )
 
 
-class BookingPaymentPayoutAdminViewSet(
+class QuotationPaymentPayoutAdminViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
@@ -24,7 +24,7 @@ class BookingPaymentPayoutAdminViewSet(
 
     feature_key = 'admin_payouts'
     permission_classes = [IsAuthenticated, FeatureAccess]
-    serializer_class = BookingPaymentPayoutAdminSerializer
+    serializer_class = QuotationPaymentPayoutAdminSerializer
     class Pagination(PageNumberPagination):
         page_size = 10
 
@@ -50,8 +50,8 @@ class BookingPaymentPayoutAdminViewSet(
         if search:
             qs = qs.filter(
                 Q(company__name__icontains=search)
-                | Q(booking__unique_id__icontains=search)
-                | Q(booking__title__icontains=search)
+                | Q(quotation__unique_id__icontains=search)
+                | Q(quotation__title__icontains=search)
                 | Q(transaction_id__icontains=search),
             )
         return qs
@@ -59,13 +59,13 @@ class BookingPaymentPayoutAdminViewSet(
     @action(detail=True, methods=['post'], url_path='mark-payout-sent')
     def mark_payout_sent(self, request, pk=None):
         payment = self.get_object()
-        serializer = BookingPaymentPayoutMarkSerializer(
+        serializer = QuotationPaymentPayoutMarkSerializer(
             data={'payout_sent': True},
             context={'payment': payment},
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(
-            BookingPaymentPayoutAdminSerializer(payment).data,
+            QuotationPaymentPayoutAdminSerializer(payment).data,
             status=status.HTTP_200_OK,
         )

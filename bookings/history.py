@@ -14,7 +14,7 @@ from planningwithyou.history.record import (
     record_resource_history,
 )
 
-from .models import BookingGroup, BookingItem, BookingLine, History
+from .models import QuotationGroup, Quotation, QuotationLine, History
 
 User = get_user_model()
 
@@ -54,19 +54,19 @@ def _json_value(value: Any) -> Any:  # noqa: F811 — local alias for booking sn
     return value
 
 
-def snapshot_booking_header(booking: BookingItem) -> dict[str, Any]:
+def snapshot_booking_header(booking: Quotation) -> dict[str, Any]:
     return {field: _json_value(getattr(booking, field)) for field in BOOKING_HEADER_FIELDS}
 
 
-def snapshot_groups(booking: BookingItem) -> list[dict[str, Any]]:
+def snapshot_groups(booking: Quotation) -> list[dict[str, Any]]:
     groups = []
     for group in booking.groups.all().order_by('id'):
         groups.append({'id': group.pk, 'name': group.name})
     return groups
 
 
-def snapshot_line(line: BookingLine) -> dict[str, Any]:
-    group_name = line.booking_group.name if line.booking_group_id else ''
+def snapshot_line(line: QuotationLine) -> dict[str, Any]:
+    group_name = line.quotation_group.name if line.quotation_group_id else ''
     data = {
         'id': line.pk,
         'group_name': group_name,
@@ -78,16 +78,16 @@ def snapshot_line(line: BookingLine) -> dict[str, Any]:
     return data
 
 
-def snapshot_lines(booking: BookingItem) -> list[dict[str, Any]]:
+def snapshot_lines(booking: Quotation) -> list[dict[str, Any]]:
     lines = []
-    for line in booking.lines.select_related('booking_group').order_by('sort_order', 'id'):
+    for line in booking.lines.select_related('quotation_group').order_by('sort_order', 'id'):
         lines.append(snapshot_line(line))
     return lines
 
 
-def snapshot_booking_full(booking: BookingItem) -> dict[str, Any]:
+def snapshot_booking_full(booking: Quotation) -> dict[str, Any]:
     return {
-        'booking': snapshot_booking_header(booking),
+        'quotation': snapshot_booking_header(booking),
         'groups': snapshot_groups(booking),
         'lines': snapshot_lines(booking),
     }
@@ -176,9 +176,9 @@ def build_update_changes(
     include_nested: bool,
 ) -> dict[str, Any]:
     changes: dict[str, Any] = {}
-    header_changes = diff_booking_header(before['booking'], after['booking'])
+    header_changes = diff_booking_header(before['quotation'], after['quotation'])
     if header_changes:
-        changes['booking'] = header_changes
+        changes['quotation'] = header_changes
 
     if include_nested:
         group_changes = diff_named_rows(before['groups'], after['groups'], name_key='name')
@@ -192,7 +192,7 @@ def build_update_changes(
 
 def record_booking_history(
     *,
-    booking: BookingItem,
+    booking: Quotation,
     action: str,
     entity_type: str,
     changes: dict[str, Any],
@@ -202,7 +202,7 @@ def record_booking_history(
 ) -> History | None:
     return record_resource_history(
         account_id=booking.account_id,
-        resource_type=History.ResourceType.BOOKING,
+        resource_type=History.ResourceType.QUOTATION,
         resource_id=booking.pk,
         action=action,
         entity_type=entity_type,
@@ -210,20 +210,20 @@ def record_booking_history(
         changes=changes,
         actor=actor,
         metadata=metadata,
-        booking_id=booking.pk,
+        quotation_id=booking.pk,
     )
 
 
 def record_booking_create(
-    booking: BookingItem,
+    booking: Quotation,
     *,
     actor=None,
     metadata: dict[str, Any] | None = None,
 ) -> History:
     return record_booking_history(
-        booking=booking,
+        quotation=booking,
         action=History.Action.CREATE,
-        entity_type=History.EntityType.BOOKING,
+        entity_type=History.EntityType.QUOTATION,
         entity_id=booking.pk,
         changes={'snapshot': snapshot_booking_full(booking)},
         actor=actor,
@@ -232,7 +232,7 @@ def record_booking_create(
 
 
 def record_booking_update(
-    booking: BookingItem,
+    booking: Quotation,
     before: dict[str, Any],
     *,
     actor=None,
@@ -245,9 +245,9 @@ def record_booking_update(
         return None
     action = History.Action.REPLACE if include_nested else History.Action.UPDATE
     return record_booking_history(
-        booking=booking,
+        quotation=booking,
         action=action,
-        entity_type=History.EntityType.BOOKING,
+        entity_type=History.EntityType.QUOTATION,
         entity_id=booking.pk,
         changes=changes,
         actor=actor,
@@ -256,22 +256,22 @@ def record_booking_update(
 
 
 def record_booking_delete(
-    booking: BookingItem,
+    booking: Quotation,
     *,
     actor=None,
     metadata: dict[str, Any] | None = None,
 ) -> History:
     meta = dict(metadata or {})
-    meta['booking_id'] = booking.pk
+    meta['quotation_id'] = booking.pk
     return record_booking_history(
-        booking=booking,
+        quotation=booking,
         action=History.Action.DELETE,
-        entity_type=History.EntityType.BOOKING,
+        entity_type=History.EntityType.QUOTATION,
         entity_id=booking.pk,
         changes={
             'unique_id': _json_value(booking.unique_id),
             'title': _json_value(booking.title),
-            'booking_id': booking.pk,
+            'quotation_id': booking.pk,
         },
         actor=actor,
         metadata=meta,
@@ -279,16 +279,16 @@ def record_booking_delete(
 
 
 def record_group_delete(
-    booking: BookingItem,
-    group: BookingGroup,
+    booking: Quotation,
+    group: QuotationGroup,
     *,
     actor=None,
     metadata: dict[str, Any] | None = None,
 ) -> History:
     return record_booking_history(
-        booking=booking,
+        quotation=booking,
         action=History.Action.DELETE,
-        entity_type=History.EntityType.BOOKING_GROUP,
+        entity_type=History.EntityType.QUOTATION_GROUP,
         entity_id=group.pk,
         changes={'name': group.name},
         actor=actor,
@@ -297,7 +297,7 @@ def record_group_delete(
 
 
 def record_booking_field_updates(
-    booking: BookingItem,
+    booking: Quotation,
     field_changes: dict[str, dict[str, Any]],
     *,
     actor=None,
@@ -306,11 +306,11 @@ def record_booking_field_updates(
     if not field_changes:
         return None
     return record_booking_history(
-        booking=booking,
+        quotation=booking,
         action=History.Action.UPDATE,
-        entity_type=History.EntityType.BOOKING,
+        entity_type=History.EntityType.QUOTATION,
         entity_id=booking.pk,
-        changes={'booking': field_changes},
+        changes={'quotation': field_changes},
         actor=actor,
         metadata=metadata,
     )

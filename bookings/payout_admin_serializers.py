@@ -1,26 +1,26 @@
 from rest_framework import serializers
 
-from .models import BookingPayment
+from .models import QuotationPayment
 
 
-class BookingPaymentPayoutAdminSerializer(serializers.ModelSerializer):
+class QuotationPaymentPayoutAdminSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source='company.name', read_only=True)
     booking_unique_id = serializers.CharField(
         source='booking.unique_id',
         read_only=True,
     )
-    booking_title = serializers.CharField(source='booking.title', read_only=True)
+    quotation_title = serializers.CharField(source='booking.title', read_only=True)
     payout_sent = serializers.SerializerMethodField()
 
     class Meta:
-        model = BookingPayment
+        model = QuotationPayment
         fields = [
             'id',
             'company',
             'company_name',
-            'booking',
+            'quotation',
             'booking_unique_id',
-            'booking_title',
+            'quotation_title',
             'base_amount',
             'platform_fee',
             'processing_fee',
@@ -36,11 +36,11 @@ class BookingPaymentPayoutAdminSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_payout_sent(self, obj: BookingPayment) -> bool:
+    def get_payout_sent(self, obj: QuotationPayment) -> bool:
         return obj.payout_sent_at is not None
 
 
-class BookingPaymentPayoutMarkSerializer(serializers.Serializer):
+class QuotationPaymentPayoutMarkSerializer(serializers.Serializer):
     payout_sent = serializers.BooleanField()
 
     def validate_payout_sent(self, value: bool) -> bool:
@@ -50,8 +50,8 @@ class BookingPaymentPayoutMarkSerializer(serializers.Serializer):
             )
         return value
 
-    def save(self, **kwargs) -> BookingPayment:
-        payment: BookingPayment = self.context['payment']
+    def save(self, **kwargs) -> QuotationPayment:
+        payment: QuotationPayment = self.context['payment']
         if payment.payout_sent_at is None:
             from django.utils import timezone
 

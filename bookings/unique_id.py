@@ -2,7 +2,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import BookingUniqueIdSequence
+from .models import QuotationUniqueIdSequence
 
 MAX_SEQUENCE = 9999
 
@@ -17,7 +17,7 @@ def allocate_booking_unique_id(company_id: int, account_id: int, *, when=None) -
     year = when.year
 
     with transaction.atomic():
-        seq, _created = BookingUniqueIdSequence.objects.select_for_update().get_or_create(
+        seq, _created = QuotationUniqueIdSequence.objects.select_for_update().get_or_create(
             company_id=company_id,
             year=year,
             defaults={'account_id': account_id, 'last_sequence': 0},

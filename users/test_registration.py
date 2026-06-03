@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from bookings.models import BookingStatus, Tag
+from bookings.models import QuotationStatus, Tag
 from calendars.models import CalendarStatus
 from companies.models import Company
 from config.models import Config
@@ -77,7 +77,7 @@ class RegisterApiTests(TestCase):
         self.assertFalse(company.kyb_verified)
 
         titles = list(
-            BookingStatus.objects.filter(account=account, company=company)
+            QuotationStatus.objects.filter(account=account, company=company)
             .order_by('sort_order')
             .values_list('title', flat=True),
         )
@@ -104,12 +104,12 @@ class RegisterApiTests(TestCase):
             ],
         )
 
-        booking_view = Config.objects.get(
+        quotation_view = Config.objects.get(
             account=account,
             scope='account',
             name=BOOKING_VIEW_NAME,
         )
-        self.assertEqual(booking_view.value, 'list')
+        self.assertEqual(quotation_view.value, 'list')
 
         group_name = Config.objects.get(
             account=account,

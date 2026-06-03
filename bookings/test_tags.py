@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from bookings.models import BookingStatus, Tag
+from bookings.models import QuotationStatus, Tag
 from companies.models import Company
 from countries.models import Country
 from suppliers.models import SupplierType
@@ -63,7 +63,7 @@ class TagApiTests(TestCase):
     def test_booking_status_with_tags(self):
         tag = Tag.objects.create(account=self.account, tag='Hot', created_by=self.user)
         res = self.client.post(
-            '/booking-statuses/',
+            '/quotation-statuses/',
             {
                 'title': 'Qualified',
                 'description': '',
@@ -73,7 +73,7 @@ class TagApiTests(TestCase):
             format='json',
         )
         self.assertEqual(res.status_code, 201)
-        status = BookingStatus.objects.get(pk=res.data['id'])
+        status = QuotationStatus.objects.get(pk=res.data['id'])
         self.assertEqual(list(status.tags.values_list('id', flat=True)), [tag.id])
         self.assertEqual(len(res.data['tags']), 1)
         self.assertEqual(res.data['tags'][0]['tag'], 'Hot')

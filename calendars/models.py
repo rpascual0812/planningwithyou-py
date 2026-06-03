@@ -91,12 +91,12 @@ class Calendar(models.Model):
         db_column='contact_id',
         related_name='calendar_events',
     )
-    booking = models.ForeignKey(
-        'bookings.BookingItem',
+    quotation = models.ForeignKey(
+        'bookings.Quotation',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        db_column='booking_id',
+        db_column='quotation_id',
         related_name='calendar_events',
     )
     title = models.CharField(max_length=255)

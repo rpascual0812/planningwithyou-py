@@ -59,10 +59,10 @@ class EmailTemplateHistoryTests(TestCase):
         )
         self.client.force_authenticate(user=self.user)
 
-    def test_update_email_template_records_history_without_booking_id(self):
+    def test_update_email_template_records_history_without_quotation_id(self):
         with self.captureOnCommitCallbacks(execute=True):
             res = self.client.patch(
-                f'/email-templates/bookings/{self.template.pk}/',
+                f'/email-templates/quotations/{self.template.pk}/',
                 {'body': '<p>Hi {first_name}</p>'},
                 format='json',
             )
@@ -72,7 +72,7 @@ class EmailTemplateHistoryTests(TestCase):
             resource_id=self.template.pk,
             action=History.Action.UPDATE,
         )
-        self.assertIsNone(entry.booking_id)
+        self.assertIsNone(entry.quotation_id)
         self.assertEqual(
             entry.changes['fields']['body']['new'],
             '<p>Hi {first_name}</p>',

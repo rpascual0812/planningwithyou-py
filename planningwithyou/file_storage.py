@@ -10,7 +10,7 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.urls import reverse
 
-from bookings.models import BookingItem
+from bookings.models import Quotation
 from documents.models import Document
 from companies.models import Company
 from users.models import User
@@ -49,14 +49,14 @@ def document_download_path(document_id: int) -> str:
     return reverse('secured-file-document', kwargs={'document_id': document_id})
 
 
-def booking_pdf_download_path(booking_id: int) -> str:
-    return reverse('secured-file-booking-pdf', kwargs={'booking_id': booking_id})
+def booking_pdf_download_path(quotation_id: int) -> str:
+    return reverse('secured-file-quotation-pdf', kwargs={'quotation_id': quotation_id})
 
 
-def booking_pdf_storage_key(booking: BookingItem) -> str:
+def booking_pdf_storage_key(booking: Quotation) -> str:
     """S3/local storage object key (not a public URL)."""
     safe_id = (booking.unique_id or str(booking.pk)).replace('/', '-')
-    return f'booking_pdfs/{booking.account_id}/{safe_id}.pdf'
+    return f'quotation_pdfs/{booking.account_id}/{safe_id}.pdf'
 
 
 def absolute_file_url(request, path: str) -> str:
@@ -77,8 +77,8 @@ def template_asset_public_url(asset_uuid, request=None) -> str:
     return absolute_file_url(request, template_asset_public_path(asset_uuid))
 
 
-def booking_pdf_file_url(booking_id: int, request=None) -> str:
-    return absolute_file_url(request, booking_pdf_download_path(booking_id))
+def booking_pdf_file_url(quotation_id: int, request=None) -> str:
+    return absolute_file_url(request, booking_pdf_download_path(quotation_id))
 
 
 def company_logo_download_path(company_id: int) -> str:
@@ -117,9 +117,9 @@ def api_public_base_url() -> str:
     return 'http://localhost:8000'
 
 
-def booking_pdf_api_url(booking_id: int) -> str:
+def booking_pdf_api_url(quotation_id: int) -> str:
     """Absolute secured download URL for use outside HTTP requests (e.g. Celery)."""
-    return f'{api_public_base_url()}{booking_pdf_download_path(booking_id)}'
+    return f'{api_public_base_url()}{booking_pdf_download_path(quotation_id)}'
 
 
 def _read_storage_key_bytes(key: str) -> bytes:
@@ -352,12 +352,12 @@ def read_document_file(
 
 
 def read_booking_pdf_file(
-    booking_id: int,
+    quotation_id: int,
     *,
     account_id: int | None = None,
     company_id: int | None = None,
 ) -> tuple[bytes, str, str]:
-    qs = BookingItem.objects.filter(pk=booking_id)
+    qs = Quotation.objects.filter(pk=quotation_id)
     if account_id is not None:
         qs = qs.filter(account_id=account_id)
     if company_id is not None:
