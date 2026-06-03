@@ -1,6 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from .manual_payment_views import QuotationManualPaymentCreateView
 from .payment_link_views import (
     QuotationPaymentLinkDetailView,
     QuotationPaymentLinkListCreateView,
@@ -68,6 +69,11 @@ urlpatterns = [
         'quotation-items/<int:quotation_id>/payment-links/<int:link_id>/',
         QuotationPaymentLinkDetailView.as_view(),
         name='quotation-payment-link-detail',
+    ),
+    path(
+        'quotation-items/<int:quotation_id>/manual-payments/',
+        QuotationManualPaymentCreateView.as_view(),
+        name='quotation-manual-payment',
     ),
     path(
         'public/payment-links/<uuid:token>/',

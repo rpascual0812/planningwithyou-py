@@ -243,20 +243,85 @@ def ensure_paid_booking_payment_receipt(payment_id: int) -> QuotationPaymentRece
         receipt.receipt_url = default_storage.url(key)
         receipt.save(update_fields=['storage_key', 'receipt_url', 'updated_at'])
 
-    recipient = (getattr(payment.quotation.created_by, 'email', '') or '').strip()
-    if recipient and receipt.emailed_at is None:
-        subject, body, template = _payment_received_email_content(payment)
-        log = create_and_queue_email(
-            to=[recipient],
-            subject=subject,
-            body=body,
-            email_template=template,
-            attachments=[receipt.receipt_url],
-            account=payment.quotation.account,
-            company=payment.company,
-            created_by=payment.quotation.created_by,
+    _queue_payment_received_email(payment, receipt, use_contact_email=False)
+    return receipt
+
+
+def _payment_received_recipient(
+    payment: QuotationPayment,
+    *,
+    use_contact_email: bool,
+) -> str:
+    if use_contact_email:
+        contact = payment.quotation.contact
+        return (getattr(contact, 'email', '') or '').strip() if contact else ''
+    return (getattr(payment.quotation.created_by, 'email', '') or '').strip()
+
+
+def _queue_payment_received_email(
+    payment: QuotationPayment,
+    receipt: QuotationPaymentReceipt,
+    *,
+    use_contact_email: bool,
+) -> None:
+    recipient = _payment_received_recipient(payment, use_contact_email=use_contact_email)
+    if not recipient or receipt.emailed_at is not None:
+        return
+    subject, body, template = _payment_received_email_content(payment)
+    attachments = [receipt.receipt_url] if receipt.receipt_url else []
+    log = create_and_queue_email(
+        to=[recipient],
+        subject=subject,
+        body=body,
+        email_template=template,
+        attachments=attachments,
+        account=payment.quotation.account,
+        company=payment.company,
+        created_by=payment.quotation.created_by,
+    )
+    send_email_task.delay(log.pk)
+    receipt.emailed_at = timezone.now()
+    receipt.save(update_fields=['emailed_at', 'updated_at'])
+
+
+def notify_payment_received(
+    payment: QuotationPayment,
+    *,
+    use_contact_email: bool = False,
+) -> QuotationPaymentReceipt | None:
+    """Ensure receipt PDF exists and queue ``payment_received`` email."""
+    if (payment.transaction_status or '').strip().lower() != 'paid':
+        return None
+
+    payment = (
+        QuotationPayment.objects.select_related(
+            'quotation',
+            'quotation__contact',
+            'quotation__created_by',
+            'company',
         )
-        send_email_task.delay(log.pk)
-        receipt.emailed_at = timezone.now()
-        receipt.save(update_fields=['emailed_at', 'updated_at'])
+        .filter(pk=payment.pk)
+        .first()
+    )
+    if payment is None:
+        return None
+
+    receipt, _ = QuotationPaymentReceipt.objects.get_or_create(
+        quotation_payment_id=payment.pk,
+        defaults={
+            'quotation_id': payment.quotation_id,
+            'account_id': payment.account_id,
+            'company_id': payment.company_id,
+        },
+    )
+    receipt_number = f'BPR-{payment.pk}'
+
+    if not receipt.receipt_url:
+        key = _receipt_storage_key(payment, receipt_number)
+        default_storage.save(key, ContentFile(_receipt_pdf_bytes(payment, receipt_number)))
+        receipt.storage_key = key
+        receipt.receipt_url = default_storage.url(key)
+        receipt.save(update_fields=['storage_key', 'receipt_url', 'updated_at'])
+
+    _queue_payment_received_email(payment, receipt, use_contact_email=use_contact_email)
     return receipt
