@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.db.models import Case, DecimalField, F, Sum, When
 
-from .models import Quotation
+from .models import Quotation, QuotationPayment
 from .payment_validity import valid_booking_payments_queryset
 
 TWOPLACES = Decimal('0.01')
@@ -25,6 +25,19 @@ def booking_payments_paid_base_total(quotation_id: int) -> Decimal:
     """Sum of quote portions credited from successful ``booking_payments``."""
     agg = valid_booking_payments_queryset().filter(quotation_id=quotation_id).aggregate(
         total=Sum(_booking_credit_amount_field()),
+    )
+    return (agg['total'] or Decimal('0')).quantize(TWOPLACES)
+
+
+def booking_payments_refunded_base_total(quotation_id: int) -> Decimal:
+    """Sum of quote portions from refunded ``quotation_payments`` rows."""
+    agg = (
+        QuotationPayment.objects.filter(
+            quotation_id=quotation_id,
+            deleted_at__isnull=True,
+            transaction_status__iexact='refunded',
+        )
+        .aggregate(total=Sum(_booking_credit_amount_field()))
     )
     return (agg['total'] or Decimal('0')).quantize(TWOPLACES)
 
@@ -59,6 +72,7 @@ def booking_is_fully_paid(booking: Quotation) -> bool:
 
 def booking_payment_summary(booking: Quotation) -> dict[str, str]:
     paid_base = booking_payments_paid_base_total(booking.pk)
+    refunded_base = booking_payments_refunded_base_total(booking.pk)
     fees = booking_payment_fee_totals(booking.pk)
     total = booking.total_amount or Decimal('0')
     remaining = booking_remaining_balance(booking)
@@ -67,6 +81,7 @@ def booking_payment_summary(booking: Quotation) -> dict[str, str]:
         'total_amount': str(total),
         'required_downpayment_amount': str(downpayment),
         'paid_amount': str(paid_base),
+        'refunded_amount': str(refunded_base),
         'paid_charge_amount': str(fees['charge_total']),
         'paid_processing_fees': str(fees['processing_total']),
         'paid_platform_fees': str(fees['platform_total']),

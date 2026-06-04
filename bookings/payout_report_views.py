@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
-from .payment_validity import valid_booking_payments_queryset
+from .payment_validity import payout_report_payments_queryset
 from .payout_report_serializers import QuotationPaymentPayoutReportSerializer
 
 
@@ -36,7 +36,7 @@ class QuotationPaymentPayoutReportViewSet(mixins.ListModelMixin, viewsets.Generi
     def get_queryset(self):
         user = self.request.user
         qs = (
-            valid_booking_payments_queryset()
+            payout_report_payments_queryset()
             .filter(
                 account_id=user.account_id,
                 company_id=user.company_id,

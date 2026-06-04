@@ -39,6 +39,7 @@ from .payment_breakdown import (
     TWOPLACES,
     booking_payment_fee_totals,
     booking_payments_paid_base_total,
+    booking_payments_refunded_base_total,
     booking_remaining_balance,
 )
 from .scope import booking_user_can_edit
@@ -187,6 +188,7 @@ class QuotationSerializer(serializers.ModelSerializer):
     paid_charge_amount = serializers.SerializerMethodField()
     paid_processing_fees = serializers.SerializerMethodField()
     paid_platform_fees = serializers.SerializerMethodField()
+    refunded_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     status_title = serializers.CharField(source='status.title', read_only=True)
@@ -198,14 +200,14 @@ class QuotationSerializer(serializers.ModelSerializer):
             'id', 'unique_id', 'company', 'company_name', 'status', 'status_title', 'contact', 'title', 'date_of_event',
             'total_amount', 'required_downpayment_amount',
             'paid_amount', 'paid_charge_amount', 'paid_processing_fees', 'paid_platform_fees',
-            'remaining_amount', 'can_edit',
+            'refunded_amount', 'remaining_amount', 'can_edit',
             'groups', 'field_values', 'notes', 'sort_order', 'created_by',
             'pdf_url', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'unique_id', 'company', 'created_by', 'pdf_url', 'paid_amount',
             'paid_charge_amount', 'paid_processing_fees', 'paid_platform_fees',
-            'remaining_amount', 'can_edit', 'created_at', 'updated_at',
+            'refunded_amount', 'remaining_amount', 'can_edit', 'created_at', 'updated_at',
         ]
 
     def get_can_edit(self, obj: Quotation) -> bool:
@@ -232,6 +234,9 @@ class QuotationSerializer(serializers.ModelSerializer):
 
     def get_paid_platform_fees(self, obj: Quotation) -> str:
         return str(self._fee_totals(obj)['platform_total'])
+
+    def get_refunded_amount(self, obj: Quotation) -> str:
+        return str(booking_payments_refunded_base_total(obj.pk))
 
     def get_remaining_amount(self, obj: Quotation) -> str:
         return str(booking_remaining_balance(obj))

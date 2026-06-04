@@ -100,3 +100,23 @@ class QuotationPaymentPayoutReportTests(TestCase):
 
         sent = client.get('/booking-payouts/', {'payout': 'sent'})
         self.assertEqual(len(sent.data), 1)
+
+    def test_lists_refunded_payments(self):
+        from rest_framework.test import APIClient
+
+        QuotationPayment.objects.create(
+            quotation=self.booking,
+            account=self.account,
+            company=self.company,
+            base_amount=Decimal('100.00'),
+            amount=Decimal('100.00'),
+            transaction_status='refunded',
+            transaction_id='refund_abc',
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+        res = client.get('/booking-payouts/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data), 2)
+        statuses = {row['transaction_status'] for row in res.data}
+        self.assertEqual(statuses, {'paid', 'refunded'})

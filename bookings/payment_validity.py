@@ -50,5 +50,18 @@ def valid_booking_payments_queryset() -> QuerySet[QuotationPayment]:
     return qs.exclude(status_filters)
 
 
+def payout_report_payments_queryset() -> QuerySet[QuotationPayment]:
+    """Payments listed on Reports → Payment Received (includes refunds)."""
+    qs = QuotationPayment.objects.filter(deleted_at__isnull=True).filter(
+        Q(base_amount__gt=0) | Q(amount__gt=0) | Q(charge_amount__gt=0),
+    )
+    status_filters = Q()
+    for invalid in _INVALID_PAYMENT_STATUSES:
+        if invalid == 'refunded':
+            continue
+        status_filters |= Q(transaction_status__iexact=invalid)
+    return qs.exclude(status_filters)
+
+
 def booking_has_valid_payment(quotation_id: int) -> bool:
     return valid_booking_payments_queryset().filter(quotation_id=quotation_id).exists()
