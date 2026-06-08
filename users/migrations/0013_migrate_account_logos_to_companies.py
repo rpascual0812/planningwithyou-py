@@ -33,12 +33,15 @@ def migrate_account_logos_to_companies(apps, schema_editor):
                 .first()
             )
         if company is None:
-            company = Company.objects.create(
-                account_id=account.pk,
-                name=account.name or f'Account {account.pk}',
-                is_main=True,
-                is_active=True,
-            )
+            create_kwargs = {
+                'account_id': account.pk,
+                'name': account.name or f'Account {account.pk}',
+                'is_main': True,
+                'is_active': True,
+            }
+            if any(field.name == 'supplier_type' for field in Company._meta.get_fields()):
+                create_kwargs['supplier_type_id'] = account.supplier_type_id or 1
+            company = Company.objects.create(**create_kwargs)
 
         src_key = ''
         for ext in LOGO_EXTENSIONS:

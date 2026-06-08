@@ -29,12 +29,16 @@ def _ensure_main_company_id(apps, account_id):
     Account = apps.get_model('users', 'Account')
     account = Account.objects.filter(pk=account_id).first()
     name = (account.name if account else None) or f'Account {account_id}'
-    company = Company.objects.create(
-        account_id=account_id,
-        name=name,
-        is_main=True,
-        is_active=True,
-    )
+    create_kwargs = {
+        'account_id': account_id,
+        'name': name,
+        'is_main': True,
+        'is_active': True,
+    }
+    if any(field.name == 'supplier_type' for field in Company._meta.get_fields()):
+        supplier_type_id = getattr(account, 'supplier_type_id', None) if account else None
+        create_kwargs['supplier_type_id'] = supplier_type_id or 1
+    company = Company.objects.create(**create_kwargs)
     return company.id
 
 
@@ -55,7 +59,7 @@ def backfill_documents_company(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('companies', '0001_initial'),
+        ('companies', '0002_company_supplier_type'),
         ('documents', '0005_alter_document_account_alter_documentfolder_account'),
         ('users', '0015_user_company'),
     ]
