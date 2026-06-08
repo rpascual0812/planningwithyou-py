@@ -526,19 +526,21 @@ class FormTemplateSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'is_active', 'is_default',
             'company_id', 'fields', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'company_id', 'created_at', 'updated_at']
 
-    def validate_company_id(self, value):
-        if value is None:
-            return value
+    def _user_company_id(self):
         request = self.context.get('request')
         if request is None:
-            return value
-        from companies.scope import company_belongs_to_account
+            return None
+        return getattr(request.user, 'company_id', None)
 
-        if not company_belongs_to_account(value, request.user.account_id):
-            raise serializers.ValidationError('Company not found.')
-        return value
+    def _require_user_company_id(self):
+        company_id = self._user_company_id()
+        if company_id is None:
+            raise serializers.ValidationError(
+                {'company_id': 'User has no company assigned.'},
+            )
+        return company_id
 
     def _save_fields(self, template, fields_data):
         for idx, field_data in enumerate(fields_data):
@@ -574,6 +576,7 @@ class FormTemplateSerializer(serializers.ModelSerializer):
         fields_data = validated_data.pop('fields', [])
         request = self.context['request']
         validated_data['account_id'] = request.user.account_id
+        validated_data['company_id'] = self._require_user_company_id()
         template = FormTemplate.objects.create(**validated_data)
         self._clear_other_defaults(template)
         self._save_fields(template, fields_data)
@@ -581,9 +584,12 @@ class FormTemplateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         fields_data = validated_data.pop('fields', None)
+        validated_data.pop('company_id', None)
+        company_id = self._require_user_company_id()
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        instance.company_id = company_id
         instance.save()
         self._clear_other_defaults(instance)
 

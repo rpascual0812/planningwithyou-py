@@ -275,3 +275,26 @@ class BookingHistoryTests(TestCase):
         res = self.client.get(f'/form-templates/{template.pk}/history/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
+
+    def test_form_template_create_defaults_company_id(self):
+        res = self.client.post(
+            '/form-templates/',
+            {
+                'name': 'New Form',
+                'description': 'Details',
+                'is_active': True,
+                'is_default': False,
+                'fields': [],
+            },
+            format='json',
+        )
+        self.assertEqual(res.status_code, 201, res.content)
+        template = FormTemplate.objects.get(pk=res.json()['id'])
+        self.assertEqual(template.company_id, self.company.id)
+        self.assertTrue(
+            History.objects.filter(
+                resource_type=History.ResourceType.FORM_TEMPLATE,
+                resource_id=template.pk,
+                action=History.Action.CREATE,
+            ).exists(),
+        )
