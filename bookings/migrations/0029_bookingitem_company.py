@@ -80,7 +80,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('bookings', '0028_ensure_booking_created_by_column'),
-        ('companies', '0011_ensure_main_company_per_account'),
+        ('companies', '0002_company_supplier_type'),
         ('users', '0015_user_company'),
     ]
 
