@@ -10,7 +10,16 @@ def seed_countries(apps, schema_editor):
     with path.open(encoding='utf-8') as handle:
         rows = json.load(handle)
     Country.objects.bulk_create(
-        [Country(**row) for row in rows],
+        [
+            Country(
+                name=row['name'],
+                iso_code=row['iso2_code'],
+                currency=row['currency'],
+                currency_symbol=row['currency_symbol'],
+                currency_code=row['currency_code'],
+            )
+            for row in rows
+        ],
         batch_size=200,
     )
 
