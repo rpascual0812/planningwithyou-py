@@ -58,8 +58,10 @@ def backfill_documents_company(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    atomic = False
+
     dependencies = [
-        ('companies', '0002_company_supplier_type'),
+        ('companies', '0011_ensure_main_company_per_account'),
         ('documents', '0005_alter_document_account_alter_documentfolder_account'),
         ('users', '0015_user_company'),
     ]

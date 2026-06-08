@@ -67,8 +67,10 @@ def backfill_email_log_companies(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    atomic = False
+
     dependencies = [
-        ('companies', '0002_company_supplier_type'),
+        ('companies', '0011_ensure_main_company_per_account'),
         ('emails', '0012_emailtemplate_company'),
         ('users', '0015_user_company'),
     ]

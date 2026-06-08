@@ -76,9 +76,11 @@ def merge_duplicate_sequence_rows(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    atomic = False
+
     dependencies = [
         ('bookings', '0028_ensure_booking_created_by_column'),
-        ('companies', '0002_company_supplier_type'),
+        ('companies', '0011_ensure_main_company_per_account'),
         ('users', '0015_user_company'),
     ]
 

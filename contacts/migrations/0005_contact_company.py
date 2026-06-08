@@ -51,8 +51,10 @@ def backfill_contacts_company(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    atomic = False
+
     dependencies = [
-        ('companies', '0002_company_supplier_type'),
+        ('companies', '0011_ensure_main_company_per_account'),
         ('contacts', '0004_contactnumber_is_default_contactaddress_is_default'),
         ('users', '0015_user_company'),
     ]
