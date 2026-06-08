@@ -21,17 +21,6 @@ def migrate_account_logos_to_companies(apps, schema_editor):
     Company = apps.get_model('companies', 'Company')
 
     for account in Account.objects.all():
-        src_key = ''
-        for ext in LOGO_EXTENSIONS:
-            key = f'account_logos/{account.pk}/logo{ext}'
-            if default_storage.exists(key):
-                src_key = key
-                break
-
-        logo_field = (getattr(account, 'logo', None) or '').strip()
-        if not src_key and not logo_field:
-            continue
-
         company = (
             Company.objects.filter(account_id=account.pk, is_main=True)
             .order_by('id')
@@ -50,6 +39,17 @@ def migrate_account_logos_to_companies(apps, schema_editor):
                 is_main=True,
                 is_active=True,
             )
+
+        src_key = ''
+        for ext in LOGO_EXTENSIONS:
+            key = f'account_logos/{account.pk}/logo{ext}'
+            if default_storage.exists(key):
+                src_key = key
+                break
+
+        logo_field = (getattr(account, 'logo', None) or '').strip()
+        if not src_key and not logo_field:
+            continue
 
         if src_key:
             ext = Path(src_key).suffix.lower() or '.png'

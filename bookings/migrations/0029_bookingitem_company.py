@@ -4,7 +4,8 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
-def _main_company_id(Company, account_id):
+def _ensure_main_company_id(apps, account_id):
+    Company = apps.get_model('companies', 'Company')
     company = (
         Company.objects.filter(
             account_id=account_id,
@@ -24,32 +25,32 @@ def _main_company_id(Company, account_id):
         .order_by('sort_order', 'name', 'id')
         .first()
     )
-    return company.id if company else None
+    if company is not None:
+        return company.id
+
+    Account = apps.get_model('users', 'Account')
+    account = Account.objects.filter(pk=account_id).first()
+    name = (account.name if account else None) or f'Account {account_id}'
+    company = Company.objects.create(
+        account_id=account_id,
+        name=name,
+        is_main=True,
+        is_active=True,
+    )
+    return company.id
 
 
 def backfill_booking_companies(apps, schema_editor):
     BookingItem = apps.get_model('bookings', 'BookingItem')
-    Company = apps.get_model('companies', 'Company')
     for item in BookingItem.objects.filter(company_id__isnull=True).iterator():
-        company_id = _main_company_id(Company, item.account_id)
-        if company_id is None:
-            raise RuntimeError(
-                f'Account {item.account_id} has no company; create a company before migrating bookings.',
-            )
-        item.company_id = company_id
+        item.company_id = _ensure_main_company_id(apps, item.account_id)
         item.save(update_fields=['company_id'])
 
 
 def backfill_sequence_companies(apps, schema_editor):
     BookingUniqueIdSequence = apps.get_model('bookings', 'BookingUniqueIdSequence')
-    Company = apps.get_model('companies', 'Company')
     for seq in BookingUniqueIdSequence.objects.filter(company_id__isnull=True).iterator():
-        company_id = _main_company_id(Company, seq.account_id)
-        if company_id is None:
-            raise RuntimeError(
-                f'Account {seq.account_id} has no company; create a company before migrating sequences.',
-            )
-        seq.company_id = company_id
+        seq.company_id = _ensure_main_company_id(apps, seq.account_id)
         seq.save(update_fields=['company_id'])
 
 

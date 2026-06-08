@@ -2,7 +2,8 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
-def _main_company_id(Company, account_id):
+def _ensure_main_company_id(apps, account_id):
+    Company = apps.get_model('companies', 'Company')
     company = (
         Company.objects.filter(
             account_id=account_id,
@@ -22,19 +23,25 @@ def _main_company_id(Company, account_id):
         .order_by('sort_order', 'name', 'id')
         .first()
     )
-    return company.id if company else None
+    if company is not None:
+        return company.id
+
+    Account = apps.get_model('users', 'Account')
+    account = Account.objects.filter(pk=account_id).first()
+    name = (account.name if account else None) or f'Account {account_id}'
+    company = Company.objects.create(
+        account_id=account_id,
+        name=name,
+        is_main=True,
+        is_active=True,
+    )
+    return company.id
 
 
 def backfill_contacts_company(apps, schema_editor):
     Contact = apps.get_model('contacts', 'Contact')
-    Company = apps.get_model('companies', 'Company')
     for contact in Contact.objects.filter(company_org_id__isnull=True).iterator():
-        company_id = _main_company_id(Company, contact.account_id)
-        if company_id is None:
-            raise RuntimeError(
-                f'Account {contact.account_id} has no company; create a company before migrating contacts.',
-            )
-        contact.company_org_id = company_id
+        contact.company_org_id = _ensure_main_company_id(apps, contact.account_id)
         contact.save(update_fields=['company_org_id'])
 
 
