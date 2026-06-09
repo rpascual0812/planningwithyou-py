@@ -32,7 +32,7 @@ from .history import (
     record_group_delete,
 )
 from .models import QuotationGroup, Quotation, QuotationStatus, FormTemplate, Tag
-from .supplier_capacity import supplier_booking_capacity_status
+from users.company_access import effective_company_id
 from .board_list import (
     annotate_booking_board_payments,
     booking_list_board_view_requested,
@@ -445,7 +445,9 @@ class FormTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
         qs = FormTemplate.objects.filter(
             account_id=self.request.user.account_id,
         ).prefetch_related('fields__options')
-        company_id = self.request.user.company_id
+        raw = self.request.query_params.get('company_id', '').strip()
+        requested = int(raw) if raw.isdigit() else None
+        company_id = effective_company_id(self.request.user, requested)
         if company_id is not None:
             qs = qs.filter(company_id=company_id)
         return qs
