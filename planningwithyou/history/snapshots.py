@@ -27,7 +27,7 @@ CONTACT_FIELDS = (
     'first_name', 'last_name', 'email', 'company_org_id', 'notes',
 )
 
-BOOKING_STATUS_FIELDS = ('title', 'description', 'color', 'sort_order')
+QUOTATION_STATUS_FIELDS = ('title', 'description', 'color', 'sort_order')
 
 EMAIL_TEMPLATE_FIELDS = (
     'name', 'title', 'cc', 'bcc', 'subject', 'body', 'is_active', 'company_id',
@@ -74,8 +74,8 @@ def snapshot_contact(contact) -> dict[str, Any]:
     return data
 
 
-def snapshot_booking_status(status) -> dict[str, Any]:
-    data = {field: json_value(getattr(status, field)) for field in BOOKING_STATUS_FIELDS}
+def snapshot_quotation_status(status) -> dict[str, Any]:
+    data = {field: json_value(getattr(status, field)) for field in QUOTATION_STATUS_FIELDS}
     data['tags'] = [
         {'tag': json_value(t.tag)}
         for t in status.tags.order_by('tag')
@@ -83,9 +83,9 @@ def snapshot_booking_status(status) -> dict[str, Any]:
     return data
 
 
-def diff_booking_status(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+def diff_quotation_status(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
     changes: dict[str, Any] = {}
-    field_changes = diff_field_map(before, after, BOOKING_STATUS_FIELDS)
+    field_changes = diff_field_map(before, after, QUOTATION_STATUS_FIELDS)
     if field_changes:
         changes['fields'] = field_changes
     tag_changes = diff_named_rows(

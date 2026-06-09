@@ -4,9 +4,9 @@ from django.db import transaction
 from rest_framework import serializers
 
 from .history import (
-    record_booking_create,
-    record_booking_update,
-    snapshot_booking_full,
+    record_quotation_create,
+    record_quotation_update,
+    snapshot_quotation_full,
 )
 from planningwithyou.history.core import request_metadata
 
@@ -366,30 +366,30 @@ class QuotationSerializer(serializers.ModelSerializer):
         company_id = validated_data.get('company_id') or request.user.company_id
         validated_data['unique_id'] = allocate_booking_unique_id(company_id, account_id)
         validated_data.setdefault('company_id', company_id)
-        booking = Quotation.objects.create(
+        quotation = Quotation.objects.create(
             **validated_data,
             account_id=account_id,
         )
-        self._save_groups(booking, groups_data)
-        self._save_field_values(booking, field_values_data)
-        self._refresh_required_downpayment_amount(booking)
-        self._enqueue_pdf_generation(booking)
+        self._save_groups(quotation, groups_data)
+        self._save_field_values(quotation, field_values_data)
+        self._refresh_required_downpayment_amount(quotation)
+        self._enqueue_pdf_generation(quotation)
         request = self.context.get('request')
         transaction.on_commit(
-            lambda: record_booking_create(
-                booking,
+            lambda: record_quotation_create(
+                quotation,
                 actor=getattr(request, 'user', None),
                 metadata=request_metadata(request),
             ),
         )
-        return booking
+        return quotation
 
     def update(self, instance, validated_data):
         field_values_data = self._pop_field_values(validated_data)
         groups_data = self._pop_groups(validated_data)
         include_nested = field_values_data is not None or groups_data is not None
         request = self.context.get('request')
-        before = snapshot_booking_full(instance)
+        before = snapshot_quotation_full(instance)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.account_id = instance.status.account_id
@@ -407,7 +407,7 @@ class QuotationSerializer(serializers.ModelSerializer):
             self._refresh_required_downpayment_amount(instance)
         self._enqueue_pdf_generation(instance)
         transaction.on_commit(
-            lambda: record_booking_update(
+            lambda: record_quotation_update(
                 instance,
                 before,
                 actor=getattr(request, 'user', None),

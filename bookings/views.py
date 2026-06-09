@@ -20,16 +20,16 @@ from planningwithyou.history.record import (
     record_resource_update,
 )
 from planningwithyou.history.snapshots import (
-    diff_booking_status,
     diff_form_template,
+    diff_quotation_status,
     snapshot_form_template,
-    snapshot_booking_status,
+    snapshot_quotation_status,
 )
 
 from .history import (
-    record_booking_delete,
-    record_booking_field_updates,
     record_group_delete,
+    record_quotation_delete,
+    record_quotation_field_updates,
 )
 from .models import QuotationGroup, Quotation, QuotationStatus, FormTemplate, Tag
 from users.company_access import effective_company_id
@@ -118,17 +118,17 @@ class QuotationStatusViewSet(HistoryListMixin, viewsets.ModelViewSet):
             account_id=aid,
             resource_type='quotation_status',
             resource_id=status.pk,
-            snapshot=snapshot_booking_status(status),
+            snapshot=snapshot_quotation_status(status),
             actor=self.request.user,
             metadata=request_metadata(self.request),
         )
 
     def perform_update(self, serializer):
-        before = snapshot_booking_status(serializer.instance)
+        before = snapshot_quotation_status(serializer.instance)
         status = serializer.save()
-        changes = diff_booking_status(
+        changes = diff_quotation_status(
             before,
-            snapshot_booking_status(status),
+            snapshot_quotation_status(status),
         )
         request = self.request
 
@@ -269,7 +269,7 @@ class QuotationViewSet(HistoryListMixin, viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
     def perform_destroy(self, instance):
-        record_booking_delete(
+        record_quotation_delete(
             instance,
             actor=self.request.user,
             metadata=request_metadata(self.request),
@@ -332,7 +332,7 @@ class QuotationViewSet(HistoryListMixin, viewsets.ModelViewSet):
         item.account_id = booking_status.account_id
         item.sort_order = sort_order
         item.save(update_fields=['status', 'account_id', 'sort_order'])
-        record_booking_field_updates(
+        record_quotation_field_updates(
             item,
             field_changes,
             actor=request.user,
@@ -395,7 +395,7 @@ class QuotationViewSet(HistoryListMixin, viewsets.ModelViewSet):
                         header_changes[key] = delta
                 base_qs.filter(pk=item_id).update(**fields)
                 if header_changes:
-                    record_booking_field_updates(
+                    record_quotation_field_updates(
                         booking,
                         header_changes,
                         actor=request.user,
