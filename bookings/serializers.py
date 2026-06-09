@@ -566,16 +566,6 @@ class FormTemplateSerializer(serializers.ModelSerializer):
             qs = qs.filter(company_id__isnull=True)
         qs.exclude(pk=template.pk).update(is_default=False)
 
-    def _reload_with_relations(self, template: FormTemplate) -> FormTemplate:
-        if template.pk is None:
-            return template
-        reloaded = (
-            FormTemplate.objects.filter(pk=template.pk)
-            .prefetch_related('fields__options')
-            .first()
-        )
-        return reloaded or template
-
     def create(self, validated_data):
         fields_data = validated_data.pop('fields', [])
         validated_data.pop('account_id', None)
@@ -593,7 +583,7 @@ class FormTemplateSerializer(serializers.ModelSerializer):
         )
         self._clear_other_defaults(template)
         self._save_fields(template, fields_data)
-        return self._reload_with_relations(template)
+        return template
 
     def update(self, instance, validated_data):
         fields_data = validated_data.pop('fields', None)
@@ -617,4 +607,4 @@ class FormTemplateSerializer(serializers.ModelSerializer):
             instance.fields.all().delete()
             self._save_fields(instance, fields_data)
 
-        return self._reload_with_relations(instance)
+        return instance
