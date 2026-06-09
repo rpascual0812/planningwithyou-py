@@ -1,7 +1,7 @@
 from celery import shared_task
 from django.db import transaction
 
-from planningwithyou.file_storage import booking_pdf_api_url
+from planningwithyou.file_storage import booking_pdf_download_path
 
 from .models import Quotation
 from .pdf_build import build_booking_pdf
@@ -31,7 +31,7 @@ def generate_booking_pdf_task(self, quotation_id: int):
         with transaction.atomic():
             locked = Quotation.objects.select_for_update().get(pk=quotation_id)
             build_booking_pdf(booking)
-            locked.pdf = booking_pdf_api_url(locked.pk)
+            locked.pdf = booking_pdf_download_path(locked.pk)
             locked.save(update_fields=['pdf', 'updated_at'])
     except Quotation.DoesNotExist:
         return

@@ -11,9 +11,8 @@ from .history import (
 from planningwithyou.history.core import request_metadata
 
 from planningwithyou.file_storage import (
-    absolute_file_url,
-    booking_pdf_file_url,
     company_logo_public_url,
+    resolve_quotation_pdf_url,
 )
 
 from .tasks import generate_booking_pdf_task
@@ -242,16 +241,8 @@ class QuotationSerializer(serializers.ModelSerializer):
         return str(booking_remaining_balance(obj))
 
     def get_pdf_url(self, obj):
-        pdf = (obj.pdf or '').strip()
-        if not pdf:
-            return ''
-        if pdf.startswith(('http://', 'https://')):
-            return pdf
-        if pdf.startswith('/'):
-            request = self.context.get('request')
-            return absolute_file_url(request, pdf)
         request = self.context.get('request')
-        return booking_pdf_file_url(obj.pk, request=request)
+        return resolve_quotation_pdf_url(obj, request=request)
 
     def _enqueue_pdf_generation(self, booking):
         quotation_id = booking.pk

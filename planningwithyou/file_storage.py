@@ -81,6 +81,27 @@ def booking_pdf_file_url(quotation_id: int, request=None) -> str:
     return absolute_file_url(request, booking_pdf_download_path(quotation_id))
 
 
+def quotation_pdf_available(quotation: Quotation) -> bool:
+    """True when a PDF exists in storage or the row marks one as generated."""
+    if not quotation.pk:
+        return False
+    if default_storage.exists(booking_pdf_storage_key(quotation)):
+        return True
+    pdf = (quotation.pdf or '').strip()
+    if not pdf:
+        return False
+    if pdf.startswith(('http://', 'https://', '/')):
+        return True
+    return True
+
+
+def resolve_quotation_pdf_url(quotation: Quotation, request=None) -> str:
+    """Secured download URL using the current request host (never a stored localhost URL)."""
+    if not quotation_pdf_available(quotation):
+        return ''
+    return booking_pdf_file_url(quotation.pk, request=request)
+
+
 def company_logo_download_path(company_id: int) -> str:
     return reverse('secured-file-company-logo', kwargs={'company_id': company_id})
 
