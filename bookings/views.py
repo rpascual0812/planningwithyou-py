@@ -452,14 +452,19 @@ class FormTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         template = serializer.save()
-        record_resource_create(
-            account_id=template.account_id,
-            resource_type='form_template',
-            resource_id=template.pk,
-            snapshot=snapshot_form_template(template),
-            actor=self.request.user,
-            metadata=request_metadata(self.request),
-        )
+        request = self.request
+
+        def _record():
+            record_resource_create(
+                account_id=template.account_id,
+                resource_type='form_template',
+                resource_id=template.pk,
+                snapshot=snapshot_form_template(template),
+                actor=request.user,
+                metadata=request_metadata(request),
+            )
+
+        transaction.on_commit(_record)
 
     def perform_update(self, serializer):
         before = snapshot_form_template(serializer.instance)
