@@ -438,7 +438,7 @@ class SupplierQuotationCapacityView(APIView):
 class FormTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
     history_resource_type = 'form_template'
     feature_key = 'quotation_settings_statuses'
-    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
     serializer_class = FormTemplateSerializer
 
     def get_queryset(self):
@@ -450,19 +450,8 @@ class FormTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
             qs = qs.filter(company_id=company_id)
         return qs
 
-    def _template_with_relations(self, template: FormTemplate) -> FormTemplate:
-        return (
-            FormTemplate.objects.filter(
-                account_id=self.request.user.account_id,
-                pk=template.pk,
-            )
-            .prefetch_related('fields__options')
-            .get()
-        )
-
     def perform_create(self, serializer):
         template = serializer.save()
-        template = self._template_with_relations(template)
         record_resource_create(
             account_id=template.account_id,
             resource_type='form_template',
@@ -475,7 +464,6 @@ class FormTemplateViewSet(HistoryListMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         before = snapshot_form_template(serializer.instance)
         template = serializer.save()
-        template = self._template_with_relations(template)
         changes = diff_form_template(before, snapshot_form_template(template))
         request = self.request
 

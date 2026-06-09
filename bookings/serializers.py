@@ -528,19 +528,13 @@ class FormTemplateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'company_id', 'created_at', 'updated_at']
 
-    def _user_company_id(self):
-        request = self.context.get('request')
-        if request is None:
-            return None
-        return getattr(request.user, 'company_id', None)
-
-    def _require_user_company_id(self):
-        company_id = self._user_company_id()
-        if company_id is None:
-            raise serializers.ValidationError(
-                {'company_id': 'User has no company assigned.'},
-            )
-        return company_id
+    def _acting_user(self):
+        request = self.context['request']
+        user = request.user
+        if user.pk is None:
+            return user
+        User = type(user)
+        return User.objects.filter(pk=user.pk).first() or user
 
     def _save_fields(self, template, fields_data):
         for idx, field_data in enumerate(fields_data):
@@ -572,23 +566,49 @@ class FormTemplateSerializer(serializers.ModelSerializer):
             qs = qs.filter(company_id__isnull=True)
         qs.exclude(pk=template.pk).update(is_default=False)
 
+    def _reload_with_relations(self, template: FormTemplate) -> FormTemplate:
+        if template.pk is None:
+            return template
+        reloaded = (
+            FormTemplate.objects.filter(pk=template.pk)
+            .prefetch_related('fields__options')
+            .first()
+        )
+        return reloaded or template
+
     def create(self, validated_data):
         fields_data = validated_data.pop('fields', [])
-        request = self.context['request']
-        validated_data['account_id'] = request.user.account_id
-        validated_data['company_id'] = self._require_user_company_id()
-        template = FormTemplate.objects.create(**validated_data)
+        validated_data.pop('account_id', None)
+        validated_data.pop('company_id', None)
+        user = self._acting_user()
+        company_id = getattr(user, 'company_id', None)
+        if company_id is None:
+            raise serializers.ValidationError(
+                {'company_id': 'User has no company assigned.'},
+            )
+        template = FormTemplate.objects.create(
+            account_id=user.account_id,
+            company_id=company_id,
+            **validated_data,
+        )
         self._clear_other_defaults(template)
         self._save_fields(template, fields_data)
-        return template
+        return self._reload_with_relations(template)
 
     def update(self, instance, validated_data):
         fields_data = validated_data.pop('fields', None)
+        validated_data.pop('account_id', None)
         validated_data.pop('company_id', None)
-        company_id = self._require_user_company_id()
+        user = self._acting_user()
+        company_id = getattr(user, 'company_id', None)
+        if company_id is None:
+            raise serializers.ValidationError(
+                {'company_id': 'User has no company assigned.'},
+            )
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        instance.account_id = user.account_id
         instance.company_id = company_id
         instance.save()
         self._clear_other_defaults(instance)
@@ -597,4 +617,4 @@ class FormTemplateSerializer(serializers.ModelSerializer):
             instance.fields.all().delete()
             self._save_fields(instance, fields_data)
 
-        return instance
+        return self._reload_with_relations(instance)
