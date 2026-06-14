@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
+from django.http import Http404, HttpResponse
 from django.utils import timezone
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
@@ -20,8 +21,10 @@ from planningwithyou.history.snapshots import (
     diff_simple,
     snapshot_email_template,
 )
+from planningwithyou.file_views import _as_attachment, _file_response
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
+from .attachment_refs import resolve_attachment_item
 from .models import EmailLog, EmailTemplate
 from companies.timezone import now_in_company_timezone
 from users.company_access import effective_company_id
@@ -143,6 +146,39 @@ class EmailLogViewSet(viewsets.ModelViewSet):
             or settings.MAILJET_SEND_FROM,
         )
         send_email_task.delay(log.pk)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path=r'attachments/(?P<attachment_index>[0-9]+)',
+    )
+    def download_attachment(self, request, pk=None, attachment_index=None):
+        """Stream one stored attachment (never exposes underlying S3/storage URLs)."""
+        log = self.get_object()
+        items = [item for item in (log.attachments or []) if item not in (None, '')]
+        try:
+            idx = int(attachment_index)
+        except (TypeError, ValueError):
+            raise Http404('Attachment not found') from None
+        if idx < 0 or idx >= len(items):
+            raise Http404('Attachment not found')
+        try:
+            data, filename, content_type = resolve_attachment_item(
+                items[idx],
+                account_id=request.user.account_id,
+                company_id=log.company_id or request.user.company_id,
+            )
+        except FileNotFoundError as exc:
+            raise Http404(str(exc)) from exc
+        except ValueError as exc:
+            return HttpResponse(str(exc), status=413)
+
+        return _file_response(
+            data,
+            filename,
+            content_type,
+            as_attachment=_as_attachment(request),
+        )
 
     @action(detail=True, methods=['post'])
     def resend(self, request, pk=None):

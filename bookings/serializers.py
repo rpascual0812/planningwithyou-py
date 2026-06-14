@@ -16,6 +16,7 @@ from planningwithyou.file_storage import (
 )
 
 from .tasks import generate_booking_pdf_task
+from .notifications import schedule_new_quotation_email, schedule_quotation_status_emails
 
 from contacts.scope import contacts_for_user
 
@@ -373,6 +374,10 @@ class QuotationSerializer(serializers.ModelSerializer):
                 metadata=request_metadata(request),
             ),
         )
+        schedule_new_quotation_email(
+            quotation.pk,
+            actor_id=getattr(getattr(request, 'user', None), 'pk', None),
+        )
         return quotation
 
     def update(self, instance, validated_data):
@@ -381,6 +386,7 @@ class QuotationSerializer(serializers.ModelSerializer):
         include_nested = field_values_data is not None or groups_data is not None
         request = self.context.get('request')
         before = snapshot_quotation_full(instance)
+        old_status_id = before['quotation'].get('status_id')
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.account_id = instance.status.account_id
@@ -397,15 +403,24 @@ class QuotationSerializer(serializers.ModelSerializer):
         if field_values_data is not None:
             self._refresh_required_downpayment_amount(instance)
         self._enqueue_pdf_generation(instance)
+        new_status_id = instance.status_id
+        actor = getattr(request, 'user', None)
         transaction.on_commit(
             lambda: record_quotation_update(
                 instance,
                 before,
-                actor=getattr(request, 'user', None),
+                actor=actor,
                 include_nested=include_nested,
                 metadata=request_metadata(request),
             ),
         )
+        if old_status_id != new_status_id:
+            schedule_quotation_status_emails(
+                instance.pk,
+                old_status_id=old_status_id,
+                new_status_id=new_status_id,
+                actor_id=getattr(actor, 'pk', None),
+            )
         return instance
 
 

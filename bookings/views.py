@@ -31,6 +31,7 @@ from .history import (
     record_quotation_delete,
     record_quotation_field_updates,
 )
+from .notifications import schedule_quotation_status_emails
 from .models import QuotationGroup, Quotation, QuotationStatus, FormTemplate, Tag
 from users.company_access import effective_company_id
 from .board_list import (
@@ -338,6 +339,13 @@ class QuotationViewSet(HistoryListMixin, viewsets.ModelViewSet):
             actor=request.user,
             metadata=request_metadata(request),
         )
+        if 'status_id' in field_changes:
+            schedule_quotation_status_emails(
+                item.pk,
+                old_status_id=field_changes['status_id']['old'],
+                new_status_id=field_changes['status_id']['new'],
+                actor_id=request.user.pk,
+            )
         return Response(self.get_serializer(item).data)
 
     @action(detail=True, methods=['delete'], url_path=r'groups/(?P<group_id>[0-9]+)')
@@ -401,6 +409,13 @@ class QuotationViewSet(HistoryListMixin, viewsets.ModelViewSet):
                         actor=request.user,
                         metadata=request_metadata(request),
                     )
+                    if 'status_id' in header_changes:
+                        schedule_quotation_status_emails(
+                            booking.pk,
+                            old_status_id=header_changes['status_id']['old'],
+                            new_status_id=header_changes['status_id']['new'],
+                            actor_id=request.user.pk,
+                        )
         return Response({'status': 'ok'})
 
 

@@ -14,6 +14,16 @@ urlpatterns = [
         name='secured-file-quotation-pdf',
     ),
     path(
+        'files/r/<int:receipt_id>/pdf/',
+        file_views.PaymentReceiptFileView.as_view(),
+        name='secured-file-payment-receipt',
+    ),
+    path(
+        'files/sr/<int:receipt_id>/pdf/',
+        file_views.SubscriptionReceiptFileView.as_view(),
+        name='secured-file-subscription-receipt',
+    ),
+    path(
         'files/c/<int:company_id>/logo/',
         file_views.CompanyLogoFileView.as_view(),
         name='secured-file-company-logo',

@@ -6,6 +6,8 @@ from planningwithyou.file_storage import (
     read_booking_pdf_file,
     read_company_logo_file,
     read_document_file,
+    read_payment_receipt_file,
+    read_subscription_receipt_file,
     read_user_photo_file,
 )
 from users.scope import users_for_user
@@ -73,6 +75,57 @@ class BookingPdfFileView(APIView):
                 quotation_id,
                 account_id=request.user.account_id,
                 company_id=request.user.company_id,
+            )
+        except FileNotFoundError as exc:
+            raise Http404(str(exc)) from exc
+        except ValueError as exc:
+            return HttpResponse(str(exc), status=413)
+
+        return _file_response(
+            data,
+            filename,
+            content_type,
+            as_attachment=_as_attachment(request),
+        )
+
+
+class PaymentReceiptFileView(APIView):
+    """Download a quotation payment receipt PDF by receipt id."""
+
+    permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
+    feature_key = 'quotations'
+
+    def get(self, request, receipt_id: int):
+        try:
+            data, filename, content_type = read_payment_receipt_file(
+                receipt_id,
+                account_id=request.user.account_id,
+                company_id=request.user.company_id,
+            )
+        except FileNotFoundError as exc:
+            raise Http404(str(exc)) from exc
+        except ValueError as exc:
+            return HttpResponse(str(exc), status=413)
+
+        return _file_response(
+            data,
+            filename,
+            content_type,
+            as_attachment=_as_attachment(request),
+        )
+
+
+class SubscriptionReceiptFileView(APIView):
+    """Download a subscription receipt PDF by receipt id."""
+
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'account_settings'
+
+    def get(self, request, receipt_id: int):
+        try:
+            data, filename, content_type = read_subscription_receipt_file(
+                receipt_id,
+                account_id=request.user.account_id,
             )
         except FileNotFoundError as exc:
             raise Http404(str(exc)) from exc

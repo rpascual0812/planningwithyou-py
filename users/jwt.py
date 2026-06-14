@@ -7,6 +7,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
@@ -46,7 +47,7 @@ class SessionTokenRefreshSerializer(TokenRefreshSerializer):
     def validate(self, attrs):
         refresh = RefreshToken(attrs['refresh'])
         try:
-            user_id = refresh[refresh.user_id_claim]
+            user_id = refresh[api_settings.USER_ID_CLAIM]
         except KeyError as exc:
             raise InvalidToken('Token contained no recognizable user identification') from exc
 

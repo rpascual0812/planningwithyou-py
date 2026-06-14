@@ -250,6 +250,8 @@ class CompanyCreateDefaultsApiTests(TestCase):
                 'password_reset',
                 'new_quotation',
                 'updated_quotation',
+                'quotation_status_contact',
+                'quotation_status_company',
                 'payment_link',
                 'payment_received',
                 'calendar_event_creation',

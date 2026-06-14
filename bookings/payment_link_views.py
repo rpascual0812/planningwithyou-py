@@ -17,6 +17,7 @@ from .payment_link_serializers import (
     QuotationPaymentSerializer,
 )
 from .payment_links import PaymentLinkError, create_booking_payment_link, serialize_public_payment_link
+from .notifications import schedule_payment_link_email
 from .payment_summary import booking_payment_summary
 from .paymongo_webhook import (
     company_id_from_webhook_body,
@@ -64,6 +65,11 @@ class QuotationPaymentLinkListCreateView(APIView):
             )
         except PaymentLinkError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        schedule_payment_link_email(
+            booking.pk,
+            payment_link_id=link.pk,
+            actor_id=getattr(request.user, 'pk', None),
+        )
         return Response(
             QuotationPaymentLinkSerializer(link).data,
             status=status.HTTP_201_CREATED,

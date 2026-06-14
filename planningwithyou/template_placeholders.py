@@ -11,6 +11,21 @@ from __future__ import annotations
 EMAIL_TEMPLATE_PASSWORD_RESET = 'password_reset'
 EMAIL_TEMPLATE_VERIFY_EMAIL = 'verify_email'
 EMAIL_TEMPLATE_PAYMENT_LINK = 'payment_link'
+EMAIL_TEMPLATE_NEW_QUOTATION = 'new_quotation'
+EMAIL_TEMPLATE_UPDATED_QUOTATION = 'updated_quotation'
+EMAIL_TEMPLATE_QUOTATION_STATUS_COMPANY = 'quotation_status_company'
+
+DEFAULT_NEW_QUOTATION_SUBJECT = '{company_name} - Quotation'
+DEFAULT_NEW_QUOTATION_BODY_HTML = (
+    '<p>Hi {first_name} {last_name},</p>'
+    '<p>Please see the attached file/s</p>'
+)
+
+DEFAULT_UPDATED_QUOTATION_SUBJECT = '{company_name} - Updated Quotation'
+DEFAULT_UPDATED_QUOTATION_BODY_HTML = (
+    '<p>Hi {first_name} {last_name},</p>'
+    '<p>Please see the attached file/s</p>'
+)
 
 DEFAULT_PAYMENT_LINK_SUBJECT = 'Payment for your booking'
 

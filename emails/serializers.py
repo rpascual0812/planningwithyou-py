@@ -3,6 +3,7 @@ from django.core.validators import EmailValidator
 from rest_framework import serializers
 
 from .attachment_refs import (
+    attachment_download_filename,
     attachment_public_url,
     normalize_attachment_item,
 )
@@ -75,7 +76,14 @@ class EmailLogSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         request = self.context.get('request')
         data['attachments'] = [
-            attachment_public_url(item, request=request)
+            {
+                'url': attachment_public_url(item, request=request),
+                'filename': attachment_download_filename(
+                    item,
+                    account_id=instance.account_id,
+                    company_id=instance.company_id,
+                ),
+            }
             for item in (instance.attachments or [])
             if item not in (None, '')
         ]

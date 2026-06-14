@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
     atomic = False
 
     dependencies = [
-        ('companies', '0002_company_supplier_type'),
+        ('companies', '0010_company_contact_email'),
         ('users', '0015_user_company'),
     ]
 

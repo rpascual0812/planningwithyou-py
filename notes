@@ -1,6 +1,9 @@
 cd planningwithyou-py
 python3 -m venv venv
 source venv/bin/activate
+# windows
+.\venv\Scripts\Activate.ps1
+
 python manage.py migrate
 
 # Terminal 1 – Django
@@ -24,8 +27,8 @@ http://localhost:5555
 
 
 planningwithyou-web
-scp -r dist ubuntu@13.212.181.6:/var/www/web
-scp -r dist ubuntu@13.212.181.6:/var/www/app
+scp -r dist ubuntu@54.179.165.195:/var/www/web
+scp -r dist ubuntu@54.179.165.195:/var/www/app
 
 
 When adding a new account, add defaults:
@@ -573,3 +576,34 @@ server {
         }
     }
 }
+
+The Living Word Notes
+
+npm install
+npm run build
+npm install @capacitor/core @capacitor/cli
+npx cap init "The Living Word" "com.yourdomain.thelivingword" --web-dir=dist
+
+npm install @capacitor/android
+npx cap add android
+
+npx cap copy
+npx cap open android
+
+configurations.all {
+    resolutionStrategy {
+        exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk8"
+        exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk7"
+    }
+}
+
+
+WINDOWS
+
+ssh -i "planningwithyou.pem" ubuntu@ec2-52-221-234-42.ap-southeast-1.compute.amazonaws.com
+
+DB
+curl -o global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+psql "host=planningwithyou-1.ctw2u8sammaf.ap-southeast-1.rds.amazonaws.com port=5432 dbname=postgres user=planningwithyou sslmode=verify-full sslrootcert=./global-bundle.pem"
+
+

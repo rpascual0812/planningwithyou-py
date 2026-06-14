@@ -51,11 +51,24 @@ class GmailOAuthError(Exception):
     pass
 
 
+def _resolved_oauth_client_id() -> str:
+    email_id = (getattr(settings, 'GOOGLE_EMAIL_OAUTH_CLIENT_ID', '') or '').strip()
+    if email_id:
+        return email_id
+    return (getattr(settings, 'GOOGLE_CALENDAR_OAUTH_CLIENT_ID', '') or '').strip()
+
+
+def _resolved_oauth_client_secret() -> str:
+    email_secret = (
+        getattr(settings, 'GOOGLE_EMAIL_OAUTH_CLIENT_SECRET', '') or ''
+    ).strip()
+    if email_secret:
+        return email_secret
+    return (getattr(settings, 'GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET', '') or '').strip()
+
+
 def google_oauth_configured() -> bool:
-    return bool(
-        (getattr(settings, 'GOOGLE_EMAIL_OAUTH_CLIENT_ID', '') or '').strip()
-        and (getattr(settings, 'GOOGLE_EMAIL_OAUTH_CLIENT_SECRET', '') or '').strip()
-    )
+    return bool(_resolved_oauth_client_id() and _resolved_oauth_client_secret())
 
 
 def oauth_redirect_uri() -> str:
@@ -66,7 +79,9 @@ def oauth_redirect_uri() -> str:
 def _require_config() -> None:
     if not google_oauth_configured():
         raise GmailConfigError(
-            'Gmail OAuth is not configured on the server (GOOGLE_EMAIL_OAUTH_CLIENT_ID / SECRET).',
+            'Gmail OAuth is not configured on the server '
+            '(set GOOGLE_EMAIL_OAUTH_CLIENT_ID/SECRET or reuse '
+            'GOOGLE_CALENDAR_OAUTH_CLIENT_ID/SECRET).',
         )
 
 
@@ -74,8 +89,8 @@ def _oauth_flow() -> Flow:
     _require_config()
     client_config = {
         'web': {
-            'client_id': settings.GOOGLE_EMAIL_OAUTH_CLIENT_ID,
-            'client_secret': settings.GOOGLE_EMAIL_OAUTH_CLIENT_SECRET,
+            'client_id': _resolved_oauth_client_id(),
+            'client_secret': _resolved_oauth_client_secret(),
             'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
             'token_uri': 'https://oauth2.googleapis.com/token',
             'redirect_uris': [oauth_redirect_uri()],
@@ -237,8 +252,8 @@ def _credentials_from_integration(
         token=access or None,
         refresh_token=refresh,
         token_uri='https://oauth2.googleapis.com/token',
-        client_id=settings.GOOGLE_EMAIL_OAUTH_CLIENT_ID,
-        client_secret=settings.GOOGLE_EMAIL_OAUTH_CLIENT_SECRET,
+        client_id=_resolved_oauth_client_id(),
+        client_secret=_resolved_oauth_client_secret(),
         scopes=SCOPES,
     )
     creds.expiry = _expiry_for_google_auth(integration.token_expiry)

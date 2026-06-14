@@ -19,6 +19,8 @@ MAX_FILE_BYTES = 15 * 1024 * 1024
 
 DOCUMENT_PROXY_RE = re.compile(r'/files/d/(\d+)/?', re.IGNORECASE)
 BOOKING_PDF_PROXY_RE = re.compile(r'/files/b/(\d+)/pdf/?', re.IGNORECASE)
+PAYMENT_RECEIPT_PROXY_RE = re.compile(r'/files/r/(\d+)/pdf/?', re.IGNORECASE)
+SUBSCRIPTION_RECEIPT_PROXY_RE = re.compile(r'/files/sr/(\d+)/pdf/?', re.IGNORECASE)
 COMPANY_LOGO_PROXY_RE = re.compile(r'/files/c/(\d+)/logo/?', re.IGNORECASE)
 USER_PHOTO_PROXY_RE = re.compile(r'/files/u/(\d+)/photo/?', re.IGNORECASE)
 
@@ -36,6 +38,12 @@ def parse_proxy_file_url(url: str) -> tuple[str, int] | None:
     match = BOOKING_PDF_PROXY_RE.search(path)
     if match:
         return 'booking_pdf', int(match.group(1))
+    match = PAYMENT_RECEIPT_PROXY_RE.search(path)
+    if match:
+        return 'payment_receipt', int(match.group(1))
+    match = SUBSCRIPTION_RECEIPT_PROXY_RE.search(path)
+    if match:
+        return 'subscription_receipt', int(match.group(1))
     match = COMPANY_LOGO_PROXY_RE.search(path)
     if match:
         return 'company_logo', int(match.group(1))
@@ -51,6 +59,14 @@ def document_download_path(document_id: int) -> str:
 
 def booking_pdf_download_path(quotation_id: int) -> str:
     return reverse('secured-file-quotation-pdf', kwargs={'quotation_id': quotation_id})
+
+
+def payment_receipt_download_path(receipt_id: int) -> str:
+    return reverse('secured-file-payment-receipt', kwargs={'receipt_id': receipt_id})
+
+
+def subscription_receipt_download_path(receipt_id: int) -> str:
+    return reverse('secured-file-subscription-receipt', kwargs={'receipt_id': receipt_id})
 
 
 def booking_pdf_storage_key(booking: Quotation) -> str:
@@ -79,6 +95,14 @@ def template_asset_public_url(asset_uuid, request=None) -> str:
 
 def booking_pdf_file_url(quotation_id: int, request=None) -> str:
     return absolute_file_url(request, booking_pdf_download_path(quotation_id))
+
+
+def payment_receipt_file_url(receipt_id: int, request=None) -> str:
+    return absolute_file_url(request, payment_receipt_download_path(receipt_id))
+
+
+def subscription_receipt_file_url(receipt_id: int, request=None) -> str:
+    return absolute_file_url(request, subscription_receipt_download_path(receipt_id))
 
 
 def quotation_pdf_available(quotation: Quotation) -> bool:
@@ -372,6 +396,60 @@ def read_document_file(
     return data, filename, content_type
 
 
+def read_payment_receipt_file(
+    receipt_id: int,
+    *,
+    account_id: int | None = None,
+    company_id: int | None = None,
+) -> tuple[bytes, str, str]:
+    from bookings.models import QuotationPaymentReceipt
+
+    qs = QuotationPaymentReceipt.objects.select_related('quotation_payment').filter(
+        pk=receipt_id,
+    )
+    if account_id is not None:
+        qs = qs.filter(account_id=account_id)
+    if company_id is not None:
+        qs = qs.filter(company_id=company_id)
+    receipt = qs.first()
+    if receipt is None:
+        raise FileNotFoundError('Payment receipt not found')
+
+    storage_key = (receipt.storage_key or '').strip()
+    if not storage_key:
+        raise FileNotFoundError('Payment receipt not found')
+
+    from bookings.payment_receipts import payment_receipt_filename
+
+    data = _read_storage_key_bytes(storage_key)
+    payment = receipt.quotation_payment
+    filename = payment_receipt_filename(payment) if payment is not None else 'receipt.pdf'
+    return data, filename, 'application/pdf'
+
+
+def read_subscription_receipt_file(
+    receipt_id: int,
+    *,
+    account_id: int | None = None,
+) -> tuple[bytes, str, str]:
+    from subscriptions.models import SubscriptionReceipt
+
+    qs = SubscriptionReceipt.objects.filter(pk=receipt_id)
+    if account_id is not None:
+        qs = qs.filter(account_id=account_id)
+    receipt = qs.first()
+    if receipt is None:
+        raise FileNotFoundError('Subscription receipt not found')
+
+    storage_key = (receipt.storage_key or '').strip()
+    if not storage_key:
+        raise FileNotFoundError('Subscription receipt not found')
+
+    data = _read_storage_key_bytes(storage_key)
+    filename = f'{receipt.receipt_number or receipt.pk}.pdf'
+    return data, filename, 'application/pdf'
+
+
 def read_booking_pdf_file(
     quotation_id: int,
     *,
@@ -435,6 +513,10 @@ def read_file_from_proxy_url(
     kind, pk = parsed
     if kind == 'document':
         return read_document_file(pk, account_id=account_id, company_id=company_id)
+    if kind == 'payment_receipt':
+        return read_payment_receipt_file(pk, account_id=account_id, company_id=company_id)
+    if kind == 'subscription_receipt':
+        return read_subscription_receipt_file(pk, account_id=account_id)
     if kind == 'company_logo':
         return read_company_logo_file(pk, account_id=account_id)
     return read_booking_pdf_file(pk, account_id=account_id, company_id=company_id)

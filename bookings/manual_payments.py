@@ -10,6 +10,7 @@ from django.utils import timezone
 from .models import Quotation, QuotationPayment
 from .payment_breakdown import booking_payments_paid_base_total
 from .payment_receipts import notify_payment_received
+from .notifications import schedule_payment_link_email
 from .scope import assert_booking_editable
 
 
@@ -41,6 +42,10 @@ def create_manual_quotation_payment(
         payout_sent_at=now,
     )
     notify_payment_received(payment, use_contact_email=True)
+    schedule_payment_link_email(
+        quotation.pk,
+        actor_id=getattr(quotation.created_by, 'pk', None),
+    )
     return payment
 
 
@@ -57,7 +62,7 @@ def create_manual_quotation_refund(
             f'Refund amount cannot exceed {paid} already paid on this quotation.',
         )
     now = timezone.now()
-    return QuotationPayment.objects.create(
+    payment = QuotationPayment.objects.create(
         quotation=quotation,
         account_id=quotation.account_id,
         company_id=quotation.company_id,
@@ -75,3 +80,8 @@ def create_manual_quotation_refund(
         transaction_date=now,
         payout_sent_at=None,
     )
+    schedule_payment_link_email(
+        quotation.pk,
+        actor_id=getattr(quotation.created_by, 'pk', None),
+    )
+    return payment

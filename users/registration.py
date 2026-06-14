@@ -133,6 +133,32 @@ EMAIL_TEMPLATES = [
         ),
     },
     {
+        'name': 'quotation_status_contact',
+        'template_type': EmailTemplate.TemplateType.BOOKINGS,
+        'title': 'Quotation Status (Contact)',
+        'subject': '{company_name} – Quotation {quotation_unique_id} is now {status_title}',
+        'body': (
+            '<p>Hi {first_name} {last_name},</p>'
+            '<p>Your quotation <strong>{quotation_title}</strong> ({quotation_unique_id}) '
+            'has been updated from <strong>{previous_status}</strong> to '
+            '<strong>{status_title}</strong>.</p>'
+            '<p>Thank you,<br>{company_name}</p>'
+        ),
+    },
+    {
+        'name': 'quotation_status_company',
+        'template_type': EmailTemplate.TemplateType.BOOKINGS,
+        'title': 'Quotation Status (Company)',
+        'subject': 'Quotation {quotation_unique_id} moved to {status_title}',
+        'body': (
+            '<p>Hello,</p>'
+            '<p>Quotation <strong>{quotation_title}</strong> ({quotation_unique_id}) '
+            'has been updated from <strong>{previous_status}</strong> to '
+            '<strong>{status_title}</strong>.</p>'
+            '<p>Thank you.</p>'
+        ),
+    },
+    {
         'name': 'payment_link',
         'template_type': EmailTemplate.TemplateType.BOOKINGS,
         'title': 'Payment Link',

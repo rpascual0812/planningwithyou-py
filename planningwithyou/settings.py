@@ -251,6 +251,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://app.planningwithyou.com",
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_EXPOSE_HEADERS = ['Content-Disposition']
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
@@ -282,7 +283,8 @@ GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET = os.environ.get(
     '',
 )
 
-# Gmail OAuth (Email Settings → Email Integration) — separate Google Cloud OAuth client
+# Gmail OAuth (Email Settings → Email Integration).
+# Prefer GOOGLE_EMAIL_*; see gmail_service for Calendar OAuth fallback.
 GOOGLE_EMAIL_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_EMAIL_OAUTH_CLIENT_ID', '')
 GOOGLE_EMAIL_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_EMAIL_OAUTH_CLIENT_SECRET', '')
 

@@ -61,7 +61,7 @@ class Migration(migrations.Migration):
     atomic = False
 
     dependencies = [
-        ('companies', '0011_ensure_main_company_per_account'),
+        ('companies', '0007_company_max_bookings_per_day'),
         ('documents', '0005_alter_document_account_alter_documentfolder_account'),
         ('users', '0015_user_company'),
     ]
