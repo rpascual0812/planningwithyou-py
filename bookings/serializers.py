@@ -4,6 +4,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from .history import (
+    build_update_changes,
     record_quotation_create,
     record_quotation_update,
     snapshot_quotation_full,
@@ -16,7 +17,12 @@ from planningwithyou.file_storage import (
 )
 
 from .tasks import generate_booking_pdf_task
-from .notifications import schedule_new_quotation_email, schedule_quotation_status_emails
+from .notifications import (
+    has_non_status_quotation_changes,
+    schedule_new_quotation_email,
+    schedule_quotation_status_emails,
+    schedule_updated_quotation_email,
+)
 
 from contacts.scope import contacts_for_user
 
@@ -404,6 +410,8 @@ class QuotationSerializer(serializers.ModelSerializer):
             self._refresh_required_downpayment_amount(instance)
         self._enqueue_pdf_generation(instance)
         new_status_id = instance.status_id
+        after = snapshot_quotation_full(instance)
+        changes = build_update_changes(before, after, include_nested=include_nested)
         actor = getattr(request, 'user', None)
         transaction.on_commit(
             lambda: record_quotation_update(
@@ -419,6 +427,11 @@ class QuotationSerializer(serializers.ModelSerializer):
                 instance.pk,
                 old_status_id=old_status_id,
                 new_status_id=new_status_id,
+                actor_id=getattr(actor, 'pk', None),
+            )
+        if has_non_status_quotation_changes(changes):
+            schedule_updated_quotation_email(
+                instance.pk,
                 actor_id=getattr(actor, 'pk', None),
             )
         return instance

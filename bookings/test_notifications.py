@@ -6,9 +6,11 @@ from datetime import timedelta
 
 from bookings.models import Quotation, QuotationGroup, QuotationLine, QuotationPaymentLink, QuotationStatus
 from bookings.notifications import (
+    has_non_status_quotation_changes,
     send_new_quotation_email,
     send_payment_link_email,
     send_quotation_status_emails,
+    send_updated_quotation_email,
 )
 from companies.models import Company
 from contacts.models import Contact
@@ -16,6 +18,7 @@ from countries.models import Country
 from planningwithyou.template_placeholders import (
     EMAIL_TEMPLATE_NEW_QUOTATION,
     EMAIL_TEMPLATE_PAYMENT_LINK,
+    EMAIL_TEMPLATE_QUOTATION_STATUS_CONTACT,
     EMAIL_TEMPLATE_UPDATED_QUOTATION,
 )
 from suppliers.models import SupplierType
@@ -92,7 +95,7 @@ class QuotationStatusNotificationTests(TestCase):
 
     @patch('bookings.notifications.send_email_task.delay')
     @patch('bookings.notifications.create_and_queue_email')
-    def test_status_change_sends_updated_quote_to_contact(self, mock_create, mock_delay):
+    def test_status_change_sends_status_contact_to_contact(self, mock_create, mock_delay):
         mock_create.return_value = type('Log', (), {'pk': 1})()
 
         send_quotation_status_emails(
@@ -104,36 +107,50 @@ class QuotationStatusNotificationTests(TestCase):
         contact_call = mock_create.call_args_list[0]
         self.assertEqual(contact_call.kwargs['to'], ['client@example.test'])
         template = contact_call.kwargs['email_template']
-        self.assertEqual(template.name, EMAIL_TEMPLATE_UPDATED_QUOTATION)
-        self.assertEqual(mock_create.call_count, 3)
-        self.assertEqual(mock_delay.call_count, 3)
+        self.assertEqual(template.name, EMAIL_TEMPLATE_QUOTATION_STATUS_CONTACT)
+        self.assertEqual(mock_create.call_count, 2)
+        self.assertEqual(mock_delay.call_count, 2)
 
     @patch('bookings.notifications.send_email_task.delay')
     @patch('bookings.notifications.create_and_queue_email')
-    def test_status_change_to_new_sends_new_quote_to_contact(self, mock_create, mock_delay):
-        self.quotation.status = self.status_confirmed
-        self.quotation.save(update_fields=['status'])
+    def test_status_change_emails_line_companies_only(self, mock_create, mock_delay):
         mock_create.return_value = type('Log', (), {'pk': 1})()
 
         send_quotation_status_emails(
             self.quotation.pk,
-            old_status_id=self.status_confirmed.pk,
-            new_status_id=self.status_new.pk,
+            old_status_id=self.status_new.pk,
+            new_status_id=self.status_confirmed.pk,
         )
 
+        recipients = [call.kwargs['to'][0] for call in mock_create.call_args_list]
+        self.assertIn('client@example.test', recipients)
+        self.assertIn('supplier@example.test', recipients)
+        self.assertNotIn('main@example.test', recipients)
+
+    @patch('bookings.notifications.send_email_task.delay')
+    @patch('bookings.notifications.create_and_queue_email')
+    def test_new_quotation_email_to_contact_and_line_companies(self, mock_create, mock_delay):
+        mock_create.return_value = type('Log', (), {'pk': 1})()
+
+        send_new_quotation_email(self.quotation.pk)
+
+        self.assertEqual(mock_create.call_count, 2)
+        recipients = [call.kwargs['to'][0] for call in mock_create.call_args_list]
+        self.assertIn('client@example.test', recipients)
+        self.assertIn('supplier@example.test', recipients)
         template = mock_create.call_args_list[0].kwargs['email_template']
         self.assertEqual(template.name, EMAIL_TEMPLATE_NEW_QUOTATION)
 
     @patch('bookings.notifications.send_email_task.delay')
     @patch('bookings.notifications.create_and_queue_email')
-    def test_new_quotation_email_uses_new_quote_template(self, mock_create, mock_delay):
+    def test_updated_quotation_email_to_contact_and_line_companies(self, mock_create, mock_delay):
         mock_create.return_value = type('Log', (), {'pk': 1})()
 
-        send_new_quotation_email(self.quotation.pk)
+        send_updated_quotation_email(self.quotation.pk)
 
-        template = mock_create.call_args.kwargs['email_template']
-        self.assertEqual(template.name, EMAIL_TEMPLATE_NEW_QUOTATION)
-        mock_delay.assert_called_once_with(1)
+        self.assertEqual(mock_create.call_count, 2)
+        template = mock_create.call_args_list[0].kwargs['email_template']
+        self.assertEqual(template.name, EMAIL_TEMPLATE_UPDATED_QUOTATION)
 
     @patch('bookings.notifications.send_email_task.delay')
     @patch('bookings.notifications.create_and_queue_email')
@@ -169,3 +186,24 @@ class QuotationStatusNotificationTests(TestCase):
         )
         mock_create.assert_not_called()
         mock_delay.assert_not_called()
+
+    def test_has_non_status_changes_detects_title_change(self):
+        self.assertTrue(
+            has_non_status_quotation_changes(
+                {'quotation': {'title': {'old': 'A', 'new': 'B'}}},
+            ),
+        )
+
+    def test_has_non_status_changes_ignores_status_only(self):
+        self.assertFalse(
+            has_non_status_quotation_changes(
+                {'quotation': {'status_id': {'old': 1, 'new': 2}}},
+            ),
+        )
+
+    def test_has_non_status_changes_detects_line_changes(self):
+        self.assertTrue(
+            has_non_status_quotation_changes(
+                {'lines': {'added': [{'label': 'Catering'}], 'removed': [], 'changed': []}},
+            ),
+        )

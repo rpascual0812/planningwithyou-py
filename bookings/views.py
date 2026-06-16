@@ -31,7 +31,11 @@ from .history import (
     record_quotation_delete,
     record_quotation_field_updates,
 )
-from .notifications import schedule_quotation_status_emails
+from .notifications import (
+    schedule_quotation_status_emails,
+    schedule_updated_quotation_email,
+    send_updated_quotation_email,
+)
 from .models import QuotationGroup, Quotation, QuotationStatus, FormTemplate, Tag
 from users.company_access import effective_company_id
 from .board_list import (
@@ -270,11 +274,14 @@ class QuotationViewSet(HistoryListMixin, viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
     def perform_destroy(self, instance):
+        quotation_id = instance.pk
+        actor_id = self.request.user.pk
         record_quotation_delete(
             instance,
             actor=self.request.user,
             metadata=request_metadata(self.request),
         )
+        send_updated_quotation_email(quotation_id, actor_id=actor_id)
         instance.delete()
 
     def perform_create(self, serializer):
@@ -360,6 +367,7 @@ class QuotationViewSet(HistoryListMixin, viewsets.ModelViewSet):
             metadata=request_metadata(request),
         )
         group.delete()
+        schedule_updated_quotation_email(item.pk, actor_id=request.user.pk)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['post'])

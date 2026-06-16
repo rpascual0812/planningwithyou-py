@@ -14,6 +14,18 @@ EMAIL_TEMPLATE_PAYMENT_LINK = 'payment_link'
 EMAIL_TEMPLATE_NEW_QUOTATION = 'new_quotation'
 EMAIL_TEMPLATE_UPDATED_QUOTATION = 'updated_quotation'
 EMAIL_TEMPLATE_QUOTATION_STATUS_COMPANY = 'quotation_status_company'
+EMAIL_TEMPLATE_QUOTATION_STATUS_CONTACT = 'quotation_status_contact'
+
+DEFAULT_QUOTATION_STATUS_CONTACT_SUBJECT = (
+    '{company_name} – Quotation {quotation_unique_id} is now {status_title}'
+)
+DEFAULT_QUOTATION_STATUS_CONTACT_BODY_HTML = (
+    '<p>Hi {first_name} {last_name},</p>'
+    '<p>Your quotation <strong>{quotation_title}</strong> ({quotation_unique_id}) '
+    'has been updated from <strong>{previous_status}</strong> to '
+    '<strong>{status_title}</strong>.</p>'
+    '<p>Thank you,<br>{company_name}</p>'
+)
 
 DEFAULT_NEW_QUOTATION_SUBJECT = '{company_name} - Quotation'
 DEFAULT_NEW_QUOTATION_BODY_HTML = (

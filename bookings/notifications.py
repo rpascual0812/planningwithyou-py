@@ -1,4 +1,4 @@
-"""Email notifications for quotation status changes and payment links."""
+"""Email notifications for quotation lifecycle and payment links."""
 
 from __future__ import annotations
 
@@ -15,11 +15,14 @@ from planningwithyou.template_placeholders import (
     DEFAULT_NEW_QUOTATION_SUBJECT,
     DEFAULT_PAYMENT_LINK_BODY_HTML,
     DEFAULT_PAYMENT_LINK_SUBJECT,
+    DEFAULT_QUOTATION_STATUS_CONTACT_BODY_HTML,
+    DEFAULT_QUOTATION_STATUS_CONTACT_SUBJECT,
     DEFAULT_UPDATED_QUOTATION_BODY_HTML,
     DEFAULT_UPDATED_QUOTATION_SUBJECT,
     EMAIL_TEMPLATE_NEW_QUOTATION,
     EMAIL_TEMPLATE_PAYMENT_LINK,
     EMAIL_TEMPLATE_QUOTATION_STATUS_COMPANY,
+    EMAIL_TEMPLATE_QUOTATION_STATUS_CONTACT,
     EMAIL_TEMPLATE_UPDATED_QUOTATION,
     apply_template_placeholders,
     company_template_context,
@@ -141,23 +144,21 @@ def _send_templated_email(
     send_email_task.delay(log.pk)
 
 
-def _related_companies(quotation: Quotation) -> list[Company]:
-    company_ids = {quotation.company_id}
-    for line in quotation.lines.all():
-        if line.company_id:
-            company_ids.add(line.company_id)
+def _line_companies(quotation: Quotation) -> list[Company]:
+    """Distinct supplier companies referenced on quotation lines."""
+    company_ids = {
+        line.company_id
+        for line in quotation.lines.all()
+        if line.company_id
+    }
+    if not company_ids:
+        return []
     return list(
         Company.objects.filter(pk__in=company_ids, deleted_at__isnull=True).order_by('id'),
     )
 
 
-def _contact_quote_template_name(status_title: str) -> str:
-    if status_title.strip().lower() == 'new':
-        return EMAIL_TEMPLATE_NEW_QUOTATION
-    return EMAIL_TEMPLATE_UPDATED_QUOTATION
-
-
-def _contact_quote_fallbacks(template_name: str) -> tuple[str, str]:
+def _quote_template_fallbacks(template_name: str) -> tuple[str, str]:
     if template_name == EMAIL_TEMPLATE_NEW_QUOTATION:
         return DEFAULT_NEW_QUOTATION_SUBJECT, DEFAULT_NEW_QUOTATION_BODY_HTML
     return DEFAULT_UPDATED_QUOTATION_SUBJECT, DEFAULT_UPDATED_QUOTATION_BODY_HTML
@@ -172,31 +173,90 @@ def _load_quotation(quotation_id: int) -> Quotation | None:
     )
 
 
+def has_non_status_quotation_changes(changes: dict) -> bool:
+    """True when quotation history diff includes fields other than ``status_id``."""
+    if not changes:
+        return False
+    if changes.get('groups') or changes.get('lines'):
+        return True
+    header = changes.get('quotation') or {}
+    return any(field != 'status_id' for field in header)
+
+
+def send_quotation_quote_emails(
+    quotation_id: int,
+    *,
+    template_name: str,
+    actor_id: int | None = None,
+) -> None:
+    """Email contact and line supplier companies using a New/Updated Quote template."""
+    quotation = _load_quotation(quotation_id)
+    if quotation is None:
+        return
+
+    actor = User.objects.filter(pk=actor_id).first() if actor_id else None
+    fallback_subject, fallback_body = _quote_template_fallbacks(template_name)
+    context = _contact_context(quotation)
+    attachments = _quotation_pdf_attachments(quotation)
+
+    contact_email = (getattr(quotation.contact, 'email', '') or '').strip()
+    if contact_email:
+        _send_templated_email(
+            recipient=contact_email,
+            template_name=template_name,
+            context=context,
+            account=quotation.account,
+            company=quotation.company,
+            actor=actor,
+            fallback_subject=fallback_subject,
+            fallback_body=fallback_body,
+            attachments=attachments,
+        )
+
+    sent_company_emails: set[str] = set()
+    for company in _line_companies(quotation):
+        recipient = company_contact_email_address(company)
+        normalized = recipient.lower()
+        if not recipient or normalized in sent_company_emails:
+            continue
+        sent_company_emails.add(normalized)
+        _send_templated_email(
+            recipient=recipient,
+            template_name=template_name,
+            context={
+                **_contact_context(quotation),
+                **company_template_context(company),
+            },
+            account=quotation.account,
+            company=company,
+            actor=actor,
+            fallback_subject=fallback_subject,
+            fallback_body=fallback_body,
+            attachments=attachments,
+        )
+
+
 def send_new_quotation_email(
     quotation_id: int,
     *,
     actor_id: int | None = None,
 ) -> None:
-    quotation = _load_quotation(quotation_id)
-    if quotation is None:
-        return
-
-    contact_email = (getattr(quotation.contact, 'email', '') or '').strip()
-    if not contact_email:
-        return
-
-    actor = User.objects.filter(pk=actor_id).first() if actor_id else None
-    context = _contact_context(quotation)
-    _send_templated_email(
-        recipient=contact_email,
+    send_quotation_quote_emails(
+        quotation_id,
         template_name=EMAIL_TEMPLATE_NEW_QUOTATION,
-        context=context,
-        account=quotation.account,
-        company=quotation.company,
-        actor=actor,
-        fallback_subject=DEFAULT_NEW_QUOTATION_SUBJECT,
-        fallback_body=DEFAULT_NEW_QUOTATION_BODY_HTML,
-        attachments=_quotation_pdf_attachments(quotation),
+        actor_id=actor_id,
+    )
+
+
+def send_updated_quotation_email(
+    quotation_id: int,
+    *,
+    actor_id: int | None = None,
+) -> None:
+    send_quotation_quote_emails(
+        quotation_id,
+        template_name=EMAIL_TEMPLATE_UPDATED_QUOTATION,
+        actor_id=actor_id,
     )
 
 
@@ -217,40 +277,35 @@ def send_quotation_status_emails(
     previous_status = _status_title(old_status_id)
     status_title = _status_title(new_status_id)
     actor = User.objects.filter(pk=actor_id).first() if actor_id else None
+    status_context = _contact_context(
+        quotation,
+        previous_status=previous_status,
+        status_title=status_title,
+    )
 
     contact_email = (getattr(quotation.contact, 'email', '') or '').strip()
     if contact_email:
-        contact_template = _contact_quote_template_name(status_title)
-        fallback_subject, fallback_body = _contact_quote_fallbacks(contact_template)
         _send_templated_email(
             recipient=contact_email,
-            template_name=contact_template,
-            context=_contact_context(
-                quotation,
-                previous_status=previous_status,
-                status_title=status_title,
-            ),
+            template_name=EMAIL_TEMPLATE_QUOTATION_STATUS_CONTACT,
+            context=status_context,
             account=quotation.account,
             company=quotation.company,
             actor=actor,
-            fallback_subject=fallback_subject,
-            fallback_body=fallback_body,
+            fallback_subject=DEFAULT_QUOTATION_STATUS_CONTACT_SUBJECT,
+            fallback_body=DEFAULT_QUOTATION_STATUS_CONTACT_BODY_HTML,
             attachments=_quotation_pdf_attachments(quotation),
         )
 
     sent_company_emails: set[str] = set()
-    for company in _related_companies(quotation):
+    for company in _line_companies(quotation):
         recipient = company_contact_email_address(company)
         normalized = recipient.lower()
         if not recipient or normalized in sent_company_emails:
             continue
         sent_company_emails.add(normalized)
         context = {
-            **_contact_context(
-                quotation,
-                previous_status=previous_status,
-                status_title=status_title,
-            ),
+            **status_context,
             **company_template_context(company),
         }
         _send_templated_email(
@@ -314,6 +369,18 @@ def schedule_new_quotation_email(
 
     transaction.on_commit(
         lambda: send_new_quotation_email(quotation_id, actor_id=actor_id),
+    )
+
+
+def schedule_updated_quotation_email(
+    quotation_id: int,
+    *,
+    actor_id: int | None = None,
+) -> None:
+    from django.db import transaction
+
+    transaction.on_commit(
+        lambda: send_updated_quotation_email(quotation_id, actor_id=actor_id),
     )
 
 
