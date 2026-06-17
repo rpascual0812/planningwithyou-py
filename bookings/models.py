@@ -446,6 +446,14 @@ class QuotationLine(models.Model):
         null=True,
         blank=True,
     )
+    supplier_type = models.ForeignKey(
+        'suppliers.SupplierType',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='supplier_type_id',
+        related_name='+',
+    )
     value = models.TextField(blank=True, default='')
     options = models.JSONField(default=list, blank=True)
     sort_order = models.PositiveIntegerField(default=0)

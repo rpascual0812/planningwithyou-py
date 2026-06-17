@@ -80,6 +80,7 @@ class QuotationLineSerializer(serializers.ModelSerializer):
             'company',
             'tier',
             'package_version',
+            'supplier_type',
             'field_type',
             'is_required',
             'price',
