@@ -23,6 +23,7 @@ TENANT_FEATURE_KEYS = (
     'roles_permissions',
     'calendar_settings',
     'change_company',
+    'ai_assistant',
 )
 
 # Cross-tenant staff tools (shown in role editor only to users with Admin read).

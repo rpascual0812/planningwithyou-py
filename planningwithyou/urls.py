@@ -48,6 +48,7 @@ urlpatterns = [
     path('', include('system_settings.urls')),
     path('', include('support.urls')),
     path('', include('template_studio.urls')),
+    path('', include('ai_assistant.urls')),
     # After REST ``admin/*`` API routes (kyb, payouts, notifications, legal).
     path('admin/', admin.site.urls),
 ]

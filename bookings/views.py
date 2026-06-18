@@ -45,6 +45,7 @@ from .board_list import (
     filter_booking_items_board_foreign_slot,
 )
 from .scope import assert_booking_editable, bookings_for_user
+from .duplicate import duplicate_quotation
 from .serializers import (
     QuotationBoardSerializer,
     QuotationSerializer,
@@ -354,6 +355,25 @@ class QuotationViewSet(HistoryListMixin, viewsets.ModelViewSet):
                 actor_id=request.user.pk,
             )
         return Response(self.get_serializer(item).data)
+
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        item = self.get_object()
+        assert_booking_editable(item, request.user)
+        title = request.data.get('title')
+        if title is not None and not isinstance(title, str):
+            return Response(
+                {'title': ['Expected a string.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        copy = duplicate_quotation(
+            item,
+            user=request.user,
+            title=title,
+            request=request,
+        )
+        serializer = self.get_serializer(copy)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['delete'], url_path=r'groups/(?P<group_id>[0-9]+)')
     def delete_group(self, request, pk=None, group_id=None):

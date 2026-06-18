@@ -32,6 +32,7 @@ FEATURE_LABELS = {
     'roles_permissions': 'Settings > Roles and Permissions',
     'calendar_settings': 'Settings > Calendar Settings',
     'change_company': 'Change Company',
+    'ai_assistant': 'AI Assistant',
     'platform_admin': 'Admin',
     'admin_accounts': 'Admin > Accounts',
     'admin_company_verification': 'Admin > Company Verification',

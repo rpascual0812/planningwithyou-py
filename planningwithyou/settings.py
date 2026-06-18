@@ -107,6 +107,7 @@ INSTALLED_APPS = [
     'system_settings',
     'support',
     'template_studio',
+    'ai_assistant.apps.AiAssistantConfig',
 ]
 
 MIDDLEWARE = [
@@ -357,3 +358,11 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'TOKEN_REFRESH_SERIALIZER': 'users.jwt.SessionTokenRefreshSerializer',
 }
+
+# AI assistant (OpenAI). Set OPENAI_API_KEY to enable.
+# AI_ASSISTANT_PLANS: subscription slugs allowed to use AI (default: AI Plus only).
+OPENAI_API_KEY = (os.environ.get('OPENAI_API_KEY') or '').strip()
+OPENAI_API_BASE = (os.environ.get('OPENAI_API_BASE') or '').strip()
+AI_ASSISTANT_MODEL = (os.environ.get('AI_ASSISTANT_MODEL') or 'gpt-4o-mini').strip()
+AI_ASSISTANT_PLANS = _csv_env('AI_ASSISTANT_PLANS', 'ai')
+AI_ASSISTANT_TIMEOUT = int(os.environ.get('AI_ASSISTANT_TIMEOUT', '60'))
