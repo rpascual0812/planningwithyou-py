@@ -18,6 +18,7 @@ class CompanyAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'is_main', 'kyb_verified', 'account')
     search_fields = (
         'name',
+        'business_legal_name',
         'website',
         'contact_person',
         'contact_email',

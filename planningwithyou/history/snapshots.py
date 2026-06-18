@@ -12,7 +12,7 @@ ACCOUNT_FIELDS = (
 )
 
 COMPANY_FIELDS = (
-    'name', 'supplier_type_id', 'timezone', 'contact_person', 'contact_email',
+    'name', 'business_legal_name', 'supplier_type_id', 'timezone', 'contact_person', 'contact_email',
     'phone_number',
     'mobile_number', 'address', 'website', 'is_active', 'is_main',
     'max_bookings_per_day', 'logo',

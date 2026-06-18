@@ -24,6 +24,7 @@ class Company(models.Model):
         related_name='companies',
     )
     name = models.CharField(max_length=255)
+    business_legal_name = models.CharField(max_length=255, blank=True, default='')
     supplier_type = models.ForeignKey(
         'suppliers.SupplierType',
         on_delete=models.PROTECT,

@@ -90,6 +90,7 @@ class CompanySerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
+            'business_legal_name',
             'supplier_type',
             'supplier_type_name',
             'supplier_tiers',
