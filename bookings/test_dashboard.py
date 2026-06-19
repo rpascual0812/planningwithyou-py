@@ -93,9 +93,54 @@ class DashboardSummaryTests(TestCase):
         )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['tag_id'], done_tag.pk)
+        self.assertEqual(res.data['tag_ids'], [done_tag.pk])
         self.assertEqual(res.data['tag_name'], 'done')
         self.assertEqual(res.data['total_amount'], '10000.00')
         self.assertEqual(res.data['display_value'], '10.0K+')
+
+    def test_profit_progress_sums_multiple_status_tags(self):
+        done_tag = Tag.objects.create(
+            account=self.account,
+            company=self.main,
+            tag='done',
+        )
+        active_tag = Tag.objects.create(
+            account=self.account,
+            company=self.main,
+            tag='active',
+        )
+        other_status = QuotationStatus.objects.create(
+            account=self.account,
+            company=self.main,
+            title='In progress',
+            color='#336699',
+        )
+        other_status.tags.add(active_tag)
+        self.status.tags.add(done_tag)
+        Quotation.objects.create(
+            account=self.account,
+            company=self.main,
+            status=other_status,
+            unique_id='26-0201',
+            title='Birthday',
+            total_amount=Decimal('5000.00'),
+            required_downpayment_amount=Decimal('1000.00'),
+            date_of_event=timezone.now() + timedelta(days=5),
+        )
+        Config.objects.create(
+            account=self.account,
+            company=self.main,
+            scope='profit_progress',
+            name='tag',
+            value=f'{done_tag.pk},{active_tag.pk}',
+        )
+        res = self.client.get(
+            f'/dashboard/profit-progress/?company_id={self.main.pk}',
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['tag_ids'], [done_tag.pk, active_tag.pk])
+        self.assertEqual(res.data['tag_name'], 'done, active')
+        self.assertEqual(res.data['total_amount'], '15000.00')
 
     def test_active_projects_counts_bookings_by_status_tag(self):
         done_tag = Tag.objects.create(

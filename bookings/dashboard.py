@@ -187,6 +187,19 @@ def _calendar_summary(company_id: int, account_id: int, *, now, week_end) -> dic
     }
 
 
+def parse_configured_tag_ids(configured_value: str) -> list[int]:
+    ids: list[int] = []
+    for part in configured_value.split(','):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.append(int(part))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
 def _resolve_dashboard_tag_id(
     account_id: int,
     company_id: int,
@@ -216,18 +229,52 @@ def _resolve_dashboard_tag_id(
     )
 
 
-def profit_progress_total_for_tag(
+def resolve_dashboard_tag_ids(
     account_id: int,
     company_id: int,
-    tag_id: int | None,
+    configured_value: str,
+    *,
+    has_saved_config: bool,
+) -> list[int]:
+    tags_qs = Tag.objects.filter(account_id=account_id, company_id=company_id)
+    if has_saved_config:
+        parsed = parse_configured_tag_ids(configured_value)
+        valid_ids = set(tags_qs.filter(pk__in=parsed).values_list('pk', flat=True))
+        return [tag_id for tag_id in parsed if tag_id in valid_ids]
+    tag_id = _resolve_dashboard_tag_id(account_id, company_id, configured_value)
+    return [tag_id] if tag_id is not None else []
+
+
+def _tag_names_for_ids(
+    account_id: int,
+    company_id: int,
+    tag_ids: list[int],
+) -> list[str]:
+    if not tag_ids:
+        return []
+    by_id = {
+        row['pk']: row['tag']
+        for row in Tag.objects.filter(
+            pk__in=tag_ids,
+            account_id=account_id,
+            company_id=company_id,
+        ).values('pk', 'tag')
+    }
+    return [by_id[tag_id] for tag_id in tag_ids if tag_id in by_id]
+
+
+def profit_progress_total_for_tags(
+    account_id: int,
+    company_id: int,
+    tag_ids: list[int],
 ) -> Decimal:
-    if tag_id is None:
+    if not tag_ids:
         return Decimal('0')
     status_ids = QuotationStatus.objects.filter(
         account_id=account_id,
         company_id=company_id,
-        tags__id=tag_id,
-    ).values_list('pk', flat=True)
+        tags__id__in=tag_ids,
+    ).distinct().values_list('pk', flat=True)
     if not status_ids:
         return Decimal('0')
     total = Quotation.objects.filter(
@@ -236,6 +283,16 @@ def profit_progress_total_for_tag(
         status_id__in=status_ids,
     ).aggregate(sum_total=Sum('total_amount'))['sum_total']
     return total or Decimal('0')
+
+
+def profit_progress_total_for_tag(
+    account_id: int,
+    company_id: int,
+    tag_id: int | None,
+) -> Decimal:
+    if tag_id is None:
+        return Decimal('0')
+    return profit_progress_total_for_tags(account_id, company_id, [tag_id])
 
 
 def format_profit_progress_display(total: Decimal) -> str:
@@ -259,18 +316,18 @@ def _resolve_profit_progress_tag_id(
     return _resolve_dashboard_tag_id(account_id, company_id, configured_value)
 
 
-def active_projects_count_for_tag(
+def active_projects_count_for_tags(
     account_id: int,
     company_id: int,
-    tag_id: int | None,
+    tag_ids: list[int],
 ) -> int:
-    if tag_id is None:
+    if not tag_ids:
         return 0
     status_ids = QuotationStatus.objects.filter(
         account_id=account_id,
         company_id=company_id,
-        tags__id=tag_id,
-    ).values_list('pk', flat=True)
+        tags__id__in=tag_ids,
+    ).distinct().values_list('pk', flat=True)
     if not status_ids:
         return 0
     return Quotation.objects.filter(
@@ -278,6 +335,16 @@ def active_projects_count_for_tag(
         company_id=company_id,
         status_id__in=status_ids,
     ).count()
+
+
+def active_projects_count_for_tag(
+    account_id: int,
+    company_id: int,
+    tag_id: int | None,
+) -> int:
+    if tag_id is None:
+        return 0
+    return active_projects_count_for_tags(account_id, company_id, [tag_id])
 
 
 def format_active_projects_display(count: int) -> str:
@@ -290,29 +357,22 @@ def build_active_projects_for_company(
     account_id: int,
     company_id: int,
     configured_tag_value: str,
+    *,
+    has_saved_config: bool = False,
 ) -> dict:
-    tag_id = _resolve_dashboard_tag_id(
+    tag_ids = resolve_dashboard_tag_ids(
         account_id,
         company_id,
         configured_tag_value,
+        has_saved_config=has_saved_config,
     )
-    tag_name = ''
-    if tag_id is not None:
-        tag_name = (
-            Tag.objects.filter(
-                pk=tag_id,
-                account_id=account_id,
-                company_id=company_id,
-            )
-            .values_list('tag', flat=True)
-            .first()
-            or ''
-        )
-    count = active_projects_count_for_tag(account_id, company_id, tag_id)
+    tag_names = _tag_names_for_ids(account_id, company_id, tag_ids)
+    count = active_projects_count_for_tags(account_id, company_id, tag_ids)
     return {
         'company_id': company_id,
-        'tag_id': tag_id,
-        'tag_name': tag_name,
+        'tag_id': tag_ids[0] if tag_ids else None,
+        'tag_ids': tag_ids,
+        'tag_name': ', '.join(tag_names),
         'count': count,
         'display_value': format_active_projects_display(count),
     }
@@ -322,29 +382,22 @@ def build_profit_progress_for_company(
     account_id: int,
     company_id: int,
     configured_tag_value: str,
+    *,
+    has_saved_config: bool = False,
 ) -> dict:
-    tag_id = _resolve_dashboard_tag_id(
+    tag_ids = resolve_dashboard_tag_ids(
         account_id,
         company_id,
         configured_tag_value,
+        has_saved_config=has_saved_config,
     )
-    tag_name = ''
-    if tag_id is not None:
-        tag_name = (
-            Tag.objects.filter(
-                pk=tag_id,
-                account_id=account_id,
-                company_id=company_id,
-            )
-            .values_list('tag', flat=True)
-            .first()
-            or ''
-        )
-    total = profit_progress_total_for_tag(account_id, company_id, tag_id)
+    tag_names = _tag_names_for_ids(account_id, company_id, tag_ids)
+    total = profit_progress_total_for_tags(account_id, company_id, tag_ids)
     return {
         'company_id': company_id,
-        'tag_id': tag_id,
-        'tag_name': tag_name,
+        'tag_id': tag_ids[0] if tag_ids else None,
+        'tag_ids': tag_ids,
+        'tag_name': ', '.join(tag_names),
         'total_amount': _decimal_str(total),
         'display_value': format_profit_progress_display(total),
     }

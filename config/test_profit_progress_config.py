@@ -76,6 +76,29 @@ class ProfitProgressTagConfigTests(TestCase):
         self.assertEqual(get_res.status_code, 200)
         self.assertEqual(get_res.data['value'], str(self.tag.pk))
 
+    def test_put_and_get_multiple_profit_progress_tags(self):
+        other_tag = Tag.objects.create(
+            account=self.account,
+            company=self.company,
+            tag='active',
+        )
+        put_res = self.client.put(
+            '/config/profit-progress-tag/',
+            {
+                'company_id': self.company.pk,
+                'value': f'{self.tag.pk},{other_tag.pk}',
+            },
+            format='json',
+        )
+        self.assertEqual(put_res.status_code, 200)
+        self.assertEqual(put_res.data['value'], f'{self.tag.pk},{other_tag.pk}')
+
+        get_res = self.client.get(
+            f'/config/profit-progress-tag/?company_id={self.company.pk}',
+        )
+        self.assertEqual(get_res.status_code, 200)
+        self.assertEqual(get_res.data['value'], f'{self.tag.pk},{other_tag.pk}')
+
     def test_put_and_get_active_projects_tag_config(self):
         put_res = self.client.put(
             '/config/active-projects-tag/',

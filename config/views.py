@@ -161,17 +161,26 @@ class _DashboardTagConfigView(APIView):
         raw = request.data.get('value')
         value = '' if raw is None else str(raw).strip()
         if value:
+            from bookings.dashboard import parse_configured_tag_ids
             from bookings.models import Tag
 
-            if not Tag.objects.filter(
-                pk=value,
-                account_id=request.user.account_id,
-                company_id=company_id,
-            ).exists():
+            tag_ids = parse_configured_tag_ids(value)
+            if not tag_ids:
                 return Response(
                     {'detail': 'Invalid tag.'},
                     status=400,
                 )
+            for tag_id in tag_ids:
+                if not Tag.objects.filter(
+                    pk=tag_id,
+                    account_id=request.user.account_id,
+                    company_id=company_id,
+                ).exists():
+                    return Response(
+                        {'detail': 'Invalid tag.'},
+                        status=400,
+                    )
+            value = ','.join(str(tag_id) for tag_id in tag_ids)
         Config.objects.update_or_create(
             account_id=request.user.account_id,
             company_id=company_id,

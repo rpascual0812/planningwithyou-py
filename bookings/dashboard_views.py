@@ -59,14 +59,14 @@ def _company_id_from_dashboard_request(request):
     return company_id, None
 
 
-def _configured_tag_for_scope(request, company_id: int, scope: str) -> str:
+def _configured_tag_for_scope(request, company_id: int, scope: str) -> tuple[str, bool]:
     row = Config.objects.filter(
         account_id=request.user.account_id,
         company_id=company_id,
         scope=scope,
         name=DASHBOARD_TAG_CONFIG_NAME,
     ).first()
-    return row.value if row else ''
+    return (row.value if row else '', row is not None)
 
 
 class DashboardProfitProgressView(APIView):
@@ -79,7 +79,7 @@ class DashboardProfitProgressView(APIView):
         company_id, error = _company_id_from_dashboard_request(request)
         if error is not None:
             return error
-        configured = _configured_tag_for_scope(
+        configured, has_saved_config = _configured_tag_for_scope(
             request,
             company_id,
             PROFIT_PROGRESS_SCOPE,
@@ -89,6 +89,7 @@ class DashboardProfitProgressView(APIView):
                 request.user.account_id,
                 company_id,
                 configured,
+                has_saved_config=has_saved_config,
             ),
         )
 
@@ -103,7 +104,7 @@ class DashboardActiveProjectsView(APIView):
         company_id, error = _company_id_from_dashboard_request(request)
         if error is not None:
             return error
-        configured = _configured_tag_for_scope(
+        configured, has_saved_config = _configured_tag_for_scope(
             request,
             company_id,
             ACTIVE_PROJECTS_SCOPE,
@@ -113,5 +114,6 @@ class DashboardActiveProjectsView(APIView):
                 request.user.account_id,
                 company_id,
                 configured,
+                has_saved_config=has_saved_config,
             ),
         )
