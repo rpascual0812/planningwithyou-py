@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import Document, DocumentFolder
-from .scope import document_folders_for_user, documents_for_user
+from .scope import document_folders_for_user, file_manager_documents_for_user
 from .serializers import DocumentFolderSerializer, DocumentSerializer
 
 
@@ -69,7 +69,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_queryset(self):
-        qs = documents_for_user(self.request.user).select_related('folder')
+        qs = file_manager_documents_for_user(self.request.user).select_related('folder')
         deleted = self.request.query_params.get('deleted', '').lower()
         if deleted == 'true':
             qs = qs.filter(is_deleted=True)
@@ -116,6 +116,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             uploaded_by=request.user,
             account_id=request.user.account_id,
             company_id=request.user.company_id,
+            quotation=None,
         )
         serializer = self.get_serializer(doc)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -127,7 +128,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
-        doc = documents_for_user(request.user).filter(
+        doc = file_manager_documents_for_user(request.user).filter(
             pk=pk,
             is_deleted=True,
         ).first()
@@ -143,7 +144,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='empty-trash')
     def empty_trash(self, request):
-        count, _ = documents_for_user(request.user).filter(is_deleted=True).delete()
+        count, _ = file_manager_documents_for_user(request.user).filter(is_deleted=True).delete()
         folder_count, _ = document_folders_for_user(request.user).filter(
             is_deleted=True,
         ).delete()

@@ -5,6 +5,11 @@ from .manual_payment_views import (
     QuotationManualPaymentCreateView,
     QuotationManualRefundCreateView,
 )
+from .quotation_document_views import (
+    QuotationDocumentAttachView,
+    QuotationDocumentDetailView,
+    QuotationDocumentListCreateView,
+)
 from .payment_link_views import (
     QuotationPaymentLinkDetailView,
     QuotationPaymentLinkListCreateView,
@@ -72,6 +77,21 @@ urlpatterns = [
         'quotation-items/<int:quotation_id>/payment-links/<int:link_id>/',
         QuotationPaymentLinkDetailView.as_view(),
         name='quotation-payment-link-detail',
+    ),
+    path(
+        'quotation-items/<int:quotation_id>/documents/',
+        QuotationDocumentListCreateView.as_view(),
+        name='quotation-documents',
+    ),
+    path(
+        'quotation-items/<int:quotation_id>/documents/attach/',
+        QuotationDocumentAttachView.as_view(),
+        name='quotation-document-attach',
+    ),
+    path(
+        'quotation-items/<int:quotation_id>/documents/<int:document_id>/',
+        QuotationDocumentDetailView.as_view(),
+        name='quotation-document-detail',
     ),
     path(
         'quotation-items/<int:quotation_id>/manual-payments/',

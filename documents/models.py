@@ -62,6 +62,15 @@ class Document(models.Model):
         null=True,
         blank=True,
     )
+    quotation = models.ForeignKey(
+        'bookings.Quotation',
+        on_delete=models.CASCADE,
+        related_name='documents',
+        null=True,
+        blank=True,
+        db_column='quotation_id',
+        help_text='When set, document is visible only on that quotation (not File Manager).',
+    )
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

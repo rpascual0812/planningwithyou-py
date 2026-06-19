@@ -17,6 +17,7 @@ class DocumentFolderSerializer(serializers.ModelSerializer):
     def get_document_count(self, obj):
         return obj.documents.filter(
             is_deleted=False,
+            quotation__isnull=True,
             account_id=obj.account_id,
             company_id=obj.company_id,
         ).count()

@@ -308,3 +308,67 @@ def record_quotation_field_updates(
         actor=actor,
         metadata=metadata,
     )
+
+
+def record_quotation_document_uploaded(
+    quotation: Quotation,
+    document,
+    *,
+    actor=None,
+    metadata: dict[str, Any] | None = None,
+) -> History:
+    return record_quotation_history(
+        quotation=quotation,
+        action=History.Action.CREATE,
+        entity_type='quotation_document',
+        entity_id=document.pk,
+        changes={
+            'name': document.original_name,
+            'source': 'upload',
+        },
+        actor=actor,
+        metadata=metadata,
+    )
+
+
+def record_quotation_document_attached(
+    quotation: Quotation,
+    document,
+    *,
+    source_document,
+    actor=None,
+    metadata: dict[str, Any] | None = None,
+) -> History:
+    return record_quotation_history(
+        quotation=quotation,
+        action=History.Action.CREATE,
+        entity_type='quotation_document',
+        entity_id=document.pk,
+        changes={
+            'name': document.original_name,
+            'source': 'file_manager',
+            'source_document_id': source_document.pk,
+            'source_document_name': source_document.original_name,
+        },
+        actor=actor,
+        metadata=metadata,
+    )
+
+
+def record_quotation_document_removed(
+    quotation: Quotation,
+    *,
+    document_id: int,
+    document_name: str,
+    actor=None,
+    metadata: dict[str, Any] | None = None,
+) -> History:
+    return record_quotation_history(
+        quotation=quotation,
+        action=History.Action.DELETE,
+        entity_type='quotation_document',
+        entity_id=document_id,
+        changes={'name': document_name},
+        actor=actor,
+        metadata=metadata,
+    )
