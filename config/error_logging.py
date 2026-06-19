@@ -66,14 +66,20 @@ def log_request_error(
     *,
     exception: BaseException | None = None,
     status_code: int | None = None,
+    account_id: int | None = None,
+    user_id: int | None = None,
 ) -> ErrorLog | None:
     """Write an error row. Never raises — logging must not break responses."""
     if request is None:
         return None
 
     user = getattr(request, 'user', None)
-    user_id = user.pk if getattr(user, 'is_authenticated', False) else None
-    account_id = getattr(user, 'account_id', None) if user_id else None
+    resolved_user_id = user_id
+    if resolved_user_id is None and getattr(user, 'is_authenticated', False):
+        resolved_user_id = user.pk
+    resolved_account_id = account_id
+    if resolved_account_id is None and resolved_user_id:
+        resolved_account_id = getattr(user, 'account_id', None)
 
     exc_type = type(exception).__name__ if exception else ''
     exc_message = str(exception) if exception else ''
@@ -88,8 +94,8 @@ def log_request_error(
             exception_message=exc_message,
             traceback=_format_traceback(exception),
             request_body=_safe_request_body(request),
-            user_id=user_id,
-            account_id=account_id,
+            user_id=resolved_user_id,
+            account_id=resolved_account_id,
             ip_address=_client_ip(request),
             user_agent=(request.META.get('HTTP_USER_AGENT') or '')[:1024],
         )

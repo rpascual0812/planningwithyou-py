@@ -25,6 +25,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / '.env')
 
+# Google OAuth token responses may include scopes beyond those requested (incremental auth).
+os.environ.setdefault('OAUTHLIB_RELAX_TOKEN_SCOPE', '1')
+
 
 def _require_env(name: str) -> str:
     value = os.environ.get(name)

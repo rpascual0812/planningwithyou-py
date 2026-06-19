@@ -51,6 +51,23 @@ class ErrorLoggingTests(TestCase):
         self.assertEqual(log.user_id, self.user.pk)
         self.assertEqual(log.account_id, self.account.pk)
 
+    def test_log_request_error_accepts_explicit_account_and_user(self):
+        request = self.factory.get('/email-integrations/gmail/oauth/callback/')
+        request.user = self.user
+
+        log_request_error(
+            request,
+            exception=RuntimeError('oauth failed'),
+            status_code=400,
+            account_id=self.account.pk,
+            user_id=self.user.pk,
+        )
+
+        log = ErrorLog.objects.get()
+        self.assertEqual(log.user_id, self.user.pk)
+        self.assertEqual(log.account_id, self.account.pk)
+        self.assertEqual(log.status_code, 400)
+
     def test_log_request_error_redacts_sensitive_paths(self):
         request = self.factory.post(
             '/users/login/',

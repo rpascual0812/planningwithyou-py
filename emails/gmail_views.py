@@ -1,10 +1,12 @@
-from django.http import HttpResponse
+import logging
+
 from django.shortcuts import redirect
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.error_logging import log_request_error
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .gmail_service import (
@@ -17,8 +19,41 @@ from .gmail_service import (
     get_integration_for_user,
     google_oauth_configured,
     integration_status_payload,
+    unsign_oauth_state,
 )
 
+logger = logging.getLogger(__name__)
+
+
+def _oauth_context_from_request(request) -> tuple[int | None, int | None]:
+    state = request.query_params.get('state') or ''
+    if not state:
+        return None, None
+    try:
+        payload = unsign_oauth_state(state)
+        return int(payload['account_id']), int(payload['user_id'])
+    except GmailOAuthError:
+        return None, None
+
+
+def _log_gmail_oauth_callback_error(
+    request,
+    *,
+    exception: BaseException | None = None,
+    message: str = '',
+    status_code: int = 400,
+) -> None:
+    account_id, user_id = _oauth_context_from_request(request)
+    exc = exception
+    if exc is None and message:
+        exc = GmailOAuthError(message)
+    log_request_error(
+        request,
+        exception=exc,
+        status_code=status_code,
+        account_id=account_id,
+        user_id=user_id,
+    )
 
 class GmailIntegrationView(APIView):
     """Connect and disconnect Gmail for sending email from the active company."""
@@ -79,17 +114,42 @@ class GmailOAuthCallbackView(APIView):
     def get(self, request):
         error = request.query_params.get('error')
         if error:
+            _log_gmail_oauth_callback_error(
+                request,
+                message=f'Google OAuth error: {error}',
+                status_code=400,
+            )
             return redirect(frontend_redirect_url(success=False, message=error))
         code = request.query_params.get('code')
         state = request.query_params.get('state')
         if not code or not state:
+            _log_gmail_oauth_callback_error(
+                request,
+                message='Gmail OAuth callback missing code or state.',
+                status_code=400,
+            )
             return redirect(
                 frontend_redirect_url(success=False, message='missing_code'),
             )
         try:
-            complete_oauth_callback(code=code, state=state)
+            complete_oauth_callback(
+                code=code,
+                state=state,
+            )
         except (GmailOAuthError, GmailConfigError) as exc:
+            _log_gmail_oauth_callback_error(
+                request,
+                exception=exc,
+                status_code=400,
+            )
             return redirect(frontend_redirect_url(success=False, message=str(exc)))
-        except Exception:
-            return redirect(frontend_redirect_url(success=False, message='oauth_failed'))
+        except Exception as exc:
+            logger.exception('Gmail OAuth callback failed')
+            _log_gmail_oauth_callback_error(
+                request,
+                exception=exc,
+                status_code=500,
+            )
+            message = str(exc).strip() or 'oauth_failed'
+            return redirect(frontend_redirect_url(success=False, message=message))
         return redirect(frontend_redirect_url(success=True))

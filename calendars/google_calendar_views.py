@@ -1,3 +1,5 @@
+import logging
+
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from rest_framework import status
@@ -5,6 +7,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.error_logging import log_request_error
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .google_calendar_service import (
@@ -20,9 +23,43 @@ from .google_calendar_service import (
     integration_status_payload,
     run_full_google_sync,
     schedule_inbound_sync,
+    unsign_oauth_state,
     update_sync_mode,
 )
 from .models import GoogleCalendarIntegration
+
+logger = logging.getLogger(__name__)
+
+
+def _oauth_context_from_request(request) -> tuple[int | None, int | None]:
+    state = request.query_params.get('state') or ''
+    if not state:
+        return None, None
+    try:
+        payload = unsign_oauth_state(state)
+        return int(payload['account_id']), int(payload['user_id'])
+    except GoogleCalendarOAuthError:
+        return None, None
+
+
+def _log_google_calendar_oauth_callback_error(
+    request,
+    *,
+    exception: BaseException | None = None,
+    message: str = '',
+    status_code: int = 400,
+) -> None:
+    account_id, user_id = _oauth_context_from_request(request)
+    exc = exception
+    if exc is None and message:
+        exc = GoogleCalendarOAuthError(message)
+    log_request_error(
+        request,
+        exception=exc,
+        status_code=status_code,
+        account_id=account_id,
+        user_id=user_id,
+    )
 
 
 class GoogleCalendarIntegrationView(APIView):
@@ -139,12 +176,22 @@ class GoogleCalendarOAuthCallbackView(APIView):
     def get(self, request):
         error = request.query_params.get('error')
         if error:
+            _log_google_calendar_oauth_callback_error(
+                request,
+                message=f'Google OAuth error: {error}',
+                status_code=400,
+            )
             return redirect(
                 frontend_redirect_url(success=False, message=error),
             )
         code = request.query_params.get('code')
         state = request.query_params.get('state')
         if not code or not state:
+            _log_google_calendar_oauth_callback_error(
+                request,
+                message='Google Calendar OAuth callback missing code or state.',
+                status_code=400,
+            )
             return redirect(
                 frontend_redirect_url(
                     success=False,
@@ -154,10 +201,22 @@ class GoogleCalendarOAuthCallbackView(APIView):
         try:
             complete_oauth_callback(code=code, state=state)
         except (GoogleCalendarOAuthError, GoogleCalendarConfigError) as exc:
+            _log_google_calendar_oauth_callback_error(
+                request,
+                exception=exc,
+                status_code=400,
+            )
             return redirect(frontend_redirect_url(success=False, message=str(exc)))
-        except Exception:
+        except Exception as exc:
+            logger.exception('Google Calendar OAuth callback failed')
+            _log_google_calendar_oauth_callback_error(
+                request,
+                exception=exc,
+                status_code=500,
+            )
+            message = str(exc).strip() or 'oauth_failed'
             return redirect(
-                frontend_redirect_url(success=False, message='oauth_failed'),
+                frontend_redirect_url(success=False, message=message),
             )
         return redirect(frontend_redirect_url(success=True))
 

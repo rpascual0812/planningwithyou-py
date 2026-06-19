@@ -79,7 +79,7 @@ def _require_config() -> None:
         )
 
 
-def _oauth_flow() -> Flow:
+def _oauth_flow(*, scopes: list[str] | None = SCOPES) -> Flow:
     _require_config()
     client_config = {
         'web': {
@@ -92,7 +92,7 @@ def _oauth_flow() -> Flow:
     }
     return Flow.from_client_config(
         client_config,
-        scopes=SCOPES,
+        scopes=scopes,
         redirect_uri=oauth_redirect_uri(),
     )
 
@@ -215,6 +215,8 @@ def _store_credentials_on_integration(
     integration.token_expiry = _expiry_for_db(credentials.expiry)
     if google_email:
         integration.google_email = google_email
+    if integration.created_at is None:
+        integration.created_at = timezone.now()
     integration.save()
     return integration
 
@@ -265,11 +267,59 @@ def _fetch_google_email(credentials: Credentials) -> str:
     return ''
 
 
+def _credentials_from_oauth_flow(flow: Flow) -> Credentials:
+    credentials = flow.credentials
+    if credentials is not None and credentials.token:
+        return credentials
+
+    token = flow.oauth2session.token or {}
+    access_token = token.get('access_token') if isinstance(token, dict) else None
+    if not access_token:
+        raise GoogleCalendarOAuthError('Google did not return OAuth credentials.')
+
+    scope_value = token.get('scope') if isinstance(token, dict) else None
+    scopes = scope_value.split() if isinstance(scope_value, str) and scope_value else None
+    return Credentials(
+        token=access_token,
+        refresh_token=token.get('refresh_token') if isinstance(token, dict) else None,
+        token_uri='https://oauth2.googleapis.com/token',
+        client_id=settings.GOOGLE_CALENDAR_OAUTH_CLIENT_ID,
+        client_secret=settings.GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET,
+        scopes=scopes,
+    )
+
+
+def _exchange_oauth_code(*, code: str) -> Credentials:
+    flow = _oauth_flow(scopes=None)
+    try:
+        flow.fetch_token(code=code)
+    except Warning as exc:
+        token = getattr(exc, 'token', None)
+        if token:
+            flow.oauth2session.token = token
+        else:
+            raise GoogleCalendarOAuthError(
+                'Google returned unexpected OAuth scopes. Please try again.',
+            ) from exc
+    except Exception as exc:
+        if isinstance(exc, GoogleCalendarOAuthError):
+            raise
+        logger.exception('Google Calendar OAuth token exchange failed')
+        message = str(exc).strip() or exc.__class__.__name__
+        if 'invalid_grant' in message.lower():
+            message = (
+                'Google rejected the authorization code. '
+                'Confirm API_PUBLIC_BASE_URL matches the Google Calendar redirect URI, '
+                'then try connecting again.'
+            )
+        raise GoogleCalendarOAuthError(message) from exc
+
+    return _credentials_from_oauth_flow(flow)
+
+
 def complete_oauth_callback(*, code: str, state: str) -> GoogleCalendarIntegration:
     payload = unsign_oauth_state(state)
-    flow = _oauth_flow()
-    flow.fetch_token(code=code)
-    credentials = flow.credentials
+    credentials = _exchange_oauth_code(code=code)
     google_email = _fetch_google_email(credentials)
     account_id = int(payload['account_id'])
     company_id = int(payload['company_id'])
@@ -288,6 +338,12 @@ def complete_oauth_callback(*, code: str, state: str) -> GoogleCalendarIntegrati
             'created_by_id': user_id,
         },
     )
+    if not credentials.refresh_token and not (
+        integration.refresh_token_encrypted or ''
+    ).strip():
+        raise GoogleCalendarOAuthError(
+            'Google did not return a refresh token. Please try connecting again.',
+        )
     _store_credentials_on_integration(
         integration,
         credentials,
