@@ -317,6 +317,7 @@ def _queue_payment_received_email(
         account=payment.quotation.account,
         company=payment.company,
         created_by=payment.quotation.created_by,
+        quotation=payment.quotation,
     )
     send_email_task.delay(log.pk)
     receipt.emailed_at = timezone.now()

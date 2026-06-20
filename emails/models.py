@@ -17,6 +17,14 @@ class EmailLog(models.Model):
         related_name='email_logs',
         db_column='company_id',
     )
+    quotation = models.ForeignKey(
+        'bookings.Quotation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='email_logs',
+        db_column='quotation_id',
+    )
     class Status(models.TextChoices):
         QUEUED = 'queued', 'Queued'
         SENT = 'sent', 'Sent'

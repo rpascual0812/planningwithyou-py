@@ -79,6 +79,51 @@ class AccountSubscriptionSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class SubscriptionPaymentReceiptSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import SubscriptionReceipt
+
+        model = SubscriptionReceipt
+        fields = ['id', 'receipt_number', 'receipt_url']
+        read_only_fields = fields
+
+
+class SubscriptionPaymentSerializer(serializers.ModelSerializer):
+    plan_name = serializers.CharField(
+        source='account_subscription.subscription.name',
+        read_only=True,
+        default='',
+    )
+    receipt = serializers.SerializerMethodField()
+
+    class Meta:
+        from .models import SubscriptionPayment
+
+        model = SubscriptionPayment
+        fields = [
+            'id',
+            'amount',
+            'currency',
+            'paid_at',
+            'period_start',
+            'period_end',
+            'description',
+            'plan_name',
+            'receipt',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_receipt(self, obj):
+        from .models import SubscriptionReceipt
+
+        try:
+            receipt = obj.receipt
+        except SubscriptionReceipt.DoesNotExist:
+            return None
+        return SubscriptionPaymentReceiptSummarySerializer(receipt).data
+
+
 class SubscriptionReceiptSerializer(serializers.ModelSerializer):
     plan_name = serializers.CharField(
         source='payment.account_subscription.subscription.name',

@@ -10,6 +10,7 @@ from .quotation_document_views import (
     QuotationDocumentDetailView,
     QuotationDocumentListCreateView,
 )
+from .quotation_email_views import QuotationEmailLogListView
 from .payment_link_views import (
     QuotationPaymentLinkDetailView,
     QuotationPaymentLinkListCreateView,
@@ -92,6 +93,11 @@ urlpatterns = [
         'quotation-items/<int:quotation_id>/documents/<int:document_id>/',
         QuotationDocumentDetailView.as_view(),
         name='quotation-document-detail',
+    ),
+    path(
+        'quotation-items/<int:quotation_id>/emails/',
+        QuotationEmailLogListView.as_view(),
+        name='quotation-email-logs',
     ),
     path(
         'quotation-items/<int:quotation_id>/manual-payments/',

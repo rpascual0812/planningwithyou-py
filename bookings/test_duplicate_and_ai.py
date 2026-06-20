@@ -238,4 +238,5 @@ class QuotationDuplicateAndAiTests(TestCase):
         res = self.client.get('/ai/assistant/status/')
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.json()['configured'])
+        self.assertTrue(res.json()['plan_eligible'])
         self.assertTrue(res.json()['available'])

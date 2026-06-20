@@ -60,14 +60,12 @@ class AiAssistantStatusView(APIView):
 
         configured = ai_assistant_configured()
         has_permission = has_feature_write(request.user, 'ai_assistant')
-        available = (
-            configured
-            and has_permission
-            and ai_assistant_available_for_user(request.user)
-        )
+        plan_eligible = ai_assistant_available_for_user(request.user)
+        available = configured and plan_eligible and has_permission
         return Response(
             {
                 'configured': configured,
+                'plan_eligible': plan_eligible,
                 'available': available,
                 'plans': sorted(ai_assistant_plans()),
             },

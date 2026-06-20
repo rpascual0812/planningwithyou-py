@@ -196,6 +196,7 @@ def create_and_queue_email(
     account=None,
     created_by=None,
     company=None,
+    quotation=None,
 ) -> EmailLog:
     """Create an EmailLog record and return it (caller dispatches the task)."""
     from .gmail_service import resolve_sender_email
@@ -238,5 +239,7 @@ def create_and_queue_email(
             kwargs['company_id'] = created_by.company_id
     if company is not None:
         kwargs['company'] = company
+    if quotation is not None:
+        kwargs['quotation'] = quotation
     kwargs['created_at'] = now_in_company_timezone(company_id)
     return EmailLog.objects.create(**kwargs)

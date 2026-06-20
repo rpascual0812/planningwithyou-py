@@ -13,14 +13,31 @@ from .account_plan import current_account_subscription
 from .checkout import preview_subscription_checkout, start_subscription_checkout
 from .errors import SubscriptionCheckoutError
 from .free_plan import subscribe_account_to_free_plan
-from .models import AccountSubscription, Subscription, SubscriptionReceipt
+from .models import AccountSubscription, Subscription, SubscriptionPayment, SubscriptionReceipt
 from .serializers import (
     AccountSubscriptionSerializer,
     SubscribeFreePlanSerializer,
     SubscriptionCheckoutSerializer,
+    SubscriptionPaymentSerializer,
     SubscriptionReceiptSerializer,
     SubscriptionSerializer,
 )
+from .subscription_billing_notifications import issue_subscription_payment_receipt
+
+
+def _receipt_download_response(receipt: SubscriptionReceipt):
+    key = (receipt.storage_key or '').strip()
+    if key and default_storage.exists(key):
+        handle = default_storage.open(key, 'rb')
+        return FileResponse(
+            handle,
+            content_type='application/pdf',
+            as_attachment=True,
+            filename=f'{receipt.receipt_number}.pdf',
+        )
+    if receipt.receipt_url:
+        return Response({'receipt_url': receipt.receipt_url})
+    raise Http404
 
 
 class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -180,6 +197,50 @@ class SubscribeFreePlanView(APIView):
         )
 
 
+class SubscriptionPaymentListView(APIView):
+    """List subscription payments for Account Settings → Receipts."""
+
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'account_settings'
+
+    def get(self, request):
+        payments = (
+            SubscriptionPayment.objects.filter(account_id=request.user.account_id)
+            .select_related(
+                'receipt',
+                'account_subscription',
+                'account_subscription__subscription',
+            )
+            .order_by('-paid_at', '-id')
+        )
+        return Response(SubscriptionPaymentSerializer(payments, many=True).data)
+
+
+class SubscriptionPaymentReceiptDownloadView(APIView):
+    """Ensure and download the PDF receipt for a subscription payment."""
+
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'account_settings'
+
+    def get(self, request, payment_id: int):
+        payment = (
+            SubscriptionPayment.objects.filter(
+                pk=payment_id,
+                account_id=request.user.account_id,
+            )
+            .first()
+        )
+        if payment is None:
+            raise Http404
+        receipt = issue_subscription_payment_receipt(payment.pk)
+        if receipt is None:
+            return Response(
+                {'detail': 'Receipt is not available for this payment.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return _receipt_download_response(receipt)
+
+
 class SubscriptionReceiptListView(APIView):
     """List subscription payment receipts for Account Settings → Receipts."""
 
@@ -215,16 +276,4 @@ class SubscriptionReceiptDownloadView(APIView):
         )
         if receipt is None:
             raise Http404
-        key = (receipt.storage_key or '').strip()
-        if key and default_storage.exists(key):
-            handle = default_storage.open(key, 'rb')
-            response = FileResponse(
-                handle,
-                content_type='application/pdf',
-                as_attachment=True,
-                filename=f'{receipt.receipt_number}.pdf',
-            )
-            return response
-        if receipt.receipt_url:
-            return Response({'receipt_url': receipt.receipt_url})
-        raise Http404
+        return _receipt_download_response(receipt)

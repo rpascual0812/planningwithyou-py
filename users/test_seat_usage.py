@@ -134,3 +134,67 @@ class UserSeatUsageTests(TestCase):
         self.assertEqual(res.status_code, 403)
         inactive.refresh_from_db()
         self.assertFalse(inactive.is_active)
+
+
+class AccountRestrictedUserTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.country = Country.objects.create(
+            name='Philippines',
+            iso_code='PHL',
+            iso2_code='PH',
+            currency='Peso',
+            currency_symbol='₱',
+            currency_code='PHP',
+        )
+        cls.supplier_type = SupplierType.objects.create(name='Planner')
+
+    def setUp(self):
+        self.client = APIClient()
+        self.account = Account.objects.create(
+            name='Tenant',
+            country=self.country,
+            is_active=True,
+        )
+        self.company = Company.objects.create(
+            account=self.account,
+            name='Main Co',
+            supplier_type=self.supplier_type,
+            is_main=True,
+            is_active=True,
+        )
+        self.admin = User.objects.create_user(
+            username='admin@test.example',
+            email='admin@test.example',
+            password='secret12',
+            account=self.account,
+            company=self.company,
+            is_verified=True,
+        )
+        assign_owner_role(self.admin)
+        self.restricted = User.objects.create_user(
+            username='restricted@test.example',
+            email='restricted@test.example',
+            password='secret12',
+            account=self.account,
+            company=self.company,
+            is_verified=True,
+            account_restricted=True,
+        )
+        self.client.force_authenticate(user=self.admin)
+
+    def test_update_blocked_for_account_restricted_user(self):
+        res = self.client.patch(
+            f'/users/{self.restricted.id}/',
+            {'first_name': 'Blocked'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 403)
+        self.restricted.refresh_from_db()
+        self.assertNotEqual(self.restricted.first_name, 'Blocked')
+
+    def test_delete_blocked_for_account_restricted_user(self):
+        res = self.client.delete(f'/users/{self.restricted.id}/')
+        self.assertEqual(res.status_code, 403)
+        self.restricted.refresh_from_db()
+        self.assertIsNone(self.restricted.deleted_at)

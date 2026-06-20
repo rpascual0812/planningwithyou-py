@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from subscriptions.account_plan import current_account_subscription
+from subscriptions.account_plan import active_account_subscription
 
 from .models import User
 
@@ -27,7 +27,7 @@ def active_user_count_for_account(account_id: int) -> int:
 
 
 def team_seats_for_account(account_id: int) -> int:
-    row = current_account_subscription(account_id)
+    row = active_account_subscription(account_id)
     if row is None:
         return DEFAULT_TEAM_SEATS
     return row.team_seats

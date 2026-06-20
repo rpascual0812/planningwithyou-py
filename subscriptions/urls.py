@@ -6,6 +6,8 @@ from .views import (
     SubscribeFreePlanView,
     SubscriptionCheckoutPreviewView,
     SubscriptionCheckoutView,
+    SubscriptionPaymentListView,
+    SubscriptionPaymentReceiptDownloadView,
     SubscriptionReceiptDownloadView,
     SubscriptionReceiptListView,
     SubscriptionViewSet,
@@ -34,6 +36,16 @@ urlpatterns = [
         'subscriptions/subscribe-free/',
         SubscribeFreePlanView.as_view(),
         name='subscription-subscribe-free',
+    ),
+    path(
+        'subscriptions/payments/',
+        SubscriptionPaymentListView.as_view(),
+        name='subscription-payment-list',
+    ),
+    path(
+        'subscriptions/payments/<int:payment_id>/receipt/download/',
+        SubscriptionPaymentReceiptDownloadView.as_view(),
+        name='subscription-payment-receipt-download',
     ),
     path(
         'subscriptions/receipts/',

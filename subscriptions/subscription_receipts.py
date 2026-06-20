@@ -183,7 +183,11 @@ def _subscription_receipt_email_content(
     return subject, body
 
 
-def ensure_subscription_payment_receipt(payment_id: int) -> SubscriptionReceipt | None:
+def ensure_subscription_payment_receipt(
+    payment_id: int,
+    *,
+    send_email: bool = True,
+) -> SubscriptionReceipt | None:
     """
     Build the PDF receipt and email ``account.contact_email`` for a successful
     ``SubscriptionPayment`` row. Does nothing if the payment is missing.
@@ -218,7 +222,7 @@ def ensure_subscription_payment_receipt(payment_id: int) -> SubscriptionReceipt 
         receipt.save(update_fields=['storage_key', 'receipt_url', 'receipt_number'])
 
     recipient = (payment.account.contact_email or '').strip()
-    if recipient and receipt.emailed_at is None:
+    if send_email and recipient and receipt.emailed_at is None:
         subject, body = _subscription_receipt_email_content(payment)
         log = create_and_queue_email(
             to=[recipient],

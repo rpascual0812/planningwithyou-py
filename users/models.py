@@ -121,6 +121,10 @@ class User(AbstractBaseUser):
         blank=True,
         help_text='When the user finished or skipped the in-app product tour.',
     )
+    account_restricted = models.BooleanField(
+        default=False,
+        help_text='When true, the user is read-only in the Users list (no edit/delete).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)

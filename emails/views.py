@@ -133,10 +133,27 @@ class EmailLogViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         company_id = self._effective_company_id()
+        quotation = None
+        raw_quotation_id = self.request.data.get('quotation_id')
+        if raw_quotation_id not in (None, ''):
+            from bookings.scope import bookings_for_user
+
+            try:
+                quotation_id = int(raw_quotation_id)
+            except (TypeError, ValueError):
+                from rest_framework.exceptions import ValidationError
+
+                raise ValidationError({'quotation_id': ['Invalid quotation id.']})
+            quotation = bookings_for_user(self.request.user).filter(pk=quotation_id).first()
+            if quotation is None:
+                from rest_framework.exceptions import ValidationError
+
+                raise ValidationError({'quotation_id': ['Quotation not found.']})
         log = serializer.save(
             status=EmailLog.Status.QUEUED,
             account_id=self.request.user.account_id,
             company_id=company_id,
+            quotation=quotation,
             created_by=self.request.user,
             created_at=now_in_company_timezone(company_id),
             email_from=resolve_sender_email(

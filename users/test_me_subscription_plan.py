@@ -77,3 +77,32 @@ class MeSubscriptionPlanTests(TestCase):
         res = self.client.get('/users/me/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['subscription_plan'], 'starter')
+
+    def test_me_returns_subscriptions_plan_when_subscription_pending(self):
+        AccountSubscription.objects.create(
+            account=self.account,
+            subscription=self.starter,
+            status=AccountSubscription.Status.PENDING,
+            team_seats=1,
+            start_date=date.today(),
+            base_price=100,
+            total_price=100,
+        )
+        res = self.client.get('/users/me/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['subscription_plan'], 'starter')
+
+    def test_me_returns_free_when_active_subscription_expired(self):
+        AccountSubscription.objects.create(
+            account=self.account,
+            subscription=self.starter,
+            status=AccountSubscription.Status.ACTIVE,
+            team_seats=1,
+            start_date=date(2020, 1, 1),
+            end_date=date(2020, 2, 1),
+            base_price=100,
+            total_price=100,
+        )
+        res = self.client.get('/users/me/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['subscription_plan'], 'free')

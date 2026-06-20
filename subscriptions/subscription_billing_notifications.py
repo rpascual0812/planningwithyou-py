@@ -50,14 +50,18 @@ def invoice_indicates_failed_payment(event_type: str) -> bool:
     return event_type == 'subscription.invoice.payment_failed'
 
 
-def issue_subscription_payment_receipt(payment_id: int) -> SubscriptionReceipt | None:
+def issue_subscription_payment_receipt(
+    payment_id: int,
+    *,
+    send_email: bool = True,
+) -> SubscriptionReceipt | None:
     """
     Generate a PDF receipt and email ``account.contact_email`` after a successful
     subscription payment. No-op if the payment row does not exist.
     """
     from .subscription_receipts import ensure_subscription_payment_receipt
 
-    return ensure_subscription_payment_receipt(payment_id)
+    return ensure_subscription_payment_receipt(payment_id, send_email=send_email)
 
 
 def notify_subscription_payment_failed(

@@ -93,11 +93,12 @@ class EmailLogSerializer(serializers.ModelSerializer):
         model = EmailLog
         fields = [
             'id', 'to', 'cc', 'bcc', 'email_from', 'reply_to', 'subject',
-            'body', 'attachments', 'created_by', 'company_id', 'company_timezone',
+            'body', 'attachments', 'created_by', 'company_id', 'quotation_id',
+            'company_timezone',
             'status', 'error', 'attempts', 'created_at', 'sent_at',
         ]
         read_only_fields = [
-            'id', 'email_from', 'created_by', 'company_id',
+            'id', 'email_from', 'created_by', 'company_id', 'quotation_id',
             'status', 'error', 'attempts', 'created_at', 'sent_at',
         ]
 

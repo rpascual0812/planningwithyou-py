@@ -56,6 +56,8 @@ from .seat_usage import (
     team_seats_for_account,
 )
 
+ACCOUNT_RESTRICTED_USER_MESSAGE = 'This user is restricted and cannot be modified.'
+
 from emails.mail import create_and_queue_email
 from emails.models import EmailTemplate
 from emails.tasks import send_email_task
@@ -349,7 +351,12 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
         )
         _send_reset_email(user)
 
+    def _assert_user_not_account_restricted(self, user) -> None:
+        if user.account_restricted:
+            raise PermissionDenied(ACCOUNT_RESTRICTED_USER_MESSAGE)
+
     def perform_destroy(self, instance):
+        self._assert_user_not_account_restricted(instance)
         record_resource_delete(
             account_id=instance.account_id,
             resource_type='user',
@@ -366,6 +373,7 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         instance = serializer.instance
+        self._assert_user_not_account_restricted(instance)
         new_is_active = serializer.validated_data.get('is_active', instance.is_active)
         if not instance.is_active and new_is_active:
             if account_at_user_seat_limit(self.request.user.account_id):

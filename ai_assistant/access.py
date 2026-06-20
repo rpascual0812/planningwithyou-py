@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from django.conf import settings
 
-from subscriptions.account_plan import (
-    active_subscription_plan_for_account,
-    current_subscription_plan_for_account,
-)
+from subscriptions.account_plan import active_subscription_plan_for_account
 
 
 def ai_assistant_configured() -> bool:
@@ -22,21 +19,11 @@ def ai_assistant_plans() -> frozenset[str]:
     return frozenset(str(item).strip() for item in raw if str(item).strip())
 
 
-def _account_plan_slugs(account_id: int) -> frozenset[str]:
-    """Match UI subscription slug and active billing row when they differ."""
-    return frozenset(
-        {
-            current_subscription_plan_for_account(account_id),
-            active_subscription_plan_for_account(account_id),
-        },
-    )
-
-
 def account_has_ai_assistant_plan(account_id: int | None) -> bool:
     if not account_id:
         return False
-    allowed = ai_assistant_plans()
-    return bool(_account_plan_slugs(account_id) & allowed)
+    plan = active_subscription_plan_for_account(account_id)
+    return plan in ai_assistant_plans()
 
 
 def ai_assistant_available_for_user(user) -> bool:

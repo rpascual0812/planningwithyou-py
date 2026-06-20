@@ -117,6 +117,7 @@ def _send_templated_email(
     fallback_subject: str,
     fallback_body: str,
     attachments: list[str] | None = None,
+    quotation: Quotation | None = None,
 ) -> None:
     template = _template_for_company(
         account_id=account.pk,
@@ -140,6 +141,7 @@ def _send_templated_email(
         account=account,
         company=company,
         created_by=actor,
+        quotation=quotation,
     )
     send_email_task.delay(log.pk)
 
@@ -211,6 +213,7 @@ def send_quotation_quote_emails(
             fallback_subject=fallback_subject,
             fallback_body=fallback_body,
             attachments=attachments,
+            quotation=quotation,
         )
 
     sent_company_emails: set[str] = set()
@@ -233,6 +236,7 @@ def send_quotation_quote_emails(
             fallback_subject=fallback_subject,
             fallback_body=fallback_body,
             attachments=attachments,
+            quotation=quotation,
         )
 
 
@@ -295,6 +299,7 @@ def send_quotation_status_emails(
             fallback_subject=DEFAULT_QUOTATION_STATUS_CONTACT_SUBJECT,
             fallback_body=DEFAULT_QUOTATION_STATUS_CONTACT_BODY_HTML,
             attachments=_quotation_pdf_attachments(quotation),
+            quotation=quotation,
         )
 
     sent_company_emails: set[str] = set()
@@ -317,6 +322,7 @@ def send_quotation_status_emails(
             actor=actor,
             fallback_subject=COMPANY_FALLBACK_SUBJECT,
             fallback_body=COMPANY_FALLBACK_BODY,
+            quotation=quotation,
         )
 
 
@@ -357,6 +363,7 @@ def send_payment_link_email(
         actor=actor,
         fallback_subject=DEFAULT_PAYMENT_LINK_SUBJECT,
         fallback_body=DEFAULT_PAYMENT_LINK_BODY_HTML,
+        quotation=quotation,
     )
 
 

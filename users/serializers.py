@@ -2,10 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from subscriptions.account_plan import (
-    active_subscription_plan_for_account,
-    current_subscription_plan_for_account,
-)
+from subscriptions.account_plan import current_subscription_plan_for_account
 
 from companies.models import Company
 from companies.scope import company_belongs_to_account
@@ -87,7 +84,7 @@ class AccountSerializer(serializers.ModelSerializer):
         ]
 
     def get_subscription_plan(self, obj: Account) -> str:
-        return active_subscription_plan_for_account(obj.pk)
+        return current_subscription_plan_for_account(obj.pk)
 
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -189,6 +186,7 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'is_active',
+            'account_restricted',
             'role',
             'role_name',
             'permissions',
@@ -208,6 +206,7 @@ class UserSerializer(serializers.ModelSerializer):
             'company_logo_url',
             'photo',
             'photo_url',
+            'account_restricted',
             'subscription_plan',
             'tour_completed_at',
             'last_login',
