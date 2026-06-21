@@ -5,7 +5,11 @@ from __future__ import annotations
 from django.db.models import Q
 from django.utils import timezone
 
-from .lifecycle import current_account_subscription as _current_with_scheduled
+from .lifecycle import (
+    get_account_subscription_row,
+    is_expired_paid_subscription,
+    resolve_account_subscription_for_account,
+)
 from .models import AccountSubscription
 
 DEFAULT_PLAN = 'free'
@@ -13,7 +17,8 @@ DEFAULT_PLAN = 'free'
 
 def current_account_subscription(account_id: int) -> AccountSubscription | None:
     """Pending or active row; applies scheduled downgrades when prepaid period ended."""
-    return _current_with_scheduled(account_id)
+    row, _expired = resolve_account_subscription_for_account(account_id)
+    return row
 
 
 def active_account_subscription(account_id: int) -> AccountSubscription | None:
@@ -50,11 +55,15 @@ def current_subscription_plan_for_account(account_id: int) -> str:
 
 
 def active_paid_account_subscription(account_id: int) -> AccountSubscription | None:
-    """Active non-free subscription with PayMongo reference and valid prepaid period."""
-    row = active_account_subscription(account_id)
+    """Active non-free subscription with a payment reference and a current prepaid period."""
+    row = get_account_subscription_row(account_id)
     if row is None:
         return None
     if row.subscription.plan == 'free':
+        return None
+    if row.status != AccountSubscription.Status.ACTIVE:
+        return None
+    if is_expired_paid_subscription(row):
         return None
     if not (row.reference_id or '').strip():
         return None

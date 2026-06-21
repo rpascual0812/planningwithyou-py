@@ -3,6 +3,7 @@ python3 -m venv venv
 source venv/bin/activate
 # windows
 .\venv\Scripts\Activate.ps1
+# run docker desktop and start local-redis first
 docker start local-redis
 .\venv\Scripts\python.exe -m celery -A planningwithyou worker -l info
 
@@ -609,3 +610,7 @@ curl -o global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global
 psql "host=planningwithyou-1.ctw2u8sammaf.ap-southeast-1.rds.amazonaws.com port=5432 dbname=postgres user=planningwithyou sslmode=verify-full sslrootcert=./global-bundle.pem"
 
 
+xendit secret key
+xnd_development_QKDWXUpYhwtOvm0PTdycKIxpZaxG9w4TY4Osdguii2T2HMioPe87R4p8TDiHi89L
+xendit key token
+xnd_public_development_WMuAqyxd9zyo7dC4VrUiCGT0CIxcUyKRQq3eVtuprMYJgCHG7yd5bG09GCnyQOY

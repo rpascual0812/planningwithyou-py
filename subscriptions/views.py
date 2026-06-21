@@ -10,9 +10,11 @@ from planningwithyou.permissions import FeatureAccess, HasAccount
 from users.models import Account
 
 from .account_plan import current_account_subscription
+from .lifecycle import resolve_account_subscription_for_account
 from .checkout import preview_subscription_checkout, start_subscription_checkout
 from .errors import SubscriptionCheckoutError
 from .free_plan import subscribe_account_to_free_plan
+from .lifecycle import get_account_subscription_row
 from .models import AccountSubscription, Subscription, SubscriptionPayment, SubscriptionReceipt
 from .serializers import (
     AccountSubscriptionSerializer,
@@ -22,7 +24,11 @@ from .serializers import (
     SubscriptionReceiptSerializer,
     SubscriptionSerializer,
 )
+from .payment_provider import PROVIDER_LABELS, active_subscription_payment_provider
+from .plan_pricing_settings import sync_subscription_plan_prices_from_system
 from .subscription_billing_notifications import issue_subscription_payment_receipt
+from .xendit_activation import apply_xendit_payment_session_completed
+from .xendit_client import XenditError, retrieve_session
 
 
 def _receipt_download_response(receipt: SubscriptionReceipt):
@@ -51,6 +57,7 @@ class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['sort_order', 'plan']
 
     def get_queryset(self):
+        sync_subscription_plan_prices_from_system()
         qs = Subscription.objects.filter(is_active=True)
         billing_cycle = self.request.query_params.get('billing_cycle', '').strip()
         if billing_cycle in Subscription.BillingCycle.values:
@@ -65,7 +72,7 @@ class AccountSubscriptionCurrentView(APIView):
     feature_key = 'account_settings'
 
     def get(self, request):
-        row = current_account_subscription(request.user.account_id)
+        row, _expired = resolve_account_subscription_for_account(request.user.account_id)
         if row is None:
             return Response(None)
         return Response(AccountSubscriptionSerializer(row).data)
@@ -106,6 +113,7 @@ class SubscriptionCheckoutPreviewView(APIView):
                 account=account,
                 subscription=subscription,
                 team_seats=data.get('team_seats') or 1,
+                renew_expired=bool(data.get('renew_expired')),
             )
         except SubscriptionCheckoutError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -150,6 +158,7 @@ class SubscriptionCheckoutView(APIView):
                 subscription=subscription,
                 team_seats=data.get('team_seats') or 1,
                 discount_code=data.get('discount_code') or '',
+                renew_expired=bool(data.get('renew_expired')),
             )
         except SubscriptionCheckoutError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -158,8 +167,92 @@ class SubscriptionCheckoutView(APIView):
                 {'detail': str(exc)},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
+        except XenditError as exc:
+            return Response(
+                {'detail': str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
         return Response(result, status=status.HTTP_201_CREATED)
+
+
+class SubscriptionCheckoutConfirmView(APIView):
+    """Confirm a pending Xendit checkout after the customer returns from payment."""
+
+    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
+    feature_key = 'account_settings'
+
+    @staticmethod
+    def _confirm_payload(**extra):
+        provider = active_subscription_payment_provider()
+        return {
+            'provider': provider,
+            'provider_label': PROVIDER_LABELS.get(provider, provider.title()),
+            **extra,
+        }
+
+    def post(self, request):
+        provider = active_subscription_payment_provider()
+        if provider != 'xendit':
+            return Response(self._confirm_payload(activated=False, subscription=None))
+
+        account_sub = get_account_subscription_row(request.user.account_id)
+        if account_sub is None:
+            return Response(self._confirm_payload(activated=False, subscription=None))
+
+        if account_sub.status == AccountSubscription.Status.ACTIVE:
+            row = current_account_subscription(request.user.account_id)
+            return Response(
+                self._confirm_payload(
+                    activated=True,
+                    subscription=AccountSubscriptionSerializer(row).data if row else None,
+                ),
+            )
+
+        session_id = (account_sub.reference_id or '').strip()
+        if not session_id:
+            return Response(
+                {'detail': 'No pending checkout session was found.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            session = retrieve_session(session_id)
+        except XenditError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        session_status = str(session.get('status') or '').strip().upper()
+        account_sub_data = AccountSubscriptionSerializer(account_sub).data
+
+        if session_status == 'COMPLETED':
+            handled = apply_xendit_payment_session_completed(session)
+            row = current_account_subscription(request.user.account_id)
+            return Response(
+                self._confirm_payload(
+                    activated=handled,
+                    subscription=AccountSubscriptionSerializer(row).data if row else None,
+                ),
+            )
+
+        if session_status in {'EXPIRED', 'CANCELED'}:
+            apply_xendit_payment_session_failed(session)
+            return Response(
+                self._confirm_payload(
+                    activated=False,
+                    payment_failed=True,
+                    session_status=session_status.lower(),
+                    subscription=account_sub_data,
+                ),
+            )
+
+        return Response(
+            self._confirm_payload(
+                activated=False,
+                pending=True,
+                payment_failed=False,
+                subscription=account_sub_data,
+            ),
+        )
 
 
 class SubscribeFreePlanView(APIView):

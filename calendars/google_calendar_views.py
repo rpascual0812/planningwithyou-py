@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from config.error_logging import log_request_error
+from payments.webhook_logging import finalize_webhook_log, log_webhook
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .google_calendar_service import (
@@ -29,6 +30,8 @@ from .google_calendar_service import (
 from .models import GoogleCalendarIntegration
 
 logger = logging.getLogger(__name__)
+
+GOOGLE_CALENDAR_WEBHOOK_SOURCE = 'google-calendar'
 
 
 def _oauth_context_from_request(request) -> tuple[int | None, int | None]:
@@ -231,12 +234,31 @@ class GoogleCalendarWebhookView(APIView):
         channel_id = request.headers.get('X-Goog-Channel-Id', '')
         channel_token = request.headers.get('X-Goog-Channel-Token', '')
         resource_state = request.headers.get('X-Goog-Resource-State', '')
+        resource_id = request.headers.get('X-Goog-Resource-Id', '')
+
+        webhook_log = log_webhook(
+            GOOGLE_CALENDAR_WEBHOOK_SOURCE,
+            request.body or b'',
+            meta={
+                'channel_id': channel_id,
+                'resource_id': resource_id,
+                'resource_state': resource_state,
+                'has_channel_token': bool(channel_token),
+            },
+        )
 
         integration = find_integration_for_webhook(channel_id, channel_token)
         if integration is None:
+            finalize_webhook_log(
+                webhook_log,
+                handled=False,
+                error_message='Unknown channel',
+            )
             return HttpResponse(status=404)
 
+        handled = False
         if resource_state in {'sync', 'exists', 'update'}:
+            handled = True
             schedule_inbound_sync(integration.pk)
             try:
                 from .tasks import sync_google_calendar_inbound_task
@@ -245,4 +267,5 @@ class GoogleCalendarWebhookView(APIView):
             except Exception:
                 pass
 
+        finalize_webhook_log(webhook_log, handled=handled)
         return HttpResponse(status=200)

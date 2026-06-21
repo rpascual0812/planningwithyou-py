@@ -3,8 +3,12 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from subscriptions.models import Subscription
+from django.utils import timezone
+
+from subscriptions.models import AccountSubscription, Subscription
 from subscriptions.proration import (
+    compute_plan_switch_checkout,
+    compute_remaining_period_credit,
     compute_seat_upgrade_proration,
     per_user_amount_for_cycle,
 )
@@ -55,3 +59,44 @@ class ProrationTests(TestCase):
             as_of=date(2026, 3, 1),
         )
         self.assertEqual(result.amount, Decimal('0'))
+
+    def test_remaining_period_credit_half_month(self):
+        account = AccountSubscription(
+            subscription=self.monthly_pro,
+            status=AccountSubscription.Status.ACTIVE,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 2, 1),
+            total_price=Decimal('1100'),
+        )
+        credit = compute_remaining_period_credit(account, as_of=date(2026, 1, 16))
+        self.assertGreater(credit, Decimal('0'))
+        self.assertLess(credit, Decimal('1100'))
+
+    def test_pending_subscription_has_no_remaining_credit(self):
+        account = AccountSubscription(
+            subscription=self.monthly_pro,
+            status=AccountSubscription.Status.PENDING,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 2, 1),
+            total_price=Decimal('1100'),
+        )
+        credit = compute_remaining_period_credit(account, as_of=date(2026, 1, 16))
+        self.assertEqual(credit, Decimal('0'))
+
+    def test_pending_checkout_charges_full_price(self):
+        account = AccountSubscription(
+            subscription=self.monthly_pro,
+            status=AccountSubscription.Status.PENDING,
+            start_date=date(2026, 1, 1),
+            end_date=None,
+            total_price=Decimal('1100'),
+            team_seats=1,
+        )
+        due_now, full_price, credit = compute_plan_switch_checkout(
+            account_sub=account,
+            subscription=self.monthly_pro,
+            team_seats=1,
+        )
+        self.assertEqual(credit, Decimal('0'))
+        self.assertEqual(due_now, full_price)
+        self.assertGreater(due_now, Decimal('0'))

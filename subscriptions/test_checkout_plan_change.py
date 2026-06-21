@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -47,7 +48,8 @@ class PlanChangeCheckoutTests(TestCase):
             status=AccountSubscription.Status.ACTIVE,
             reference_id='sub_paymongo_123',
             team_seats=2,
-            start_date=timezone.localdate(),
+            start_date=timezone.localdate() - timedelta(days=30),
+            end_date=timezone.localdate(),
             base_price=Decimal('1000'),
             total_per_users=Decimal('100'),
             total_price=Decimal('1100'),

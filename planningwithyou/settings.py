@@ -50,6 +50,26 @@ def _csv_env(name: str, default: str) -> list[str]:
     return [item.strip() for item in raw.split(',') if item.strip()]
 
 
+def _host_from_url(url: str) -> str:
+    from urllib.parse import urlparse
+
+    if not url:
+        return ''
+    return (urlparse(url.strip()).hostname or '').strip()
+
+
+def _merge_unique_hosts(*host_lists: list[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for hosts in host_lists:
+        for host in hosts:
+            item = host.strip()
+            if item and item not in seen:
+                seen.add(item)
+                merged.append(item)
+    return merged
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -58,14 +78,18 @@ SECRET_KEY = _require_env('SECRET_KEY')
 DEBUG = _env_bool('DEBUG', default=True)
 
 # ALLOWED_HOSTS = _csv_env('ALLOWED_HOSTS', 'localhost,127.0.0.1')
-ALLOWED_HOSTS = [
-    "api.planningwithyou.com",
-    "app.planningwithyou.com",
-    "planningwithyou.com",
-    "www.planningwithyou.com",
-    "localhost",
-    "127.0.0.1",
-]
+ALLOWED_HOSTS = _merge_unique_hosts(
+    [
+        'api.planningwithyou.com',
+        'app.planningwithyou.com',
+        'planningwithyou.com',
+        'www.planningwithyou.com',
+        'localhost',
+        '127.0.0.1',
+    ],
+    _csv_env('ALLOWED_HOSTS', ''),
+    ['.ngrok-free.app', '.ngrok.io', '.ngrok.app'] if DEBUG else [],
+)
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
@@ -280,6 +304,18 @@ MAILJET_SENDER_NAME = os.environ.get('MAILJET_SENDER_NAME', 'Planning With You')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 API_PUBLIC_BASE_URL = os.environ.get('API_PUBLIC_BASE_URL', 'http://localhost:8000')
 
+ALLOWED_HOSTS = _merge_unique_hosts(
+    ALLOWED_HOSTS,
+    [
+        host
+        for host in (
+            _host_from_url(API_PUBLIC_BASE_URL),
+            _host_from_url(os.environ.get('XENDIT_RETURN_URL_BASE', '')),
+        )
+        if host
+    ],
+)
+
 # Google Calendar OAuth (Calendar Settings → Calendar Integrations)
 GOOGLE_CALENDAR_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_CALENDAR_OAUTH_CLIENT_ID', '')
 GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET = os.environ.get(
@@ -320,6 +356,14 @@ PAYMONGO_ONBOARDING_URL = (
     )
     or 'https://onboarding.paymongo.com/onboarding/merchants'
 ).strip()
+
+# Xendit (platform account — subscription billing)
+XENDIT_SECRET_KEY = os.environ.get('XENDIT_SECRET_KEY', '')
+# Payment Sessions require https return URLs (use ngrok in local dev if FRONTEND_URL is http).
+XENDIT_RETURN_URL_BASE = (
+    os.environ.get('XENDIT_RETURN_URL_BASE', '').strip().rstrip('/') or None
+)
+XENDIT_WEBHOOK_TOKEN = os.environ.get('XENDIT_WEBHOOK_TOKEN', '').strip()
 
 PASSWORD_RESET_TOKEN_LIFETIME_HOURS = int(
     os.environ.get('PASSWORD_RESET_TOKEN_LIFETIME_HOURS', 24),

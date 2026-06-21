@@ -127,8 +127,18 @@ class PayMongoWebhookView(APIView):
     authentication_classes = []
 
     def post(self, request):
-        raw = request.body
-        webhook_log = log_webhook(PAYMONGO_WEBHOOK_SOURCE, raw)
+        raw = request.body or b''
+        webhook_log = log_webhook(
+            PAYMONGO_WEBHOOK_SOURCE,
+            raw,
+            meta={
+                'content_type': request.headers.get('Content-Type', ''),
+                'has_signature': bool(
+                    request.headers.get('Paymongo-Signature')
+                    or request.headers.get('paymongo-signature')
+                ),
+            },
+        )
 
         if not raw:
             finalize_webhook_log(

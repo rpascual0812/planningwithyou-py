@@ -37,6 +37,7 @@ ADMIN_FEATURE_KEYS = (
     'admin_support',
     'admin_error_logs',
     'admin_legal',
+    'admin_subscriptions',
 )
 
 PLATFORM_FEATURE_KEYS = ADMIN_FEATURE_KEYS

@@ -169,6 +169,10 @@ def update_account_subscription_recurring_plan(
     existing subscription. Returns False when skipped or PayMongo rejects the call
     (e.g. subscription payment methods not enabled on the org).
     """
+    from .payment_provider import active_subscription_payment_provider
+
+    if active_subscription_payment_provider() != 'paymongo':
+        return False
     paymongo_sub_id = (account_sub.reference_id or '').strip()
     if not paymongo_sub_id:
         return False

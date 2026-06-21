@@ -29,6 +29,7 @@ class SubscriptionCheckoutSerializer(serializers.Serializer):
     billing_cycle = serializers.ChoiceField(choices=Subscription.BillingCycle.choices)
     team_seats = serializers.IntegerField(min_value=1, default=1, required=False)
     discount_code = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    renew_expired = serializers.BooleanField(required=False, default=False)
 
 
 class SubscribeFreePlanSerializer(serializers.Serializer):
@@ -56,6 +57,8 @@ class AccountSubscriptionSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    expired_paid_plan = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
 
     class Meta:
         model = AccountSubscription
@@ -75,8 +78,25 @@ class AccountSubscriptionSerializer(serializers.ModelSerializer):
             'total_per_users',
             'total_price',
             'discount_code',
+            'expired_paid_plan',
+            'is_expired',
         ]
         read_only_fields = fields
+
+    def get_expired_paid_plan(self, obj) -> str | None:
+        value = getattr(obj, '_expired_paid_plan', None)
+        return value or None
+
+    def get_is_expired(self, obj) -> bool:
+        if obj.subscription.plan not in {'pro', 'ai'}:
+            return False
+        if obj.status != AccountSubscription.Status.ACTIVE:
+            return False
+        if obj.end_date is None:
+            return False
+        from django.utils import timezone
+
+        return obj.end_date < timezone.localdate()
 
 
 class SubscriptionPaymentReceiptSummarySerializer(serializers.ModelSerializer):

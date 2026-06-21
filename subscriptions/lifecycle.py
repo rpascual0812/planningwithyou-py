@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -22,6 +22,7 @@ from .proration import add_months, add_years
 logger = logging.getLogger(__name__)
 
 PLAN_RANK = {'free': 0, 'pro': 1, 'ai': 2}
+PAID_PLAN_SLUGS = frozenset({'pro', 'ai'})
 
 
 def plan_rank(plan_slug: str) -> int:
@@ -32,12 +33,147 @@ def is_downgrade(current: Subscription, target: Subscription) -> bool:
     return plan_rank(target.plan) < plan_rank(current.plan)
 
 
+def is_expired_paid_subscription(account_sub: AccountSubscription | None) -> bool:
+    """True when a paid plan row is ACTIVE but its prepaid period has ended."""
+    if account_sub is None:
+        return False
+    if account_sub.subscription.plan not in PAID_PLAN_SLUGS:
+        return False
+    if account_sub.status != AccountSubscription.Status.ACTIVE:
+        return False
+    if account_sub.end_date is None:
+        return False
+    return account_sub.end_date < timezone.localdate()
+
+
+def should_offer_subscription_renewal(
+    account_sub: AccountSubscription | None,
+    subscription: Subscription,
+    *,
+    expired_paid_plan: str | None = None,
+    renew_expired: bool = False,
+) -> bool:
+    """
+    True when checkout should charge for a full renewal instead of 'no changes'.
+
+    Covers expired prepaid rows, free rows after downgrade (``expired_paid_plan``),
+    and a one-day slack when the client shows the plan as expired ahead of the server.
+    """
+    if account_sub is None or subscription.plan == 'free':
+        return False
+
+    expired_paid = expired_paid_plan or getattr(account_sub, '_expired_paid_plan', None)
+    if account_sub.subscription.plan == 'free':
+        return bool(expired_paid and subscription.plan == expired_paid)
+
+    if account_sub.subscription.plan != subscription.plan:
+        return False
+
+    if is_expired_paid_subscription(account_sub):
+        return True
+
+    if account_sub.status != AccountSubscription.Status.ACTIVE:
+        return True
+
+    if account_sub.subscription.plan not in PAID_PLAN_SLUGS:
+        return False
+
+    if account_sub.end_date is None:
+        return False
+
+    today = timezone.localdate()
+    if account_sub.end_date <= today:
+        return True
+    if renew_expired and account_sub.end_date <= today + timedelta(days=1):
+        return True
+    return False
+
+
+def should_switch_to_free_plan(account_sub: AccountSubscription) -> bool:
+    """True when a non-active paid plan row should be replaced with Free immediately."""
+    if account_sub.subscription.plan not in PAID_PLAN_SLUGS:
+        return False
+    if account_sub.status == AccountSubscription.Status.ACTIVE:
+        return False
+    today = timezone.localdate()
+    if account_sub.status == AccountSubscription.Status.PENDING:
+        return account_sub.end_date is not None and account_sub.end_date < today
+    return True
+
+
+@transaction.atomic
+def enforce_free_plan_if_inactive_or_expired(
+    account_id: int,
+) -> tuple[AccountSubscription | None, str | None]:
+    """
+    Downgrade inactive or expired Pro / AI Plus rows to Free.
+    Returns (row after reconcile, expired paid plan slug if one was cleared).
+    """
+    row = get_account_subscription_row(account_id)
+    if row is None or not should_switch_to_free_plan(row):
+        return row, None
+
+    expired_plan = row.subscription.plan
+    free_sub = get_subscription_catalog(
+        plan='free',
+        billing_cycle=Subscription.BillingCycle.MONTHLY,
+    )
+    if free_sub is None:
+        return row, expired_plan
+
+    pricing = compute_subscription_pricing(free_sub, FREE_MAX_TEAM_SEATS)
+    today = timezone.localdate()
+    row.subscription = free_sub
+    row.team_seats = pricing.team_seats
+    row.base_price = pricing.base_price
+    row.total_per_users = pricing.total_per_users
+    row.total_price = pricing.total_price
+    row.status = AccountSubscription.Status.ACTIVE
+    row.reference_id = ''
+    row.start_date = today
+    row.end_date = None
+    row.scheduled_subscription = None
+    row.scheduled_team_seats = None
+    row.save(
+        update_fields=[
+            'subscription',
+            'team_seats',
+            'base_price',
+            'total_per_users',
+            'total_price',
+            'status',
+            'reference_id',
+            'start_date',
+            'end_date',
+            'scheduled_subscription',
+            'scheduled_team_seats',
+            'updated_at',
+        ],
+    )
+    return row, expired_plan
+
+
 def prepaid_period_end(subscription: Subscription, start: date) -> date | None:
     if subscription.plan == 'free':
         return None
     if subscription.billing_cycle == Subscription.BillingCycle.YEARLY:
         return add_years(start, 1)
     return add_months(start, 1)
+
+
+def get_account_subscription_row(account_id: int) -> AccountSubscription | None:
+    """Non-deleted subscription row for an account (any status)."""
+    if not account_id:
+        return None
+    return (
+        AccountSubscription.objects.filter(
+            account_id=account_id,
+            deleted_at__isnull=True,
+        )
+        .select_related('subscription', 'scheduled_subscription', 'account')
+        .order_by('-start_date', '-id')
+        .first()
+    )
 
 
 def get_account_subscription(account_id: int) -> AccountSubscription | None:
@@ -155,6 +291,39 @@ def current_account_subscription(account_id: int) -> AccountSubscription | None:
     return row
 
 
+def resolve_account_subscription_for_account(
+    account_id: int,
+) -> tuple[AccountSubscription | None, str | None]:
+    """Apply free-plan enforcement for non-active rows; return active rows even if expired."""
+    raw = get_account_subscription_row(account_id)
+    expired_paid_plan: str | None = None
+    if raw is not None and should_switch_to_free_plan(raw):
+        if raw.subscription.plan in PAID_PLAN_SLUGS:
+            expired_paid_plan = raw.subscription.plan
+        enforce_free_plan_if_inactive_or_expired(account_id)
+        raw = get_account_subscription_row(account_id)
+
+    if raw is None:
+        return None, None
+
+    if raw.status == AccountSubscription.Status.ACTIVE:
+        if apply_scheduled_changes_if_due(raw):
+            raw = get_account_subscription_row(account_id)
+        if raw is not None and expired_paid_plan:
+            raw._expired_paid_plan = expired_paid_plan  # noqa: SLF001
+        return raw, expired_paid_plan
+
+    if raw.status == AccountSubscription.Status.PENDING:
+        if expired_paid_plan:
+            raw._expired_paid_plan = expired_paid_plan  # noqa: SLF001
+        return raw, expired_paid_plan
+
+    row = get_account_subscription(account_id) or raw
+    if row is not None and expired_paid_plan:
+        row._expired_paid_plan = expired_paid_plan  # noqa: SLF001
+    return row, expired_paid_plan
+
+
 @transaction.atomic
 def ensure_account_subscription_row(
     *,
@@ -262,6 +431,49 @@ def schedule_downgrade_to_free(
         update_fields=['scheduled_subscription', 'scheduled_team_seats', 'updated_at'],
     )
     return account_sub
+
+
+PREPAID_PERIOD_DAYS = 30
+
+
+@transaction.atomic
+def activate_paid_subscription(
+    account_sub: AccountSubscription,
+    *,
+    subscription: Subscription | None = None,
+    team_seats: int | None = None,
+) -> None:
+    """Mark a subscription active after successful payment; prepaid for 30 days."""
+    if subscription is not None:
+        seats = validate_team_seats(subscription, team_seats or account_sub.team_seats)
+        pricing = compute_subscription_pricing(subscription, seats)
+        account_sub.subscription = subscription
+        account_sub.team_seats = pricing.team_seats
+        account_sub.base_price = pricing.base_price
+        account_sub.total_per_users = pricing.total_per_users
+        account_sub.total_price = pricing.total_price
+
+    today = timezone.localdate()
+    account_sub.start_date = today
+    account_sub.end_date = today + timedelta(days=PREPAID_PERIOD_DAYS)
+    account_sub.status = AccountSubscription.Status.ACTIVE
+    account_sub.scheduled_subscription = None
+    account_sub.scheduled_team_seats = None
+    account_sub.save(
+        update_fields=[
+            'subscription',
+            'team_seats',
+            'base_price',
+            'total_per_users',
+            'total_price',
+            'start_date',
+            'end_date',
+            'status',
+            'scheduled_subscription',
+            'scheduled_team_seats',
+            'updated_at',
+        ],
+    )
 
 
 @transaction.atomic

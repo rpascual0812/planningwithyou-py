@@ -69,10 +69,11 @@ def notify_subscription_payment_failed(
     *,
     invoice_id: str,
     amount: Decimal | None = None,
+    provider_label: str = 'your payment provider',
 ) -> bool:
     """
     Email ``account.contact_email`` that a subscription charge failed.
-    Sends at most once per PayMongo invoice id.
+    Sends at most once per external invoice/session id.
     """
     invoice_key = (invoice_id or '').strip()
     if not invoice_key:
@@ -100,8 +101,8 @@ def notify_subscription_payment_failed(
         '<p>Hello,</p>'
         f'<p>We could not process your subscription payment of '
         f'<strong>{_currency(charge)}</strong> for <strong>{plan_name}</strong>.</p>'
-        '<p>Your subscription may be marked past due until payment succeeds. '
-        'Please update your payment method or retry billing in PayMongo.</p>'
+        '<p>Your subscription is not active until payment succeeds. '
+        f'Open subscription settings and tap <strong>Pay Now</strong> to try again with {provider_label}.</p>'
         f'<p><a href="{settings_url}">Open subscription settings</a></p>'
         '<p>If you need help, reply to this email or contact support.</p>'
     )

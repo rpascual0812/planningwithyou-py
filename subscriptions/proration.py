@@ -100,6 +100,54 @@ def compute_seat_upgrade_proration(
     )
 
 
+def compute_remaining_period_credit(
+    account_sub: AccountSubscription,
+    as_of: date | None = None,
+) -> Decimal:
+    """Unused prepaid value on the current subscription period."""
+    if account_sub.subscription.plan == 'free':
+        return Decimal('0')
+    if account_sub.status != AccountSubscription.Status.ACTIVE:
+        return Decimal('0')
+    prepaid = account_sub.total_price or Decimal('0')
+    if prepaid <= 0:
+        return Decimal('0')
+    today = as_of or timezone.localdate()
+    period_end = billing_period_end(account_sub)
+    if period_end <= today:
+        return Decimal('0')
+    period_start = account_sub.start_date
+    days_in_period = max((period_end - period_start).days, 1)
+    days_remaining = max((period_end - today).days, 0)
+    if days_remaining <= 0:
+        return Decimal('0')
+    factor = Decimal(days_remaining) / Decimal(days_in_period)
+    return (prepaid * factor).quantize(TWOPLACES, rounding=ROUND_HALF_UP)
+
+
+def compute_plan_switch_checkout(
+    *,
+    account_sub: AccountSubscription | None,
+    subscription: Subscription,
+    team_seats: int,
+    as_of: date | None = None,
+) -> tuple[Decimal, Decimal, Decimal]:
+    """
+    Return (amount_due_now, full_recurring_amount, credit_applied).
+    Recurring billing should always use full_recurring_amount.
+    """
+    pricing = compute_subscription_pricing(subscription, team_seats)
+    full_price = pricing.total_price
+    credit = (
+        compute_remaining_period_credit(account_sub, as_of=as_of)
+        if account_sub is not None
+        else Decimal('0')
+    )
+    due_now = max(full_price - credit, Decimal('0'))
+    due_now = checkout_amount_for_proration(due_now)
+    return due_now, full_price, credit
+
+
 def checkout_amount_for_proration(amount: Decimal) -> Decimal:
     """Enforce PayMongo minimum; zero stays zero."""
     if amount <= 0:

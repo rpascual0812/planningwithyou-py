@@ -8,7 +8,7 @@ from companies.models import Company
 from companies.scope import company_belongs_to_account
 from planningwithyou.file_storage import company_logo_public_url, user_photo_public_url
 
-from .jwt import issue_tokens_for_user
+from .jwt import ACCOUNT_RESTRICTED_CODE, ACCOUNT_RESTRICTED_MESSAGE, issue_tokens_for_user
 from .user_photo import delete_user_photo, save_user_photo
 
 from .models import Account, Role
@@ -19,6 +19,8 @@ User = get_user_model()
 def user_may_login(user) -> bool:
     """True when the user and linked account/company are active and not soft-deleted."""
     if user is None or not user.is_active or user.deleted_at is not None:
+        return False
+    if getattr(user, 'account_restricted', False):
         return False
     account = getattr(user, 'account', None)
     if account is None or not account.is_active or account.deleted_at is not None:
@@ -148,6 +150,13 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
                         'Please verify your email address before logging in. '
                         'Check your inbox for the verification link.'
                     ),
+                },
+            )
+        if user.account_restricted:
+            raise serializers.ValidationError(
+                {
+                    'detail': ACCOUNT_RESTRICTED_MESSAGE,
+                    'code': ACCOUNT_RESTRICTED_CODE,
                 },
             )
 

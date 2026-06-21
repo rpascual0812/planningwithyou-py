@@ -10,11 +10,12 @@ from django.utils import timezone
 from bookings.paymongo_webhook import _amount_php_from_paymongo_attributes
 
 from .lifecycle import (
+    activate_paid_subscription,
     apply_scheduled_changes_if_due,
     extend_prepaid_period,
-    start_prepaid_period,
 )
 from .models import AccountSubscription, SubscriptionPayment
+from .payment_provider import PROVIDER_LABELS, PROVIDER_PAYMONGO
 from .subscription_billing_notifications import (
     invoice_indicates_failed_payment,
     invoice_indicates_successful_payment,
@@ -83,21 +84,10 @@ def _activate_account_subscription(
     *,
     next_billing_date=None,
 ) -> None:
+    del next_billing_date
     apply_scheduled_changes_if_due(account_sub)
     account_sub.refresh_from_db()
-    update_fields = ['status', 'updated_at']
-    if account_sub.status == AccountSubscription.Status.PENDING:
-        start_prepaid_period(
-            account_sub,
-            account_sub.subscription,
-            account_sub.team_seats,
-        )
-        update_fields.extend(['start_date', 'end_date', 'team_seats', 'base_price', 'total_per_users', 'total_price'])
-    account_sub.status = AccountSubscription.Status.ACTIVE
-    if next_billing_date:
-        account_sub.end_date = next_billing_date
-        update_fields.append('end_date')
-    account_sub.save(update_fields=list(dict.fromkeys(update_fields)))
+    activate_paid_subscription(account_sub)
 
 
 @transaction.atomic
@@ -227,6 +217,7 @@ def handle_paymongo_subscription_webhook_event(event: dict) -> bool:
             account_sub,
             invoice_id=resource_id,
             amount=failed_amount,
+            provider_label=PROVIDER_LABELS[PROVIDER_PAYMONGO],
         )
         return True
 

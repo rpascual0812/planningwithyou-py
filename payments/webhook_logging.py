@@ -19,11 +19,17 @@ def payload_from_raw_body(raw: bytes):
         return {'_raw': raw.decode('utf-8', errors='replace')}
 
 
-def log_webhook(source: str, raw: bytes) -> WebhookLog:
-    """Store the raw PayMongo payload before signature checks or handlers run."""
+def log_webhook(source: str, raw: bytes, *, meta: dict | None = None) -> WebhookLog:
+    """Store an inbound webhook payload before signature checks or handlers run."""
+    payload = payload_from_raw_body(raw)
+    if meta:
+        if isinstance(payload, dict):
+            payload = {**payload, '_request_meta': meta}
+        else:
+            payload = {'_payload': payload, '_request_meta': meta}
     return WebhookLog.objects.create(
         source=source,
-        payload=payload_from_raw_body(raw),
+        payload=payload,
     )
 
 

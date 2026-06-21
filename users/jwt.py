@@ -13,6 +13,20 @@ from rest_framework_simplejwt.tokens import RefreshToken
 User = get_user_model()
 
 TOKEN_VERSION_CLAIM = 'token_version'
+ACCOUNT_RESTRICTED_CODE = 'account_restricted'
+ACCOUNT_RESTRICTED_MESSAGE = (
+    'Your account access has been restricted. Please contact your administrator.'
+)
+
+
+def assert_user_not_account_restricted(user) -> None:
+    if getattr(user, 'account_restricted', False):
+        raise InvalidToken(
+            {
+                'detail': ACCOUNT_RESTRICTED_MESSAGE,
+                'code': ACCOUNT_RESTRICTED_CODE,
+            },
+        )
 
 
 class SessionRefreshToken(RefreshToken):
@@ -30,6 +44,7 @@ class SessionJWTAuthentication(JWTAuthentication):
 
     def get_user(self, validated_token):
         user = super().get_user(validated_token)
+        assert_user_not_account_restricted(user)
         token_version = validated_token.get(TOKEN_VERSION_CLAIM, 0)
         if token_version != user.token_version:
             raise InvalidToken(
@@ -56,6 +71,8 @@ class SessionTokenRefreshSerializer(TokenRefreshSerializer):
         except User.DoesNotExist as exc:
             raise InvalidToken('User not found') from exc
 
+        assert_user_not_account_restricted(user)
+
         if refresh.get(TOKEN_VERSION_CLAIM, 0) != user.token_version:
             raise InvalidToken(
                 {
@@ -78,17 +95,39 @@ def blacklist_all_outstanding_tokens_for_user(user_id: int) -> None:
         BlacklistedToken.objects.get_or_create(token=outstanding)
 
 
-def start_new_user_session(user) -> None:
-    """
-    Bump the user's session generation and revoke prior refresh tokens.
-    Call immediately before issuing new JWTs on login or email verification.
-    """
+def invalidate_user_session(user) -> None:
+    """Revoke all JWTs for a user without issuing new tokens."""
     user.token_version = (user.token_version or 0) + 1
     user.save(update_fields=['token_version', 'updated_at'])
     blacklist_all_outstanding_tokens_for_user(user.pk)
 
 
+def start_new_user_session(user) -> None:
+    """
+    Bump the user's session generation and revoke prior refresh tokens.
+    Call immediately before issuing new JWTs on login or email verification.
+    """
+    invalidate_user_session(user)
+
+
 def issue_tokens_for_user(user) -> dict[str, str]:
+    from .serializers import user_may_login
+
+    if not user_may_login(user):
+        raise serializers.ValidationError(
+            {
+                'detail': (
+                    ACCOUNT_RESTRICTED_MESSAGE
+                    if getattr(user, 'account_restricted', False)
+                    else 'No active account found with the given credentials.'
+                ),
+                'code': (
+                    ACCOUNT_RESTRICTED_CODE
+                    if getattr(user, 'account_restricted', False)
+                    else 'no_active_account'
+                ),
+            },
+        )
     start_new_user_session(user)
     refresh = SessionRefreshToken.for_user(user)
     return {

@@ -42,6 +42,7 @@ FEATURE_LABELS = {
     'admin_support': 'Admin > Support',
     'admin_error_logs': 'Admin > Error Logs',
     'admin_legal': 'Admin > Legal Documents',
+    'admin_subscriptions': 'Admin > Subscriptions',
 }
 
 

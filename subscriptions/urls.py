@@ -1,9 +1,15 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from .admin_views import (
+    AdminSubscriptionPaymentProviderView,
+    AdminSubscriptionPlanPricingView,
+    SubscriptionPaymentProviderPublicView,
+)
 from .views import (
     AccountSubscriptionCurrentView,
     SubscribeFreePlanView,
+    SubscriptionCheckoutConfirmView,
     SubscriptionCheckoutPreviewView,
     SubscriptionCheckoutView,
     SubscriptionPaymentListView,
@@ -12,11 +18,27 @@ from .views import (
     SubscriptionReceiptListView,
     SubscriptionViewSet,
 )
+from .xendit_webhook_views import XenditWebhookView
 
 router = DefaultRouter()
 router.register('subscriptions', SubscriptionViewSet, basename='subscription')
 
 urlpatterns = [
+    path(
+        'admin/subscription-payment-provider/',
+        AdminSubscriptionPaymentProviderView.as_view(),
+        name='admin-subscription-payment-provider',
+    ),
+    path(
+        'admin/subscription-plan-pricing/',
+        AdminSubscriptionPlanPricingView.as_view(),
+        name='admin-subscription-plan-pricing',
+    ),
+    path(
+        'subscriptions/payment-provider/',
+        SubscriptionPaymentProviderPublicView.as_view(),
+        name='subscription-payment-provider',
+    ),
     path(
         'account-subscription/current/',
         AccountSubscriptionCurrentView.as_view(),
@@ -31,6 +53,21 @@ urlpatterns = [
         'subscriptions/checkout/',
         SubscriptionCheckoutView.as_view(),
         name='subscription-checkout',
+    ),
+    path(
+        'subscriptions/checkout/confirm/',
+        SubscriptionCheckoutConfirmView.as_view(),
+        name='subscription-checkout-confirm',
+    ),
+    path(
+        'webhooks/xendit/',
+        XenditWebhookView.as_view(),
+        name='xendit-webhook',
+    ),
+    path(
+        'api/webhooks/xendit/',
+        XenditWebhookView.as_view(),
+        name='xendit-webhook-legacy-api-prefix',
     ),
     path(
         'subscriptions/subscribe-free/',
