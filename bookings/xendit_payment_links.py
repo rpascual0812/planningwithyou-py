@@ -8,6 +8,8 @@ from decimal import Decimal
 
 from subscriptions.xendit_client import XenditError, _request, payment_link_url
 
+from payments.xendit_split_rules import get_platform_fee_split_rule_id
+
 
 def _amount_number(amount: Decimal) -> float:
     if amount <= 0:
@@ -56,11 +58,13 @@ def create_quotation_payment_session(
         'cancel_return_url': cancel_url,
         'metadata': metadata,
     }
+    split_rule_id = get_platform_fee_split_rule_id()
     session = _request(
         'POST',
         '/sessions',
         body,
         for_user_id=(sub_account_id or '').strip(),
+        with_split_rule=split_rule_id or None,
     )
     url = payment_link_url(session)
     if not url:

@@ -372,6 +372,10 @@ XENDIT_RETURN_URL_BASE = (
     os.environ.get('XENDIT_RETURN_URL_BASE', '').strip().rstrip('/') or None
 )
 XENDIT_WEBHOOK_TOKEN = os.environ.get('XENDIT_WEBHOOK_TOKEN', '').strip()
+# xenPlatform: percent of net settlement routed to master account on payment links (1 = 1%).
+XENDIT_PLATFORM_FEE_PERCENT = os.environ.get('XENDIT_PLATFORM_FEE_PERCENT', '1') or '1'
+# Optional pre-created split rule id (skips auto-provision via Split Rules API).
+XENDIT_PLATFORM_SPLIT_RULE_ID = os.environ.get('XENDIT_PLATFORM_SPLIT_RULE_ID', '').strip()
 
 PASSWORD_RESET_TOKEN_LIFETIME_HOURS = int(
     os.environ.get('PASSWORD_RESET_TOKEN_LIFETIME_HOURS', 24),

@@ -31,7 +31,14 @@ def _secret_key() -> str:
     return key
 
 
-def _request(method: str, path: str, body: dict | None = None, *, for_user_id: str | None = None) -> dict:
+def _request(
+    method: str,
+    path: str,
+    body: dict | None = None,
+    *,
+    for_user_id: str | None = None,
+    with_split_rule: str | None = None,
+) -> dict:
     key = _secret_key()
     url = f'{XENDIT_API_BASE}{path}'
     data = None
@@ -43,6 +50,9 @@ def _request(method: str, path: str, body: dict | None = None, *, for_user_id: s
     scoped_user = (for_user_id or '').strip()
     if scoped_user:
         headers['for-user-id'] = scoped_user
+    split_rule = (with_split_rule or '').strip()
+    if split_rule:
+        headers['with-split-rule'] = split_rule
     if body is not None:
         data = json.dumps(body).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
