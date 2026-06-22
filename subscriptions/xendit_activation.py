@@ -143,6 +143,17 @@ def apply_xendit_payment_session_completed(session: dict) -> bool:
         account_sub.reference_id = session_id
         account_sub.save(update_fields=['reference_id', 'updated_at'])
 
+    subscription_block = session.get('subscription')
+    if isinstance(subscription_block, dict):
+        plan_id = str(
+            subscription_block.get('plan_id')
+            or subscription_block.get('recurring_plan_id')
+            or '',
+        ).strip()
+        if plan_id and account_sub.reference_id != plan_id:
+            account_sub.reference_id = plan_id
+            account_sub.save(update_fields=['reference_id', 'updated_at'])
+
     if kind == _SEAT_UPGRADE_KIND:
         try:
             team_seats = int(metadata['team_seats'])

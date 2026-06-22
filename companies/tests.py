@@ -88,7 +88,7 @@ class CompanyKybVerifiedTests(TestCase):
         kyb = CompanyKybVerification.objects.create(company=self.company)
         self.assertFalse(self.company.kyb_verified)
 
-        kyb.status = CompanyKybVerification.Status.APPROVED
+        kyb.paymongo_status = CompanyKybVerification.PaymongoStatus.APPROVED
         kyb.save()
 
         self.company.refresh_from_db()
@@ -97,12 +97,12 @@ class CompanyKybVerifiedTests(TestCase):
     def test_kyb_rejected_clears_company_kyb_verified(self):
         kyb = CompanyKybVerification.objects.create(
             company=self.company,
-            status=CompanyKybVerification.Status.APPROVED,
+            paymongo_status=CompanyKybVerification.PaymongoStatus.APPROVED,
         )
         self.company.refresh_from_db()
         self.assertTrue(self.company.kyb_verified)
 
-        kyb.status = CompanyKybVerification.Status.REJECTED
+        kyb.paymongo_status = CompanyKybVerification.PaymongoStatus.REJECTED
         kyb.save()
 
         self.company.refresh_from_db()
@@ -129,7 +129,7 @@ class CompanyKybAdminApiTests(TestCase):
         )
         self.kyb = CompanyKybVerification.objects.create(
             company=self.company,
-            status=CompanyKybVerification.Status.PENDING_PAYMONGO,
+            paymongo_status=CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO,
             business_type=CompanyKybVerification.BusinessType.SOLE_PROPRIETOR,
             merchant_business_name='Verify Me Co',
             merchant_email='owner@verifyme.test',
@@ -162,7 +162,7 @@ class CompanyKybAdminApiTests(TestCase):
         client.force_authenticate(user=self.admin)
         res = client.get(
             '/admin/kyb-verifications/',
-            {'status': CompanyKybVerification.Status.PENDING_PAYMONGO},
+            {'paymongo_status': CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO},
         )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)
@@ -183,12 +183,12 @@ class CompanyKybAdminApiTests(TestCase):
         client.force_authenticate(user=self.admin)
         res = client.patch(
             f'/admin/kyb-verifications/{self.kyb.pk}/',
-            {'status': CompanyKybVerification.Status.APPROVED},
+            {'paymongo_status': CompanyKybVerification.PaymongoStatus.APPROVED},
             format='json',
         )
         self.assertEqual(res.status_code, 200)
         self.kyb.refresh_from_db()
-        self.assertEqual(self.kyb.status, CompanyKybVerification.Status.APPROVED)
+        self.assertEqual(self.kyb.paymongo_status, CompanyKybVerification.PaymongoStatus.APPROVED)
         self.company.refresh_from_db()
         self.assertTrue(self.company.kyb_verified)
 

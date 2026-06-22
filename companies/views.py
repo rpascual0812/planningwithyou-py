@@ -86,6 +86,7 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
         qs = Company.objects.filter(deleted_at__isnull=True).select_related(
             'supplier_type',
             'account__country',
+            'kyb_verification',
         )
 
         if not self._is_supplier_directory():
@@ -272,6 +273,9 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
         """GET/PATCH Know Your Business verification for a company."""
         company = self.get_object()
         record = self._get_or_create_kyb(company)
+        from payments.xendit_merchant_onboarding import refresh_xendit_kyb_status
+
+        record = refresh_xendit_kyb_status(record)
 
         if request.method == 'GET':
             return Response(
@@ -329,6 +333,47 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
                 regenerate_link=regenerate,
             )
         except PayMongoOnboardingError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            CompanyKybVerificationSerializer(
+                record,
+                context=self.get_serializer_context(),
+            ).data,
+        )
+
+    @action(detail=True, methods=['post'], url_path='kyb/start-xendit')
+    def kyb_start_xendit(self, request, pk=None):
+        """Create a Xendit xenPlatform sub-account and start business verification."""
+        from payments.xendit_merchant_onboarding import (
+            XenditOnboardingError,
+            start_xendit_merchant_onboarding,
+        )
+
+        company = self.get_object()
+        record = self._get_or_create_kyb(company)
+
+        patch_data = request.data if isinstance(request.data, dict) else {}
+        allowed = {
+            'business_type',
+            'merchant_business_name',
+            'merchant_email',
+            'merchant_mobile_number',
+        }
+        filtered = {k: v for k, v in patch_data.items() if k in allowed}
+        if filtered:
+            ser = CompanyKybVerificationSerializer(
+                record,
+                data=filtered,
+                partial=True,
+                context=self.get_serializer_context(),
+            )
+            ser.is_valid(raise_exception=True)
+            record = ser.save()
+
+        try:
+            record = start_xendit_merchant_onboarding(company)
+        except XenditOnboardingError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(

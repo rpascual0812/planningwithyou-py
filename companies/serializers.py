@@ -7,6 +7,7 @@ from suppliers.models import SupplierType
 from .contact_email import first_company_user_email
 from .logo_image import delete_company_logo, save_company_logo
 from .models import Company
+from .kyb import provider_verifications_for_company
 
 
 class SupplierCompanyTierPricingItemSerializer(serializers.Serializer):
@@ -84,6 +85,7 @@ class CompanySerializer(serializers.ModelSerializer):
         default=1,
         min_value=1,
     )
+    provider_verifications = serializers.SerializerMethodField()
 
     class Meta:
         model = Company
@@ -106,6 +108,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'is_active',
             'is_main',
             'kyb_verified',
+            'provider_verifications',
             'max_bookings_per_day',
             'logo',
             'logo_upload',
@@ -117,6 +120,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'id',
             'created_at',
             'kyb_verified',
+            'provider_verifications',
             'logo',
             'logo_url',
             'supplier_type_name',
@@ -174,6 +178,9 @@ class CompanySerializer(serializers.ModelSerializer):
         if not SupplierType.objects.filter(pk=value.pk, is_active=True).exists():
             raise serializers.ValidationError('Invalid or inactive supplier type.')
         return value
+
+    def get_provider_verifications(self, obj):
+        return provider_verifications_for_company(obj)
 
     def get_logo_url(self, obj):
         return company_logo_public_url(

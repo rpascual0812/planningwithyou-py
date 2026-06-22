@@ -31,7 +31,7 @@ def _secret_key() -> str:
     return key
 
 
-def _request(method: str, path: str, body: dict | None = None) -> dict:
+def _request(method: str, path: str, body: dict | None = None, *, for_user_id: str | None = None) -> dict:
     key = _secret_key()
     url = f'{XENDIT_API_BASE}{path}'
     data = None
@@ -40,6 +40,9 @@ def _request(method: str, path: str, body: dict | None = None) -> dict:
         'Content-Type': 'application/json',
         'Accept': 'application/json',
     }
+    scoped_user = (for_user_id or '').strip()
+    if scoped_user:
+        headers['for-user-id'] = scoped_user
     if body is not None:
         data = json.dumps(body).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
@@ -76,8 +79,8 @@ def xendit_session_id(session: dict) -> str:
     return ''
 
 
-def retrieve_session(session_id: str) -> dict:
+def retrieve_session(session_id: str, *, for_user_id: str | None = None) -> dict:
     session_id = (session_id or '').strip()
     if not session_id:
         raise XenditError('Xendit session id is required.')
-    return _request('GET', f'/sessions/{session_id}')
+    return _request('GET', f'/sessions/{session_id}', for_user_id=for_user_id)

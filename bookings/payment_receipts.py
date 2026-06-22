@@ -15,7 +15,11 @@ from reportlab.pdfgen import canvas
 from emails.mail import create_and_queue_email
 from emails.models import EmailTemplate
 from emails.tasks import send_email_task
-from planningwithyou.template_placeholders import apply_template_placeholders
+from planningwithyou.template_placeholders import (
+    EMAIL_TEMPLATE_PAYMENT_RECEIVED,
+    apply_template_placeholders,
+    company_template_context,
+)
 
 from .models import QuotationPayment, QuotationPaymentReceipt
 
@@ -200,6 +204,27 @@ def _receipt_storage_key(payment: QuotationPayment) -> str:
     )
 
 
+def _payment_received_context(payment: QuotationPayment) -> dict[str, str]:
+    booking = payment.quotation
+    contact = booking.contact
+    first = (contact.first_name or '').strip() if contact else ''
+    last = (contact.last_name or '').strip() if contact else ''
+    company = getattr(booking, 'company', None) or payment.company
+    unique_id = str(booking.unique_id or booking.pk)
+    return {
+        **company_template_context(company),
+        'name': f'{first} {last}'.strip(),
+        'first_name': first,
+        'last_name': last,
+        'email_address': (contact.email or '').strip() if contact else '',
+        'quotation_id': unique_id,
+        'quotation_unique_id': unique_id,
+        'quotation_title': booking.title or '',
+        'transaction_id': payment.transaction_id or '',
+        'amount_paid': _currency(payment.charge_amount),
+    }
+
+
 def _payment_received_email_content(
     payment: QuotationPayment,
 ) -> tuple[str, str, EmailTemplate | None]:
@@ -209,27 +234,23 @@ def _payment_received_email_content(
             account_id=booking.account_id,
             company_id=booking.company_id,
             template_type=EmailTemplate.TemplateType.BOOKINGS,
-            name='payment_received',
+            name=EMAIL_TEMPLATE_PAYMENT_RECEIVED,
             is_active=True,
             deleted_at__isnull=True,
         )
         .order_by('-id')
         .first()
     )
-    context = {
-        'quotation_id': str(booking.unique_id or booking.pk),
-        'quotation_title': booking.title or '',
-        'transaction_id': payment.transaction_id or '',
-        'amount_paid': _currency(payment.charge_amount),
-    }
+    context = _payment_received_context(payment)
     if template is None:
         return (
             apply_template_placeholders(
-                'Payment receipt for booking {quotation_id}',
+                'Payment receipt for quotation {quotation_unique_id}',
                 context,
             ),
             apply_template_placeholders(
                 (
+                    '<p>Hi {first_name} {last_name},</p>'
                     '<p>Your payment receipt is attached.</p>'
                     '<p>Quotation: {quotation_title}</p>'
                     '<p>Transaction ID: {transaction_id}</p>'
@@ -280,18 +301,20 @@ def ensure_paid_booking_payment_receipt(payment_id: int) -> QuotationPaymentRece
         receipt.receipt_url = default_storage.url(key)
         receipt.save(update_fields=['storage_key', 'receipt_url', 'updated_at'])
 
-    _queue_payment_received_email(payment, receipt, use_contact_email=False)
+    _queue_payment_received_email(payment, receipt, use_contact_email=True)
     return receipt
 
 
 def _payment_received_recipient(
     payment: QuotationPayment,
     *,
-    use_contact_email: bool,
+    use_contact_email: bool = True,
 ) -> str:
     if use_contact_email:
         contact = payment.quotation.contact
-        return (getattr(contact, 'email', '') or '').strip() if contact else ''
+        recipient = (getattr(contact, 'email', '') or '').strip() if contact else ''
+        if recipient:
+            return recipient
     return (getattr(payment.quotation.created_by, 'email', '') or '').strip()
 
 

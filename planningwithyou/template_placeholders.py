@@ -11,6 +11,7 @@ from __future__ import annotations
 EMAIL_TEMPLATE_PASSWORD_RESET = 'password_reset'
 EMAIL_TEMPLATE_VERIFY_EMAIL = 'verify_email'
 EMAIL_TEMPLATE_PAYMENT_LINK = 'payment_link'
+EMAIL_TEMPLATE_PAYMENT_RECEIVED = 'payment_received'
 EMAIL_TEMPLATE_NEW_QUOTATION = 'new_quotation'
 EMAIL_TEMPLATE_UPDATED_QUOTATION = 'updated_quotation'
 EMAIL_TEMPLATE_QUOTATION_STATUS_COMPANY = 'quotation_status_company'
@@ -46,6 +47,19 @@ DEFAULT_PAYMENT_LINK_BODY_HTML = (
     '<p>Please complete your payment using the link below:</p>'
     '<p><a href="{payment_link}">{payment_link}</a></p>'
     '<p>Thank you.</p>'
+)
+
+DEFAULT_PAYMENT_RECEIVED_SUBJECT = (
+    '{company_name} – Payment received for quotation {quotation_unique_id}'
+)
+DEFAULT_PAYMENT_RECEIVED_BODY_HTML = (
+    '<p>Hi {first_name} {last_name},</p>'
+    '<p>Thank you for your payment for quotation '
+    '<strong>{quotation_title}</strong> ({quotation_unique_id}).</p>'
+    '<p>Amount paid: {amount_paid}<br>'
+    'Transaction ID: {transaction_id}</p>'
+    '<p>Your payment receipt is attached.</p>'
+    '<p>Thank you,<br>{company_name}</p>'
 )
 
 # --- Password-invite / reset (no DB row or empty template fields) -------------

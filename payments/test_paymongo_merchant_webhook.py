@@ -57,7 +57,7 @@ class PayMongoMerchantWebhookTests(TestCase):
         )
         self.kyb = CompanyKybVerification.objects.create(
             company=self.company,
-            status=CompanyKybVerification.Status.DRAFT,
+            paymongo_status=CompanyKybVerification.PaymongoStatus.DRAFT,
             paymongo_merchant_id='merch_123',
             merchant_business_name='Verify Me Co',
             merchant_email='owner@example.test',
@@ -72,7 +72,7 @@ class PayMongoMerchantWebhookTests(TestCase):
         self.kyb.refresh_from_db()
         self.company.refresh_from_db()
         self.integration.refresh_from_db()
-        self.assertEqual(self.kyb.status, CompanyKybVerification.Status.APPROVED)
+        self.assertEqual(self.kyb.paymongo_status, CompanyKybVerification.PaymongoStatus.APPROVED)
         self.assertTrue(self.company.kyb_verified)
         self.assertEqual(self.integration.activation_status, 'activated')
 
@@ -101,7 +101,7 @@ class PayMongoMerchantWebhookTests(TestCase):
         self.assertTrue(handled)
         self.kyb.refresh_from_db()
         self.company.refresh_from_db()
-        self.assertEqual(self.kyb.status, CompanyKybVerification.Status.APPROVED)
+        self.assertEqual(self.kyb.paymongo_status, CompanyKybVerification.PaymongoStatus.APPROVED)
         self.assertTrue(self.company.kyb_verified)
 
     def test_merchant_rejected_marks_kyb_rejected(self):
@@ -115,19 +115,19 @@ class PayMongoMerchantWebhookTests(TestCase):
         self.assertTrue(handled)
         self.kyb.refresh_from_db()
         self.company.refresh_from_db()
-        self.assertEqual(self.kyb.status, CompanyKybVerification.Status.REJECTED)
+        self.assertEqual(self.kyb.paymongo_status, CompanyKybVerification.PaymongoStatus.REJECTED)
         self.assertFalse(self.company.kyb_verified)
         self.assertIn('Missing supporting documents', self.kyb.rejection_notes)
 
     def test_merchant_pending_marks_kyb_pending_paymongo(self):
-        self.kyb.status = CompanyKybVerification.Status.DRAFT
-        self.kyb.save(update_fields=['status', 'updated_at'])
+        self.kyb.paymongo_status = CompanyKybVerification.PaymongoStatus.DRAFT
+        self.kyb.save(update_fields=['paymongo_status', 'updated_at'])
         handled = handle_paymongo_merchant_webhook_event(
             _merchant_event('merchant.pending', 'merch_123'),
         )
         self.assertTrue(handled)
         self.kyb.refresh_from_db()
         self.assertEqual(
-            self.kyb.status,
-            CompanyKybVerification.Status.PENDING_PAYMONGO,
+            self.kyb.paymongo_status,
+            CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO,
         )

@@ -265,7 +265,11 @@ class QuotationPaymentReceipt(models.Model):
 
 
 class QuotationPaymentLink(models.Model):
-    """Public PayMongo checkout link for a quotation (platform merchant account)."""
+    """Public checkout link for a quotation (PayMongo or Xendit)."""
+
+    class PaymentProvider(models.TextChoices):
+        PAYMONGO = 'paymongo', 'PayMongo'
+        XENDIT = 'xendit', 'Xendit'
 
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending'
@@ -292,8 +296,16 @@ class QuotationPaymentLink(models.Model):
         related_name='quotation_payment_links',
     )
     public_token = models.UUIDField(unique=True, db_index=True)
+    payment_provider = models.CharField(
+        max_length=20,
+        choices=PaymentProvider.choices,
+        default=PaymentProvider.PAYMONGO,
+        db_index=True,
+    )
     paymongo_checkout_session_id = models.CharField(max_length=255, blank=True, default='')
     paymongo_checkout_url = models.URLField(max_length=2048, blank=True, default='')
+    xendit_payment_session_id = models.CharField(max_length=255, blank=True, default='')
+    xendit_checkout_url = models.URLField(max_length=2048, blank=True, default='')
     base_amount = models.DecimalField(max_digits=12, decimal_places=2)
     platform_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     processing_fee_estimate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -307,6 +319,11 @@ class QuotationPaymentLink(models.Model):
     )
     expires_at = models.DateTimeField()
     paid_at = models.DateTimeField(null=True, blank=True)
+    success_return_confirmed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the customer success return URL was first consumed.',
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

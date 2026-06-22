@@ -357,8 +357,16 @@ PAYMONGO_ONBOARDING_URL = (
     or 'https://onboarding.paymongo.com/onboarding/merchants'
 ).strip()
 
-# Xendit (platform account — subscription billing)
-XENDIT_SECRET_KEY = os.environ.get('XENDIT_SECRET_KEY', '')
+# Xendit (subscription billing + xenPlatform company KYB)
+XENDIT_SECRET_KEY = os.environ.get('XENDIT_SECRET_KEY', '').strip()
+# Unused for company KYB — Xendit MANAGED accounts use email invitations, not hosted URLs.
+XENDIT_ONBOARDING_URL = (
+    os.environ.get(
+        'XENDIT_ONBOARDING_URL',
+        '',
+    )
+    or ''
+).strip()
 # Payment Sessions require https return URLs (use ngrok in local dev if FRONTEND_URL is http).
 XENDIT_RETURN_URL_BASE = (
     os.environ.get('XENDIT_RETURN_URL_BASE', '').strip().rstrip('/') or None

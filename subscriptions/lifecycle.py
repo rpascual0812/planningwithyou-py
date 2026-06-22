@@ -455,7 +455,7 @@ def activate_paid_subscription(
 
     today = timezone.localdate()
     account_sub.start_date = today
-    account_sub.end_date = today + timedelta(days=PREPAID_PERIOD_DAYS)
+    account_sub.end_date = prepaid_period_end(account_sub.subscription, today)
     account_sub.status = AccountSubscription.Status.ACTIVE
     account_sub.scheduled_subscription = None
     account_sub.scheduled_team_seats = None

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.db import transaction
 from django.utils import timezone
 
-from .lifecycle import PREPAID_PERIOD_DAYS
+from .lifecycle import prepaid_period_end
 from .models import AccountSubscription, SubscriptionPayment
 from .proration import billing_period_end
 from .subscription_billing_notifications import issue_subscription_payment_receipt
@@ -53,7 +53,7 @@ def _period_for_payment(
     period_start = account_sub.start_date or today
     period_end = account_sub.end_date
     if period_end is None and account_sub.subscription.plan != 'free':
-        period_end = period_start + timedelta(days=PREPAID_PERIOD_DAYS)
+        period_end = prepaid_period_end(account_sub.subscription, period_start)
     return period_start, period_end
 
 

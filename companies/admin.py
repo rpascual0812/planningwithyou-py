@@ -35,12 +35,12 @@ class CompanyKybVerificationAdmin(admin.ModelAdmin):
         'id',
         'company',
         'business_type',
-        'status',
+        'paymongo_status',
         'submitted_at',
         'reviewed_at',
         'updated_at',
     )
-    list_filter = ('status', 'business_type')
+    list_filter = ('paymongo_status', 'business_type')
     search_fields = ('company__name', 'company_email_domain', 'business_description')
     readonly_fields = ('created_at', 'updated_at', 'submitted_at', 'reviewed_at')
     raw_id_fields = ('company', 'reviewed_by')

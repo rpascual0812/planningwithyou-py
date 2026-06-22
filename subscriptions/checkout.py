@@ -457,6 +457,28 @@ def _handle_plan_change_with_proration(
     )
 
 
+def _xendit_use_subscription_checkout(
+    *,
+    checkout_kind: str,
+    charge_now: Decimal,
+    full_price: Decimal,
+    account_sub: AccountSubscription,
+) -> bool:
+    """
+    True when checkout should create a Xendit SUBSCRIPTION payment session
+    (recurring monthly or yearly) instead of a one-time PAY session.
+    """
+    if checkout_kind == 'full_subscription':
+        return True
+    if charge_now >= full_price:
+        return True
+    if checkout_kind == 'plan_change_proration' and not (
+        account_sub.reference_id or ''
+    ).strip():
+        return True
+    return False
+
+
 def _collect_plan_switch_payment(
     *,
     account: Account,
@@ -505,13 +527,21 @@ def _collect_plan_switch_payment(
         raise SubscriptionCheckoutError('This plan does not require payment.')
 
     if provider == 'xendit':
-        if charge_now >= full_price:
+        if _xendit_use_subscription_checkout(
+            checkout_kind=checkout_kind,
+            charge_now=charge_now,
+            full_price=full_price,
+            account_sub=account_sub,
+        ):
             reference_id = f'sub-{account_sub.uuid}-{uuid.uuid4().hex[:8]}'
+            cycle_label = subscription.get_billing_cycle_display()
             session = create_subscription_checkout_session(
                 account_id=account.pk,
                 user=user,
                 reference_id=reference_id,
-                description=f'Planning With You {subscription.plan} subscription',
+                description=(
+                    f'Planning With You {subscription.plan} subscription ({cycle_label})'
+                ),
                 amount_php=full_price,
                 billing_cycle=subscription.billing_cycle,
                 success_url=success_url,

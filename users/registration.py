@@ -24,6 +24,10 @@ from config.views import (
 )
 from documents.models import DocumentFolder
 from emails.models import EmailTemplate
+from planningwithyou.template_placeholders import (
+    DEFAULT_PAYMENT_RECEIVED_BODY_HTML,
+    DEFAULT_PAYMENT_RECEIVED_SUBJECT,
+)
 from subscriptions.lifecycle import get_subscription_catalog
 from subscriptions.models import AccountSubscription
 from suppliers.models import SupplierType, Tier
@@ -174,13 +178,8 @@ EMAIL_TEMPLATES = [
         'name': 'payment_received',
         'template_type': EmailTemplate.TemplateType.BOOKINGS,
         'title': 'Payment Received',
-        'subject': 'Payment receipt for booking {quotation_id}',
-        'body': (
-            '<p>Your payment receipt is attached.</p>'
-            '<p>Quotation: {quotation_title}</p>'
-            '<p>Transaction ID: {transaction_id}</p>'
-            '<p>Amount paid: {amount_paid}</p>'
-        ),
+        'subject': DEFAULT_PAYMENT_RECEIVED_SUBJECT,
+        'body': DEFAULT_PAYMENT_RECEIVED_BODY_HTML,
     },
     {
         'name': 'calendar_event_creation',

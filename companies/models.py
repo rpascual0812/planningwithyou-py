@@ -106,9 +106,15 @@ class CompanyKybVerification(models.Model):
         PARTNERSHIP = 'partnership', 'Partnership'
         CORPORATION = 'corporation', 'Corporation'
 
-    class Status(models.TextChoices):
+    class PaymongoStatus(models.TextChoices):
         DRAFT = 'draft', 'Draft'
         PENDING_PAYMONGO = 'pending_paymongo', 'Pending PayMongo verification'
+        APPROVED = 'approved', 'Verified'
+        REJECTED = 'rejected', 'Rejected'
+
+    class XenditStatus(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        PENDING = 'pending_xendit', 'Pending Xendit verification'
         APPROVED = 'approved', 'Verified'
         REJECTED = 'rejected', 'Rejected'
 
@@ -124,10 +130,10 @@ class CompanyKybVerification(models.Model):
         blank=True,
         default='',
     )
-    status = models.CharField(
+    paymongo_status = models.CharField(
         max_length=32,
-        choices=Status.choices,
-        default=Status.DRAFT,
+        choices=PaymongoStatus.choices,
+        default=PaymongoStatus.DRAFT,
         db_index=True,
     )
     paymongo_merchant_id = models.CharField(
@@ -142,6 +148,26 @@ class CompanyKybVerification(models.Model):
         default='',
         help_text='PayMongo-hosted onboarding link for document upload and KYC.',
     )
+    xendit_status = models.CharField(
+        max_length=32,
+        choices=XenditStatus.choices,
+        default=XenditStatus.DRAFT,
+        db_index=True,
+    )
+    xendit_account_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text='Xendit xenPlatform sub-account id.',
+    )
+    xendit_onboarding_url = models.URLField(
+        max_length=2048,
+        blank=True,
+        default='',
+        help_text='Link to complete Xendit business verification for the sub-account.',
+    )
+    xendit_submitted_at = models.DateTimeField(null=True, blank=True)
+    xendit_rejection_notes = models.TextField(blank=True, default='')
     merchant_business_name = models.CharField(max_length=255, blank=True, default='')
     merchant_email = models.EmailField(blank=True, default='')
     merchant_mobile_number = models.CharField(max_length=63, blank=True, default='')
@@ -209,8 +235,11 @@ class CompanyKybVerification(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        verified = self.status == self.Status.APPROVED
+        verified = (
+            self.paymongo_status == self.PaymongoStatus.APPROVED
+            or self.xendit_status == self.XenditStatus.APPROVED
+        )
         Company.all_objects.filter(pk=self.company_id).update(kyb_verified=verified)
 
     def __str__(self):
-        return f'KYB {self.company_id} ({self.status})'
+        return f'KYB {self.company_id} ({self.paymongo_status})'

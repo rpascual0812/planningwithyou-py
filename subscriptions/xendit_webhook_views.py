@@ -1,4 +1,4 @@
-"""Inbound Xendit webhook endpoint for subscription billing."""
+"""Inbound Xendit webhook endpoint."""
 
 from __future__ import annotations
 
@@ -24,6 +24,8 @@ XENDIT_WEBHOOK_SOURCE = 'xendit'
 
 @method_decorator(csrf_exempt, name='dispatch')
 class XenditWebhookView(APIView):
+    """Single Xendit webhook URL for subscriptions and quotation payment links."""
+
     permission_classes = [AllowAny]
     authentication_classes = []
 
@@ -72,7 +74,10 @@ class XenditWebhookView(APIView):
             handled = handle_xendit_webhook_body(body)
             finalize_webhook_log(webhook_log, handled=handled)
         except Exception as exc:
-            logger.exception('Xendit webhook processing failed (log_id=%s)', webhook_log.pk)
+            logger.exception(
+                'Xendit webhook processing failed (log_id=%s)',
+                webhook_log.pk,
+            )
             log_request_error(request, exception=exc, status_code=500)
             finalize_webhook_log(
                 webhook_log,

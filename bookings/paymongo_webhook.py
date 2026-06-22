@@ -392,7 +392,7 @@ def _record_booking_payment(
     processing_fee = breakdown['processing_fee']
     net_amount = breakdown['net_amount']
 
-    notes = f'PayMongo payment {payment_id or "—"} (link #{link.pk})'
+    notes = f'{payment_method or "payment"} {payment_id or "—"} (link #{link.pk})'
 
     breakdown_fields = [
         'transaction_status',

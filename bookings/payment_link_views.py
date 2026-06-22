@@ -16,7 +16,9 @@ from .payment_link_serializers import (
     QuotationPaymentLinkSerializer,
     QuotationPaymentSerializer,
 )
+from .payment_link_confirm import confirm_quotation_payment_link_by_token
 from .payment_links import PaymentLinkError, create_booking_payment_link, serialize_public_payment_link
+from .payment_providers import provider_verifications_summary
 from .notifications import schedule_payment_link_email
 from .payment_summary import booking_payment_summary
 from .paymongo_webhook import (
@@ -41,27 +43,46 @@ class QuotationPaymentLinkListCreateView(APIView):
     feature_key = 'quotations'
 
     def get(self, request, quotation_id: int):
-        booking = get_object_or_404(bookings_for_user(request.user), pk=quotation_id)
+        booking = get_object_or_404(
+            bookings_for_user(request.user).select_related(
+                'company',
+                'company__kyb_verification',
+            ),
+            pk=quotation_id,
+        )
+        company = booking.company
         links = QuotationPaymentLink.objects.filter(quotation=booking).order_by('-created_at')
         payments = (
             QuotationPayment.objects.filter(quotation=booking, deleted_at__isnull=True)
             .order_by('-transaction_date', '-created_at')
         )
+        provider_payload = provider_verifications_summary(company)
         return Response({
             'links': QuotationPaymentLinkSerializer(links, many=True).data,
             'payments': QuotationPaymentSerializer(payments, many=True).data,
             'summary': booking_payment_summary(booking),
+            'verified_payment_providers': provider_payload['verified_payment_providers'],
+            'provider_verifications': provider_payload['provider_verifications'],
         })
 
     def post(self, request, quotation_id: int):
-        booking = get_object_or_404(bookings_for_user(request.user), pk=quotation_id)
+        booking = get_object_or_404(
+            bookings_for_user(request.user).select_related(
+                'company',
+                'company__kyb_verification',
+                'contact',
+            ),
+            pk=quotation_id,
+        )
         assert_booking_editable(booking, request.user)
         amount = request.data.get('amount')
+        payment_provider = request.data.get('payment_provider')
         try:
             link = create_booking_payment_link(
                 booking,
                 charge_base_amount=amount,
                 created_by=request.user,
+                payment_provider=payment_provider,
             )
         except PaymentLinkError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -119,6 +140,25 @@ class PublicPaymentLinkView(APIView):
             link.status = QuotationPaymentLink.Status.EXPIRED
             link.save(update_fields=['status', 'updated_at'])
         return Response(serialize_public_payment_link(link))
+
+
+class PublicPaymentLinkConfirmView(APIView):
+    """Verify provider checkout after customer success return URL."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, token: str):
+        status_param = str(request.query_params.get('status') or '').strip().lower()
+        if status_param != 'success':
+            return Response(
+                {'detail': 'Only success returns can confirm payment.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        link, payload = confirm_quotation_payment_link_by_token(token)
+        if link is None:
+            return Response({'detail': 'Payment link not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(payload)
 
 
 @method_decorator(csrf_exempt, name='dispatch')

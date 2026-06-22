@@ -146,32 +146,32 @@ def _resolve_kyb_for_webhook(resource_id: str) -> CompanyKybVerification | None:
 @transaction.atomic
 def _mark_kyb_verified(kyb: CompanyKybVerification) -> None:
     now = timezone.now()
-    kyb.status = CompanyKybVerification.Status.APPROVED
+    kyb.paymongo_status = CompanyKybVerification.PaymongoStatus.APPROVED
     kyb.reviewed_at = now
     kyb.rejection_notes = ''
     kyb.save(
-        update_fields=['status', 'reviewed_at', 'rejection_notes', 'updated_at'],
+        update_fields=['paymongo_status', 'reviewed_at', 'rejection_notes', 'updated_at'],
     )
 
 
 @transaction.atomic
 def _mark_kyb_rejected(kyb: CompanyKybVerification, *, reason: str = '') -> None:
     now = timezone.now()
-    kyb.status = CompanyKybVerification.Status.REJECTED
+    kyb.paymongo_status = CompanyKybVerification.PaymongoStatus.REJECTED
     kyb.reviewed_at = now
     if reason:
         kyb.rejection_notes = reason[:4000]
     kyb.save(
-        update_fields=['status', 'reviewed_at', 'rejection_notes', 'updated_at'],
+        update_fields=['paymongo_status', 'reviewed_at', 'rejection_notes', 'updated_at'],
     )
 
 
 @transaction.atomic
 def _mark_kyb_pending(kyb: CompanyKybVerification) -> None:
-    if kyb.status == CompanyKybVerification.Status.APPROVED:
+    if kyb.paymongo_status == CompanyKybVerification.PaymongoStatus.APPROVED:
         return
-    kyb.status = CompanyKybVerification.Status.PENDING_PAYMONGO
-    kyb.save(update_fields=['status', 'updated_at'])
+    kyb.paymongo_status = CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO
+    kyb.save(update_fields=['paymongo_status', 'updated_at'])
 
 
 def _sync_integration_after_webhook(
@@ -199,10 +199,10 @@ def _handle_child_account_activation(
     kyb: CompanyKybVerification,
     resource_id: str,
 ) -> None:
-    prior_status = kyb.status
+    prior_status = kyb.paymongo_status
     _mark_kyb_verified(kyb)
     _sync_integration_after_webhook(kyb, resource_id, force_activated=True)
-    if prior_status != CompanyKybVerification.Status.APPROVED:
+    if prior_status != CompanyKybVerification.PaymongoStatus.APPROVED:
         company_id = kyb.company_id
         transaction.on_commit(
             lambda cid=company_id: send_company_kyb_approved_email(cid),

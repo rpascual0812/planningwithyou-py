@@ -1,12 +1,16 @@
 import json
+import uuid
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from companies.models import Company
+from countries.models import Country
 from payments.models import WebhookLog
 from subscriptions.models import (
     AccountSubscription,
@@ -15,6 +19,7 @@ from subscriptions.models import (
     SubscriptionPayment,
     SubscriptionReceipt,
 )
+from suppliers.models import SupplierType
 from users.models import Account
 
 
@@ -59,10 +64,31 @@ class XenditSubscriptionWebhookTests(TestCase):
     def setUp(self):
         if getattr(self, 'skip_setup', True):
             self.skipTest('Subscription seed data missing')
-        self.account = Account.objects.create(name='Xendit Webhook Co', is_active=True)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT setval(pg_get_serial_sequence('accounts','id'), "
+                "COALESCE((SELECT MAX(id) FROM accounts), 1))"
+            )
+        country = Country.objects.filter(iso2_code='PH').first()
+        if country is None:
+            country = Country.objects.create(
+                name='Philippines Test',
+                iso_code='PHL',
+                iso2_code='PH',
+                currency='Peso',
+                currency_symbol='₱',
+                currency_code='PHP',
+            )
+        supplier_type = SupplierType.objects.create(name=f'Planner {uuid.uuid4().hex[:8]}')
+        self.account = Account.objects.create(
+            name='Xendit Webhook Co',
+            country=country,
+            is_active=True,
+        )
         Company.objects.create(
             account=self.account,
             name='Xendit Webhook Co',
+            supplier_type=supplier_type,
             is_active=True,
             is_main=True,
         )
@@ -241,6 +267,21 @@ class XenditSubscriptionWebhookTests(TestCase):
         self.assertEqual(log.source, 'xendit')
         self.assertIsNotNone(log.processed_at)
 
+    def test_payment_link_payload_without_matching_link_not_handled(self):
+        payload = {
+            'event': 'payment_session.completed',
+            'data': {
+                'payment_session_id': 'ps-quote-only',
+                'reference_id': 'quote-link-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+                'status': 'COMPLETED',
+                'payment_id': 'py-quote-only',
+                'session_type': 'PAY',
+            },
+        }
+        response = self._post_webhook(payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['handled'])
+
     @patch('subscriptions.subscription_billing_notifications.send_email_task')
     @patch('subscriptions.subscription_billing_notifications.create_and_queue_email')
     def test_payment_session_expired_notifies_account(
@@ -272,3 +313,57 @@ class XenditSubscriptionWebhookTests(TestCase):
         self.account_sub.refresh_from_db()
         self.assertEqual(self.account_sub.status, AccountSubscription.Status.PENDING)
         self.assertEqual(SubscriptionPayment.objects.count(), 0)
+
+    @patch('subscriptions.subscription_billing_notifications.send_email_task')
+    @patch('subscriptions.subscription_billing_notifications.create_and_queue_email')
+    def test_recurring_cycle_succeeded_extends_active_subscription(
+        self,
+        mock_create_email,
+        mock_send_task,
+    ):
+        mock_create_email.return_value = type('Log', (), {'pk': 1})()
+        today = timezone.localdate()
+        self.account_sub.status = AccountSubscription.Status.ACTIVE
+        self.account_sub.start_date = today - timedelta(days=30)
+        self.account_sub.end_date = today
+        self.account_sub.reference_id = 'repl-plan-123'
+        self.account_sub.save(
+            update_fields=['status', 'start_date', 'end_date', 'reference_id', 'updated_at'],
+        )
+
+        payload = {
+            'event': 'recurring.cycle.succeeded',
+            'data': {
+                'plan_id': 'repl-plan-123',
+                'cycle_id': 'repl-cycle-456',
+                'action_id': 'py-renewal-789',
+                'amount': 995,
+            },
+        }
+        response = self._post_webhook(payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['handled'])
+        self.account_sub.refresh_from_db()
+        self.assertGreater(self.account_sub.end_date, today)
+        payment = SubscriptionPayment.objects.get(paymongo_payment_id='py-renewal-789')
+        self.assertEqual(payment.description, 'Pro subscription renewal')
+
+    def test_recurring_plan_activated_stores_plan_id(self):
+        checkout_ref = 'sub-checkout-plan-activate'
+        self.account_sub.reference_id = checkout_ref
+        self.account_sub.save(update_fields=['reference_id', 'updated_at'])
+
+        payload = {
+            'event': 'recurring.plan.activated',
+            'data': {
+                'plan_id': 'repl-plan-activated',
+                'reference_id': checkout_ref,
+            },
+        }
+        response = self._post_webhook(payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['handled'])
+        self.account_sub.refresh_from_db()
+        self.assertEqual(self.account_sub.reference_id, 'repl-plan-activated')

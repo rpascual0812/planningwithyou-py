@@ -15,6 +15,7 @@ from .payment_link_views import (
     QuotationPaymentLinkDetailView,
     QuotationPaymentLinkListCreateView,
     PayMongoWebhookView,
+    PublicPaymentLinkConfirmView,
     PublicPaymentLinkView,
 )
 from .payout_admin_views import QuotationPaymentPayoutAdminViewSet
@@ -124,6 +125,11 @@ urlpatterns = [
         'public/payment-links/<uuid:token>/',
         PublicPaymentLinkView.as_view(),
         name='public-payment-link',
+    ),
+    path(
+        'public/payment-links/<uuid:token>/confirm/',
+        PublicPaymentLinkConfirmView.as_view(),
+        name='public-payment-link-confirm',
     ),
     path(
         'webhooks/paymongo/',

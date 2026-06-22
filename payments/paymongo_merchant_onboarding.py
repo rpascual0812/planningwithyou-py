@@ -104,14 +104,14 @@ def start_paymongo_merchant_onboarding(
 
     kyb.paymongo_merchant_id = merchant_id
     kyb.onboarding_url = onboarding_url
-    kyb.status = CompanyKybVerification.Status.PENDING_PAYMONGO
+    kyb.paymongo_status = CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO
     if not kyb.submitted_at:
         kyb.submitted_at = timezone.now()
     kyb.save(
         update_fields=[
             'paymongo_merchant_id',
             'onboarding_url',
-            'status',
+            'paymongo_status',
             'submitted_at',
             'updated_at',
         ],

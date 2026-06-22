@@ -1,7 +1,13 @@
 from rest_framework import serializers
 
 from .models import QuotationPayment, QuotationPaymentLink
-from .payment_links import public_payment_url
+from .payment_links import (
+    PaymentLinkError,
+    provider_checkout_url,
+    public_payment_url,
+    xendit_payment_return_urls,
+)
+from .payment_providers import PROVIDER_LABELS
 
 
 class QuotationPaymentSerializer(serializers.ModelSerializer):
@@ -29,6 +35,7 @@ class QuotationPaymentSerializer(serializers.ModelSerializer):
 class QuotationPaymentLinkSerializer(serializers.ModelSerializer):
     public_url = serializers.SerializerMethodField()
     checkout_url = serializers.SerializerMethodField()
+    payment_provider_label = serializers.SerializerMethodField()
 
     class Meta:
         model = QuotationPaymentLink
@@ -36,6 +43,8 @@ class QuotationPaymentLinkSerializer(serializers.ModelSerializer):
             'id',
             'public_token',
             'status',
+            'payment_provider',
+            'payment_provider_label',
             'base_amount',
             'platform_fee',
             'processing_fee_estimate',
@@ -51,9 +60,18 @@ class QuotationPaymentLinkSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_public_url(self, obj: QuotationPaymentLink) -> str:
+        if obj.payment_provider == QuotationPaymentLink.PaymentProvider.XENDIT:
+            try:
+                _, _, public_url = xendit_payment_return_urls(obj.public_token)
+                return public_url
+            except PaymentLinkError:
+                pass
         return public_payment_url(obj.public_token)
 
     def get_checkout_url(self, obj: QuotationPaymentLink) -> str:
         if obj.status != QuotationPaymentLink.Status.PENDING:
             return ''
-        return obj.paymongo_checkout_url or ''
+        return provider_checkout_url(obj)
+
+    def get_payment_provider_label(self, obj: QuotationPaymentLink) -> str:
+        return PROVIDER_LABELS.get(obj.payment_provider, obj.payment_provider.title())
