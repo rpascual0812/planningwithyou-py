@@ -56,11 +56,22 @@ from .lifecycle import (
     validate_team_seats,
 )
 from .plans import is_lifetime_plan
-from .xendit_client import payment_link_url as xendit_payment_link_url, xendit_session_id
+from .xendit_client import XenditError, payment_link_url as xendit_payment_link_url, xendit_session_id
 from .xendit_subscriptions import (
     create_one_time_checkout_session,
     create_subscription_checkout_session,
+    resolve_xendit_billing_email,
 )
+
+
+def _resolve_xendit_billing_email(account: Account, user: User) -> str:
+    try:
+        return resolve_xendit_billing_email(
+            user=user,
+            contact_email=account.contact_email or '',
+        )
+    except XenditError as exc:
+        raise SubscriptionCheckoutError(str(exc)) from exc
 
 
 def _persist_xendit_session_reference(
@@ -528,6 +539,7 @@ def _collect_plan_switch_payment(
         raise SubscriptionCheckoutError('This plan does not require payment.')
 
     if provider == 'xendit':
+        billing_email = _resolve_xendit_billing_email(account, user)
         if _xendit_use_subscription_checkout(
             checkout_kind=checkout_kind,
             charge_now=charge_now,
@@ -539,6 +551,7 @@ def _collect_plan_switch_payment(
             session = create_subscription_checkout_session(
                 account_id=account.pk,
                 user=user,
+                billing_email=billing_email,
                 reference_id=reference_id,
                 description=(
                     f'Planning With You {subscription.plan} subscription ({cycle_label})'
@@ -570,6 +583,7 @@ def _collect_plan_switch_payment(
         session = create_one_time_checkout_session(
             account_id=account.pk,
             user=user,
+            billing_email=billing_email,
             reference_id=reference[:255],
             description=(
                 f'Planning With You {subscription.plan} subscription '
@@ -753,9 +767,11 @@ def _handle_seat_upgrade_with_proration(
     }
 
     if provider == 'xendit':
+        billing_email = _resolve_xendit_billing_email(account, user)
         session = create_one_time_checkout_session(
             account_id=account.pk,
             user=user,
+            billing_email=billing_email,
             reference_id=reference[:255],
             description=description,
             amount_php=charge,

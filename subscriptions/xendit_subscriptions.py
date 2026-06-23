@@ -14,6 +14,28 @@ from .proration import add_months, add_years
 from .xendit_client import XenditError, _request, payment_link_url
 
 
+def is_valid_xendit_email(email: str) -> bool:
+    candidate = (email or '').strip()
+    if not candidate or '@' not in candidate:
+        return False
+    local, _, domain = candidate.partition('@')
+    if not local or not domain or '.' not in domain:
+        return False
+    if domain.endswith('.local'):
+        return False
+    return True
+
+
+def resolve_xendit_billing_email(*, user: User, contact_email: str = '') -> str:
+    for candidate in ((user.email or '').strip(), (contact_email or '').strip()):
+        if is_valid_xendit_email(candidate):
+            return candidate
+    raise XenditError(
+        'A valid email is required for Xendit checkout. '
+        'Update your profile or account contact email in Account Settings.',
+    )
+
+
 def _amount_number(amount: Decimal) -> float:
     """Xendit Payment Sessions expect amount as a JSON number (PHP major units)."""
     if amount <= 0:
@@ -80,11 +102,15 @@ def _subscription_schedule(billing_cycle: str) -> tuple[str, dict[str, Any]]:
 
 def _customer_payload(
     *,
-    account_id: int,
     user: User,
+    email: str,
     customer_reference_id: str | None = None,
 ) -> dict[str, Any]:
-    email = (user.email or '').strip()
+    if not is_valid_xendit_email(email):
+        raise XenditError(
+            'A valid email is required for Xendit checkout. '
+            'Update your profile or account contact email in Account Settings.',
+        )
     given_names = (user.first_name or '').strip() or 'Customer'
     surname = (user.last_name or '').strip() or 'Account'
     reference_id = (customer_reference_id or '').strip()
@@ -93,7 +119,7 @@ def _customer_payload(
     payload: dict[str, Any] = {
         'reference_id': reference_id[:255],
         'type': 'INDIVIDUAL',
-        'email': email or f'account-{account_id}@planningwithyou.local',
+        'email': email,
         'individual_detail': {
             'given_names': given_names,
             'surname': surname,
@@ -114,6 +140,7 @@ def create_subscription_checkout_session(
     *,
     account_id: int,
     user: User,
+    billing_email: str,
     reference_id: str,
     description: str,
     amount_php: Decimal,
@@ -132,8 +159,8 @@ def create_subscription_checkout_session(
         'country': 'PH',
         'expires_at': expires_at,
         'customer': _customer_payload(
-            account_id=account_id,
             user=user,
+            email=billing_email,
             customer_reference_id=_customer_reference_for_session(reference_id),
         ),
         'locale': 'en',
@@ -157,6 +184,7 @@ def create_one_time_checkout_session(
     *,
     account_id: int,
     user: User,
+    billing_email: str,
     reference_id: str,
     description: str,
     amount_php: Decimal,
@@ -164,6 +192,7 @@ def create_one_time_checkout_session(
     cancel_url: str,
     metadata: dict[str, str],
 ) -> dict:
+    expires_at = _iso_z(_session_expires_at())
     body = {
         'reference_id': reference_id[:255],
         'session_type': 'PAY',
@@ -171,9 +200,10 @@ def create_one_time_checkout_session(
         'amount': _amount_number(amount_php),
         'currency': 'PHP',
         'country': 'PH',
+        'expires_at': expires_at,
         'customer': _customer_payload(
-            account_id=account_id,
             user=user,
+            email=billing_email,
             customer_reference_id=_customer_reference_for_session(reference_id),
         ),
         'locale': 'en',

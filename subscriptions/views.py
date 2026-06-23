@@ -32,6 +32,15 @@ from .xendit_activation import apply_xendit_payment_session_completed
 from .xendit_client import XenditError, retrieve_session
 
 
+def _xendit_error_response(exc: XenditError) -> Response:
+    body: dict = {'detail': str(exc)}
+    if isinstance(exc.payload, dict):
+        errors = exc.payload.get('errors')
+        if errors:
+            body['errors'] = errors
+    return Response(body, status=status.HTTP_502_BAD_GATEWAY)
+
+
 def _receipt_download_response(receipt: SubscriptionReceipt):
     key = (receipt.storage_key or '').strip()
     if key and default_storage.exists(key):
@@ -186,10 +195,7 @@ class SubscriptionCheckoutView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         except XenditError as exc:
-            return Response(
-                {'detail': str(exc)},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+            return _xendit_error_response(exc)
 
         return Response(result, status=status.HTTP_201_CREATED)
 
@@ -237,7 +243,7 @@ class SubscriptionCheckoutConfirmView(APIView):
         try:
             session = retrieve_session(session_id)
         except XenditError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+            return _xendit_error_response(exc)
 
         session_status = str(session.get('status') or '').strip().upper()
         account_sub_data = AccountSubscriptionSerializer(account_sub).data

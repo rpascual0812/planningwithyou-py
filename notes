@@ -614,3 +614,49 @@ xendit secret key
 xnd_development_QKDWXUpYhwtOvm0PTdycKIxpZaxG9w4TY4Osdguii2T2HMioPe87R4p8TDiHi89L
 xendit key token
 xnd_public_development_WMuAqyxd9zyo7dC4VrUiCGT0CIxcUyKRQq3eVtuprMYJgCHG7yd5bG09GCnyQOY
+
+
+The API key is forbidden to perform this request. This is usually because the API key doesn't have sufficient permissions to access the API. Check the required permissions to access this API in the API Reference and adjust your API key permission accordingly in the Dashboard
+
+# DEV
+curl --request POST \
+  --url https://api.xendit.co/split_rules \
+  --user "xnd_development_zvTfhmmCtYYQPl3EmXxEnQ2FkIp68O5mWssqfSvYbmlRcjan5avW8e4FxUel8A:" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "name": "Platform Fee",
+    "description": "Platform fee for a Marketplace",
+    "routes": [
+      {
+        "percent_amount": 1,
+        "currency": "PHP",
+        "destination_account_id": "6a21a010ec9da1e87d1d687d",
+        "reference_id": "Split 1"
+      }
+    ]
+  }'
+
+  RESULT
+  {"id":"splitru_f7440c6c-0211-490b-9b16-306872fee08a","name":"Platform Fee","description":"Platform fee for a Marketplace","created_at":"2026-06-23T15:08:04.358446616Z","updated_at":"2026-06-23T15:08:04.358446616Z","routes":[{"currency":"PHP","destination_account_id":"6a21a010ec9da1e87d1d687d","reference_id":"Split 1","percent_amount":1}]}
+
+# LIVE
+curl --request POST \
+  --url https://api.xendit.co/split_rules \
+  --user "xnd_production_K7WWW3468biEH56ceqCXalCSLF8vm38x4sxtRvhoRYiAU1LXu2UCDCHkGRyj9g:" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "name": "Platform Fee",
+    "description": "Platform fee for a Marketplace",
+    "routes": [
+      {
+        "percent_amount": 1,
+        "currency": "PHP",
+        "destination_account_id": "6a21a010ec9da1e87d1d687d",
+        "reference_id": "Split 1"
+      }
+    ]
+  }'
+
+  RESULT
+
+  {"id":"splitru_662960c1-5311-45d2-bd81-f9eac06e8695","name":"Platform Fee","description":"Platform fee for a Marketplace","created_at":"2026-06-23T15:12:02.10541126Z","updated_at":"2026-06-23T15:12:02.10541126Z","routes":[{"currency":"PHP","destination_account_id":"6a21a010ec9da1e87d1d687d","reference_id":"Split 1","percent_amount":1}]}

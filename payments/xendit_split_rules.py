@@ -19,6 +19,10 @@ def platform_fee_percent() -> float:
     return max(0.0, min(100.0, value))
 
 
+def platform_master_account_id() -> str:
+    return (getattr(settings, 'XENDIT_PLATFORM_MASTER_ACCOUNT_ID', None) or '').strip()
+
+
 def get_platform_fee_split_rule_id() -> str:
     """
     Return the xenPlatform split rule id for platform fee collection.
@@ -45,17 +49,24 @@ def get_platform_fee_split_rule_id() -> str:
 
 
 def _create_and_store_split_rule() -> str:
+    master_account_id = platform_master_account_id()
+    if not master_account_id:
+        raise XenditError(
+            'Xendit platform master account id is required to auto-create split rules. '
+            'Set XENDIT_PLATFORM_MASTER_ACCOUNT_ID to your xenPlatform master Business ID, '
+            'or set XENDIT_PLATFORM_SPLIT_RULE_ID to an existing split rule from the Xendit Dashboard.'
+        )
+
     percent = platform_fee_percent()
     payload = {
         'name': 'Planning With You platform fee',
-        'description': (
-            f'{percent:g}% of net settlement to platform master account '
-            '(quotation payment links).'
-        ),
+        # Xendit only allows letters, numbers, and spaces in description.
+        'description': 'Platform fee on quotation payment links',
         'routes': [
             {
                 'percent_amount': percent,
                 'currency': 'PHP',
+                'destination_account_id': master_account_id,
                 'reference_id': 'platform-fee',
             },
         ],

@@ -376,6 +376,11 @@ XENDIT_WEBHOOK_TOKEN = os.environ.get('XENDIT_WEBHOOK_TOKEN', '').strip()
 XENDIT_PLATFORM_FEE_PERCENT = os.environ.get('XENDIT_PLATFORM_FEE_PERCENT', '1') or '1'
 # Optional pre-created split rule id (skips auto-provision via Split Rules API).
 XENDIT_PLATFORM_SPLIT_RULE_ID = os.environ.get('XENDIT_PLATFORM_SPLIT_RULE_ID', '').strip()
+# xenPlatform master Business ID — destination for platform fee split rules.
+XENDIT_PLATFORM_MASTER_ACCOUNT_ID = os.environ.get(
+    'XENDIT_PLATFORM_MASTER_ACCOUNT_ID',
+    '',
+).strip()
 
 PASSWORD_RESET_TOKEN_LIFETIME_HOURS = int(
     os.environ.get('PASSWORD_RESET_TOKEN_LIFETIME_HOURS', 24),

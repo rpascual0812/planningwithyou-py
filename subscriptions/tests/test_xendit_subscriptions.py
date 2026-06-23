@@ -76,6 +76,7 @@ class XenditCreateSubscriptionCheckoutSessionTests(TestCase):
         create_subscription_checkout_session(
             account_id=42,
             user=self.user,
+            billing_email='xendit-api@example.com',
             reference_id='sub-test-monthly',
             description='Pro monthly',
             amount_php=Decimal('995'),
@@ -100,6 +101,7 @@ class XenditCreateSubscriptionCheckoutSessionTests(TestCase):
         create_subscription_checkout_session(
             account_id=42,
             user=self.user,
+            billing_email='xendit-api@example.com',
             reference_id='sub-test-yearly',
             description='Pro yearly',
             amount_php=Decimal('9995'),

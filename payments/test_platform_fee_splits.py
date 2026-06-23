@@ -9,6 +9,7 @@ from payments.xendit_split_rules import (
     get_platform_fee_split_rule_id,
     platform_fee_percent,
 )
+from subscriptions.xendit_client import XenditError
 from system_settings.models import SystemSetting
 
 
@@ -31,6 +32,7 @@ class BuildTransferConfigTests(SimpleTestCase):
     XENDIT_SECRET_KEY='sk_test',
     XENDIT_PLATFORM_FEE_PERCENT='1',
     XENDIT_PLATFORM_SPLIT_RULE_ID='',
+    XENDIT_PLATFORM_MASTER_ACCOUNT_ID='master_bid_123',
 )
 class XenditSplitRulesTests(TestCase):
     def test_platform_fee_percent_defaults_to_one(self):
@@ -51,6 +53,8 @@ class XenditSplitRulesTests(TestCase):
         self.assertEqual(call_args[0][1], '/split_rules')
         routes = call_args[0][2]['routes']
         self.assertEqual(routes[0]['percent_amount'], 1.0)
+        self.assertEqual(routes[0]['destination_account_id'], 'master_bid_123')
+        self.assertEqual(call_args[0][2]['description'], 'Platform fee on quotation payment links')
         row = SystemSetting.objects.get(name=SETTING_KEY)
         self.assertEqual(row.value, 'sr_new_1')
 
@@ -64,6 +68,12 @@ class XenditSplitRulesTests(TestCase):
     @override_settings(XENDIT_PLATFORM_FEE_PERCENT='0')
     def test_zero_percent_skips_split_rule(self):
         self.assertEqual(get_platform_fee_split_rule_id(), '')
+
+    @override_settings(XENDIT_PLATFORM_MASTER_ACCOUNT_ID='')
+    def test_missing_master_account_id_raises_clear_error(self):
+        with self.assertRaises(XenditError) as ctx:
+            get_platform_fee_split_rule_id()
+        self.assertIn('XENDIT_PLATFORM_MASTER_ACCOUNT_ID', str(ctx.exception))
 
 
 @override_settings(XENDIT_SECRET_KEY='sk_test', XENDIT_PLATFORM_SPLIT_RULE_ID='sr_link')

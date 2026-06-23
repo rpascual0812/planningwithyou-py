@@ -20,6 +20,63 @@ class XenditError(Exception):
         self.payload = payload
 
 
+def format_xendit_error_message(
+    payload: Any,
+    *,
+    fallback: str = 'Xendit request failed.',
+    status_code: int | None = None,
+) -> str:
+    if not isinstance(payload, dict):
+        return fallback
+
+    message = str(payload.get('message') or payload.get('error_code') or fallback)
+    errors = payload.get('errors')
+    details: list[str] = []
+    if isinstance(errors, list):
+        for item in errors:
+            if isinstance(item, dict):
+                path = str(item.get('path') or '').strip()
+                item_message = str(item.get('message') or '').strip()
+                if path and item_message:
+                    details.append(f'{path}: {item_message}')
+                elif item_message:
+                    details.append(item_message)
+                elif path:
+                    details.append(path)
+            else:
+                text = str(item).strip()
+                if text:
+                    details.append(text)
+    elif isinstance(errors, dict):
+        for key, value in errors.items():
+            if isinstance(value, list):
+                joined = ', '.join(str(item).strip() for item in value if str(item).strip())
+                if joined:
+                    details.append(f'{key}: {joined}')
+            elif value not in (None, ''):
+                details.append(f'{key}: {value}')
+
+    if details:
+        message = f'{message} {"; ".join(details)}'
+
+    if status_code == 403:
+        message = (
+            f'{message} Update the secret key in Xendit Dashboard → Developers → API Keys: '
+            'grant Write access for Payment Sessions and Recurring/Subscriptions, '
+            'then update XENDIT_SECRET_KEY on the server.'
+        )
+    elif status_code == 400 and any(
+        token in message.lower()
+        for token in ('return_url', 'success_return', 'cancel_return')
+    ):
+        message = (
+            f'{message} Xendit requires HTTPS return URLs. Set XENDIT_RETURN_URL_BASE on the '
+            'server to your public https:// frontend URL.'
+        )
+
+    return message
+
+
 def xendit_configured() -> bool:
     return bool(getattr(settings, 'XENDIT_SECRET_KEY', '').strip())
 
@@ -66,9 +123,10 @@ def _request(
             payload = json.loads(exc.read().decode('utf-8'))
         except Exception:
             payload = None
-        message = 'Xendit request failed.'
-        if isinstance(payload, dict):
-            message = str(payload.get('message') or payload.get('error_code') or message)
+        message = format_xendit_error_message(
+            payload,
+            status_code=exc.code,
+        )
         raise XenditError(message, status_code=exc.code, payload=payload) from exc
     except urllib.error.URLError as exc:
         raise XenditError(f'Xendit network error: {exc.reason}') from exc

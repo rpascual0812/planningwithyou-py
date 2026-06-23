@@ -33,7 +33,11 @@ def create_quotation_payment_session(
     metadata: dict[str, str],
     customer_email: str,
 ) -> dict:
-    email = (customer_email or '').strip() or 'customer@planningwithyou.local'
+    email = (customer_email or '').strip()
+    if not email or '@' not in email or email.endswith('.local'):
+        raise XenditError(
+            'A valid customer email is required for Xendit payment links.',
+        )
     customer_reference = f'pwu-quote-{uuid.uuid4().hex}'[:255]
     body = {
         'reference_id': reference_id[:255],
