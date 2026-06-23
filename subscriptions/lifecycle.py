@@ -16,17 +16,16 @@ from users.models import Account
 from .errors import SubscriptionCheckoutError
 from .models import AccountSubscription, Subscription
 from .paymongo_subscriptions import cancel_paymongo_subscription
+from .plans import (
+    FREE_PLAN,
+    PAID_PLAN_SLUGS,
+    is_lifetime_plan,
+    plan_rank,
+)
 from .pricing import FREE_MAX_TEAM_SEATS, compute_subscription_pricing
 from .proration import add_months, add_years
 
 logger = logging.getLogger(__name__)
-
-PLAN_RANK = {'free': 0, 'pro': 1, 'ai': 2}
-PAID_PLAN_SLUGS = frozenset({'pro', 'ai'})
-
-
-def plan_rank(plan_slug: str) -> int:
-    return PLAN_RANK.get(plan_slug, 0)
 
 
 def is_downgrade(current: Subscription, target: Subscription) -> bool:
@@ -154,7 +153,7 @@ def enforce_free_plan_if_inactive_or_expired(
 
 
 def prepaid_period_end(subscription: Subscription, start: date) -> date | None:
-    if subscription.plan == 'free':
+    if is_lifetime_plan(subscription.plan):
         return None
     if subscription.billing_cycle == Subscription.BillingCycle.YEARLY:
         return add_years(start, 1)
@@ -212,7 +211,7 @@ def get_subscription_catalog(
 
 def validate_team_seats(subscription: Subscription, team_seats: int) -> int:
     seats = max(1, team_seats)
-    if subscription.plan == 'free' and seats > FREE_MAX_TEAM_SEATS:
+    if subscription.plan == FREE_PLAN and seats > FREE_MAX_TEAM_SEATS:
         raise SubscriptionCheckoutError(
             f'The Free plan allows up to {FREE_MAX_TEAM_SEATS} user only.',
         )
@@ -243,7 +242,7 @@ def apply_scheduled_changes_if_due(account_sub: AccountSubscription) -> bool:
         account_sub.scheduled_team_seats or scheduled.default_users,
     )
     paymongo_id = (account_sub.reference_id or '').strip()
-    if paymongo_id and scheduled.plan == 'free':
+    if paymongo_id and is_lifetime_plan(scheduled.plan):
         try:
             cancel_paymongo_subscription(paymongo_id)
         except Exception as exc:
@@ -260,7 +259,7 @@ def apply_scheduled_changes_if_due(account_sub: AccountSubscription) -> bool:
     account_sub.scheduled_team_seats = None
     account_sub.start_date = today
     account_sub.end_date = prepaid_period_end(scheduled, today)
-    if scheduled.plan == 'free':
+    if is_lifetime_plan(scheduled.plan):
         account_sub.reference_id = ''
         account_sub.status = AccountSubscription.Status.ACTIVE
     account_sub.save(

@@ -55,6 +55,7 @@ from .lifecycle import (
     should_offer_subscription_renewal,
     validate_team_seats,
 )
+from .plans import is_lifetime_plan
 from .xendit_client import payment_link_url as xendit_payment_link_url, xendit_session_id
 from .xendit_subscriptions import (
     create_one_time_checkout_session,
@@ -97,7 +98,7 @@ def _validate_checkout_inputs(subscription: Subscription, team_seats: int) -> in
     if not provider_configured(provider):
         label = PROVIDER_LABELS.get(provider, provider.title())
         raise SubscriptionCheckoutError(f'{label} is not configured on the server.')
-    if subscription.plan == 'free' or not subscription.is_selectable:
+    if is_lifetime_plan(subscription.plan) or not subscription.is_selectable:
         raise SubscriptionCheckoutError('This plan cannot be purchased.')
     if subscription.billing_cycle not in Subscription.BillingCycle.values:
         raise SubscriptionCheckoutError('Invalid billing cycle.')

@@ -12,7 +12,7 @@ def ai_assistant_configured() -> bool:
 
 
 def ai_assistant_plans() -> frozenset[str]:
-    raw = getattr(settings, 'AI_ASSISTANT_PLANS', ('ai',))
+    raw = getattr(settings, 'AI_ASSISTANT_PLANS', ('ai', 'admin'))
     if isinstance(raw, str):
         parts = [item.strip() for item in raw.split(',') if item.strip()]
         return frozenset(parts)

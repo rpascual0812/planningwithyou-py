@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import AccountSubscription, Subscription
+from .plans import PAID_PLAN_SLUGS
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
@@ -38,6 +39,15 @@ class SubscribeFreePlanSerializer(serializers.Serializer):
         default=Subscription.BillingCycle.MONTHLY,
         required=False,
     )
+
+
+class SubscribeAdminPlanSerializer(serializers.Serializer):
+    billing_cycle = serializers.ChoiceField(
+        choices=Subscription.BillingCycle.choices,
+        default=Subscription.BillingCycle.MONTHLY,
+        required=False,
+    )
+    team_seats = serializers.IntegerField(min_value=1, default=1, required=False)
 
 
 class AccountSubscriptionSerializer(serializers.ModelSerializer):
@@ -88,7 +98,7 @@ class AccountSubscriptionSerializer(serializers.ModelSerializer):
         return value or None
 
     def get_is_expired(self, obj) -> bool:
-        if obj.subscription.plan not in {'pro', 'ai'}:
+        if obj.subscription.plan not in PAID_PLAN_SLUGS:
             return False
         if obj.status != AccountSubscription.Status.ACTIVE:
             return False

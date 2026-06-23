@@ -48,6 +48,7 @@ from planningwithyou.template_placeholders import (
 )
 
 from subscriptions.account_plan import active_subscription_plan_for_account
+from subscriptions.plans import plan_grants_paid_features
 
 from .seat_usage import (
     SEAT_LIMIT_MESSAGE,
@@ -329,7 +330,7 @@ class UserViewSet(HistoryListMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         account_id = self.request.user.account_id
-        if active_subscription_plan_for_account(account_id) == 'free':
+        if not plan_grants_paid_features(active_subscription_plan_for_account(account_id)):
             raise PermissionDenied(
                 'Adding users requires a paid subscription plan.',
             )

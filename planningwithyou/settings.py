@@ -420,5 +420,5 @@ SIMPLE_JWT = {
 OPENAI_API_KEY = (os.environ.get('OPENAI_API_KEY') or '').strip()
 OPENAI_API_BASE = (os.environ.get('OPENAI_API_BASE') or '').strip()
 AI_ASSISTANT_MODEL = (os.environ.get('AI_ASSISTANT_MODEL') or 'gpt-4o-mini').strip()
-AI_ASSISTANT_PLANS = _csv_env('AI_ASSISTANT_PLANS', 'ai')
+AI_ASSISTANT_PLANS = _csv_env('AI_ASSISTANT_PLANS', 'ai,admin')
 AI_ASSISTANT_TIMEOUT = int(os.environ.get('AI_ASSISTANT_TIMEOUT', '60'))

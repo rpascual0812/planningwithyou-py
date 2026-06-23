@@ -32,9 +32,19 @@ class PlanPricingSerializer(serializers.Serializer):
     )
 
 
+class AdminPlanPricingSerializer(serializers.Serializer):
+    base_price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0'))
+    price_per_user = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal('0'),
+    )
+
+
 class SubscriptionPlanPricingSerializer(serializers.Serializer):
     pro = PlanPricingSerializer()
     ai = PlanPricingSerializer()
+    admin = AdminPlanPricingSerializer()
 
 class AdminSubscriptionPaymentProviderView(APIView):
     """Read or update the platform subscription billing payment provider."""
@@ -66,7 +76,7 @@ class SubscriptionPaymentProviderPublicView(APIView):
 
 
 class AdminSubscriptionPlanPricingView(APIView):
-    """Read or update Pro / AI Plus prices stored in the system table."""
+    """Read or update Pro / AI Plus / Admin prices stored in the system table."""
 
     feature_key = 'admin_subscriptions'
     permission_classes = [IsAuthenticated, FeatureAccess]
@@ -84,6 +94,8 @@ class AdminSubscriptionPlanPricingView(APIView):
                 pro_price_per_user=data['pro']['price_per_user'],
                 ai_base_price=data['ai']['base_price'],
                 ai_price_per_user=data['ai']['price_per_user'],
+                admin_base_price=data['admin']['base_price'],
+                admin_price_per_user=data['admin']['price_per_user'],
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=400)
