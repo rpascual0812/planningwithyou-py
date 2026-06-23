@@ -41,15 +41,6 @@ class SubscribeFreePlanSerializer(serializers.Serializer):
     )
 
 
-class SubscribeAdminPlanSerializer(serializers.Serializer):
-    billing_cycle = serializers.ChoiceField(
-        choices=Subscription.BillingCycle.choices,
-        default=Subscription.BillingCycle.MONTHLY,
-        required=False,
-    )
-    team_seats = serializers.IntegerField(min_value=1, default=1, required=False)
-
-
 class AccountSubscriptionSerializer(serializers.ModelSerializer):
     plan = serializers.CharField(source='subscription.plan', read_only=True)
     plan_name = serializers.CharField(source='subscription.name', read_only=True)

@@ -14,13 +14,11 @@ from .lifecycle import resolve_account_subscription_for_account
 from .checkout import preview_subscription_checkout, start_subscription_checkout
 from .errors import SubscriptionCheckoutError
 from .free_plan import subscribe_account_to_free_plan
-from .admin_plan import subscribe_account_to_admin_plan
 from .lifecycle import get_account_subscription_row
 from .models import AccountSubscription, Subscription, SubscriptionPayment, SubscriptionReceipt
 from .plans import ADMIN_PLAN, user_may_view_plan
 from .serializers import (
     AccountSubscriptionSerializer,
-    SubscribeAdminPlanSerializer,
     SubscribeFreePlanSerializer,
     SubscriptionCheckoutSerializer,
     SubscriptionPaymentSerializer,
@@ -300,44 +298,6 @@ class SubscribeFreePlanView(APIView):
             row = subscribe_account_to_free_plan(
                 account=account,
                 billing_cycle=billing_cycle,
-            )
-        except SubscriptionCheckoutError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-
-        return Response(
-            AccountSubscriptionSerializer(row).data,
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class SubscribeAdminPlanView(APIView):
-    """Activate the internal Admin plan (platform staff only)."""
-
-    permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
-    feature_key = 'account_settings'
-
-    def post(self, request):
-        serializer = SubscribeAdminPlanSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        billing_cycle = serializer.validated_data.get(
-            'billing_cycle',
-            Subscription.BillingCycle.MONTHLY,
-        )
-        team_seats = serializer.validated_data.get('team_seats') or 1
-
-        account = Account.objects.filter(pk=request.user.account_id).first()
-        if account is None:
-            return Response(
-                {'detail': 'Account not found.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        try:
-            row = subscribe_account_to_admin_plan(
-                account=account,
-                user=request.user,
-                billing_cycle=billing_cycle,
-                team_seats=team_seats,
             )
         except SubscriptionCheckoutError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)

@@ -74,8 +74,8 @@ class SubscriptionPlanPricingSettingsTests(TestCase):
             pro_price_per_user=Decimal('100.00'),
             ai_base_price=Decimal('1495.00'),
             ai_price_per_user=Decimal('150.00'),
-            admin_base_price=Decimal('0.00'),
-            admin_price_per_user=Decimal('0.00'),
+            admin_base_price=Decimal('995.00'),
+            admin_price_per_user=Decimal('100.00'),
         )
         self.assertFalse(sync_subscription_plan_prices_from_system())
         self.assertEqual(

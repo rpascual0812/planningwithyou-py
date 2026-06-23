@@ -7,11 +7,10 @@ from rest_framework.test import APIClient
 
 from companies.models import Company
 from countries.models import Country
-from subscriptions.models import AccountSubscription, Subscription
+from subscriptions.models import Subscription
 from suppliers.models import SupplierType
-from users.roles import ensure_owner_role
 from users.models import Account
-
+from users.roles import ensure_owner_role
 from users.test_support import grant_platform_admin
 
 User = get_user_model()
@@ -30,10 +29,6 @@ def _ensure_account_id_sequence() -> None:
 class AdminSubscriptionPlanTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.free_monthly = Subscription.objects.filter(
-            plan='free',
-            billing_cycle='monthly',
-        ).first()
         cls.admin_monthly = Subscription.objects.filter(
             plan='admin',
             billing_cycle='monthly',
@@ -42,11 +37,7 @@ class AdminSubscriptionPlanTests(TestCase):
             plan='pro',
             billing_cycle='monthly',
         ).first()
-        if (
-            cls.free_monthly is None
-            or cls.admin_monthly is None
-            or cls.pro_monthly is None
-        ):
+        if cls.admin_monthly is None or cls.pro_monthly is None:
             cls.skip_setup = True
             return
         cls.skip_setup = False
@@ -66,12 +57,12 @@ class AdminSubscriptionPlanTests(TestCase):
                 'currency_code': 'PHP',
             },
         )
+        self.supplier_type, _ = SupplierType.objects.get_or_create(name='Planner')
         self.account = Account.objects.create(
             name='Test Account',
             is_active=True,
             country=self.country,
         )
-        self.supplier_type, _ = SupplierType.objects.get_or_create(name='Planner')
         self.company = Company.objects.create(
             account=self.account,
             name='Test Co',
@@ -105,28 +96,22 @@ class AdminSubscriptionPlanTests(TestCase):
         self.assertIn('admin', plans)
         admin_row = next(row for row in res.data if row['plan'] == 'admin')
         self.assertEqual(admin_row['name'], 'Admin')
+        self.assertGreater(Decimal(admin_row['base_price']), 0)
 
-    def test_subscribe_admin_requires_platform_admin(self):
+    def test_non_admin_cannot_checkout_admin_plan(self):
         res = self.client.post(
-            '/subscriptions/subscribe-admin/',
-            {'billing_cycle': 'monthly', 'team_seats': 2},
+            '/subscriptions/checkout/preview/',
+            {'plan': 'admin', 'billing_cycle': 'monthly', 'team_seats': 1},
             format='json',
         )
-        self.assertEqual(res.status_code, 400)
-        self.assertIn('not available', res.data['detail'].lower())
+        self.assertEqual(res.status_code, 404)
 
-    def test_platform_admin_can_activate_admin_plan(self):
+    def test_platform_admin_can_preview_admin_checkout(self):
         grant_platform_admin(self.user)
         res = self.client.post(
-            '/subscriptions/subscribe-admin/',
-            {'billing_cycle': 'monthly', 'team_seats': 3},
+            '/subscriptions/checkout/preview/',
+            {'plan': 'admin', 'billing_cycle': 'monthly', 'team_seats': 1},
             format='json',
         )
-        self.assertEqual(res.status_code, 201, res.data)
-        self.assertEqual(res.data['plan'], 'admin')
-        self.assertEqual(res.data['team_seats'], 3)
-
-        row = AccountSubscription.objects.get(account=self.account, deleted_at__isnull=True)
-        self.assertEqual(row.subscription.plan, 'admin')
-        self.assertEqual(row.team_seats, 3)
-        self.assertEqual(row.total_price, Decimal('0.00'))
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertGreater(Decimal(res.data['amount_due_now']), 0)

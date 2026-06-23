@@ -8,7 +8,6 @@ from .admin_views import (
 )
 from .views import (
     AccountSubscriptionCurrentView,
-    SubscribeAdminPlanView,
     SubscribeFreePlanView,
     SubscriptionCheckoutConfirmView,
     SubscriptionCheckoutPreviewView,
@@ -74,11 +73,6 @@ urlpatterns = [
         'subscriptions/subscribe-free/',
         SubscribeFreePlanView.as_view(),
         name='subscription-subscribe-free',
-    ),
-    path(
-        'subscriptions/subscribe-admin/',
-        SubscribeAdminPlanView.as_view(),
-        name='subscription-subscribe-admin',
     ),
     path(
         'subscriptions/payments/',

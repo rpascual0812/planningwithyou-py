@@ -25,8 +25,8 @@ DEFAULTS: dict[str, str] = {
     PRO_PRICE_PER_USER_KEY: '100.00',
     AI_BASE_PRICE_KEY: '1495.00',
     AI_PRICE_PER_USER_KEY: '150.00',
-    ADMIN_BASE_PRICE_KEY: '0.00',
-    ADMIN_PRICE_PER_USER_KEY: '0.00',
+    ADMIN_BASE_PRICE_KEY: '995.00',
+    ADMIN_PRICE_PER_USER_KEY: '100.00',
 }
 
 _PLAN_KEYS = {
@@ -119,6 +119,8 @@ def update_plan_pricing_settings(
         raise ValueError('Pro base price must be greater than zero.')
     if ai_base_price <= 0:
         raise ValueError('AI Plus base price must be greater than zero.')
+    if admin_base_price <= 0:
+        raise ValueError('Admin base price must be greater than zero.')
 
     _set_setting(PRO_BASE_PRICE_KEY, str(pro_base_price.quantize(Decimal('0.01'))))
     _set_setting(PRO_PRICE_PER_USER_KEY, str(pro_price_per_user.quantize(Decimal('0.01'))))

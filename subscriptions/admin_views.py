@@ -32,19 +32,10 @@ class PlanPricingSerializer(serializers.Serializer):
     )
 
 
-class AdminPlanPricingSerializer(serializers.Serializer):
-    base_price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0'))
-    price_per_user = serializers.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        min_value=Decimal('0'),
-    )
-
-
 class SubscriptionPlanPricingSerializer(serializers.Serializer):
     pro = PlanPricingSerializer()
     ai = PlanPricingSerializer()
-    admin = AdminPlanPricingSerializer()
+    admin = PlanPricingSerializer()
 
 class AdminSubscriptionPaymentProviderView(APIView):
     """Read or update the platform subscription billing payment provider."""
