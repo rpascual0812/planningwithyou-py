@@ -1,5 +1,6 @@
 import mimetypes
 
+from django.db.models import F
 from django.http import Http404, HttpResponse
 from django.utils import timezone
 from rest_framework import parsers, status, viewsets
@@ -12,6 +13,8 @@ from planningwithyou.file_storage import read_template_asset_file, template_asse
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 
 from .models import InvitationRsvp, InvitationTemplate, TemplateAsset
+
+from .rsvp_analytics import compute_rsvp_analytics
 from .rsvp_serializers import PublicRsvpListSerializer, PublicRsvpSubmitSerializer
 from .rsvp_utils import (
     find_rsvp_element,
@@ -239,6 +242,8 @@ class PublicInvitationView(APIView):
         )
         if tpl is None:
             return Response({'detail': 'Invitation not found.'}, status=status.HTTP_404_NOT_FOUND)
+        InvitationTemplate.objects.filter(pk=tpl.pk).update(view_count=F('view_count') + 1)
+        tpl.view_count = (tpl.view_count or 0) + 1
         return Response(PublicInvitationSerializer(tpl).data)
 
 
@@ -262,6 +267,7 @@ class PublicInvitationRsvpView(APIView):
             'title': tpl.title,
             'slug': tpl.slug,
             'field_columns': rsvp_field_columns(tpl.document, results),
+            'analytics': compute_rsvp_analytics(tpl, results),
             'results': results,
         }
         serializer = PublicRsvpListSerializer(payload)

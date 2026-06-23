@@ -81,6 +81,10 @@ class InvitationTemplate(models.Model):
     marketplace_preview_url = models.URLField(blank=True, default='')
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    view_count = models.PositiveIntegerField(
+        default=0,
+        help_text='Public invitation page views (used on RSVP analytics).',
+    )
     created_by = models.ForeignKey(
         'users.User',
         on_delete=models.SET_NULL,

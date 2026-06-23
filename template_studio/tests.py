@@ -467,6 +467,75 @@ class InvitationTemplateApiTests(TestCase):
         self.assertEqual(len(res.data['results']), 1)
         self.assertEqual(res.data['results'][0]['fields_data']['first_name'], 'Jane')
         self.assertTrue(any(c['id'] == 'first_name' for c in res.data['field_columns']))
+        self.assertIn('analytics', res.data)
+        self.assertEqual(res.data['analytics']['will_go'], 1)
+        self.assertEqual(res.data['analytics']['expected_visitors'], 1)
+
+    def test_public_rsvp_list_analytics_with_attendance(self):
+        from template_studio.models import InvitationRsvp
+
+        document = self._rsvp_document()
+        document['pages'][0]['elements'][0]['fields'].extend(
+            [
+                {
+                    'id': 'attendance',
+                    'label': 'Will you attend?',
+                    'type': 'select',
+                    'required': True,
+                    'options': ['Will go', 'Will not go'],
+                },
+                {
+                    'id': 'guest_count',
+                    'label': 'Number of guests',
+                    'type': 'text',
+                    'required': False,
+                },
+            ],
+        )
+        document['pages'][0]['elements'][0]['expectedGuestCount'] = 10
+        document['pages'][0]['elements'][0]['rsvpDeadline'] = '2030-01-01'
+        tpl = InvitationTemplate.objects.create(
+            account=self.account,
+            company=self.company,
+            title='RSVP Analytics Test',
+            slug='rsvp-analytics-test',
+            document=document,
+            is_published=True,
+            view_count=12,
+            created_by=self.user,
+        )
+        InvitationRsvp.objects.create(
+            invitation_template=tpl,
+            element_id='rsvp_el_1',
+            fields_data={
+                'first_name': 'Jane',
+                'email_address': 'jane@example.com',
+                'attendance': 'Will go',
+                'guest_count': '3',
+            },
+        )
+        InvitationRsvp.objects.create(
+            invitation_template=tpl,
+            element_id='rsvp_el_1',
+            fields_data={
+                'first_name': 'Bob',
+                'email_address': 'bob@example.com',
+                'attendance': 'Will not go',
+                'guest_count': '2',
+            },
+        )
+        self.client.logout()
+        res = self.client.get(f'/public/invitations/{tpl.slug}/rsvp/')
+        self.assertEqual(res.status_code, 200, res.data)
+        analytics = res.data['analytics']
+        self.assertEqual(analytics['total_views'], 12)
+        self.assertEqual(analytics['will_go'], 3)
+        self.assertEqual(analytics['will_not_go'], 2)
+        self.assertEqual(analytics['awaiting_reply'], 5)
+        self.assertEqual(analytics['expected_visitors'], 10)
+        self.assertEqual(analytics['total_guests'], 10)
+        self.assertIsNotNone(analytics['days_remaining'])
+        self.assertGreater(analytics['days_remaining'], 0)
 
     def test_public_rsvp_export_xlsx(self):
         from template_studio.models import InvitationRsvp
