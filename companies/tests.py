@@ -162,11 +162,61 @@ class CompanyKybAdminApiTests(TestCase):
         client.force_authenticate(user=self.admin)
         res = client.get(
             '/admin/kyb-verifications/',
-            {'paymongo_status': CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO},
+            {'status': CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO},
         )
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 1)
-        self.assertEqual(res.data[0]['company_name'], 'Verify Me Co')
+        results = res.data['results'] if isinstance(res.data, dict) else res.data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['company_name'], 'Verify Me Co')
+
+    def test_admin_excludes_draft_only_kyb(self):
+        from rest_framework.test import APIClient
+
+        draft_company = Company.objects.create(
+            account=self.account,
+            name='Draft Only Co',
+            supplier_type=self.company.supplier_type,
+            is_main=False,
+        )
+        CompanyKybVerification.objects.create(
+            company=draft_company,
+            paymongo_status=CompanyKybVerification.PaymongoStatus.DRAFT,
+            xendit_status=CompanyKybVerification.XenditStatus.DRAFT,
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        res = client.get('/admin/kyb-verifications/')
+        self.assertEqual(res.status_code, 200)
+        results = res.data['results'] if isinstance(res.data, dict) else res.data
+        names = {row['company_name'] for row in results}
+        self.assertIn('Verify Me Co', names)
+        self.assertNotIn('Draft Only Co', names)
+
+    def test_admin_lists_pending_xendit_kyb(self):
+        from rest_framework.test import APIClient
+
+        xendit_company = Company.objects.create(
+            account=self.account,
+            name='Xendit Pending Co',
+            supplier_type=self.company.supplier_type,
+            is_main=False,
+        )
+        CompanyKybVerification.objects.create(
+            company=xendit_company,
+            xendit_status=CompanyKybVerification.XenditStatus.PENDING,
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        res = client.get(
+            '/admin/kyb-verifications/',
+            {'status': CompanyKybVerification.XenditStatus.PENDING},
+        )
+        self.assertEqual(res.status_code, 200)
+        results = res.data['results'] if isinstance(res.data, dict) else res.data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['company_name'], 'Xendit Pending Co')
 
     def test_non_admin_cannot_list_kyb(self):
         from rest_framework.test import APIClient

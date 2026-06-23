@@ -114,6 +114,19 @@ class Quotation(models.Model):
     title = models.CharField(max_length=255)
     date_of_event = models.DateTimeField(null=True, blank=True)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    discount_type = models.CharField(max_length=16, blank=True, default='')
+    total_override_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
     required_downpayment_amount = models.DecimalField(
         max_digits=12,
         decimal_places=2,

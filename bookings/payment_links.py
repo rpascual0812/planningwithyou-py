@@ -22,6 +22,7 @@ from .payment_providers import (
     verified_payment_providers,
 )
 from .payment_summary import booking_is_fully_paid, booking_remaining_balance
+from .quotation_pricing_adjustments import sync_quotation_total_amount
 from .xendit_payment_links import create_quotation_payment_session
 from payments.paymongo_config import company_can_accept_paymongo_payments, get_paymongo_company_context
 
@@ -305,6 +306,9 @@ def create_booking_payment_link(
         assert_payment_provider_link_ready(company, provider)
     except ValueError as exc:
         raise PaymentLinkError(str(exc)) from exc
+
+    sync_quotation_total_amount(booking)
+    booking.refresh_from_db(fields=['total_amount', 'updated_at'])
 
     base_amount = _resolve_base_amount(booking, charge_base_amount)
     try:

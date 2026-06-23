@@ -41,6 +41,10 @@ from .downpayment import (
     sum_booking_required_downpayment,
     validate_field_value_downpayment,
 )
+from .quotation_pricing_adjustments import (
+    DISCOUNT_TYPES,
+    sync_quotation_total_amount,
+)
 from .payment_breakdown import (
     TWOPLACES,
     booking_payment_fee_totals,
@@ -205,7 +209,8 @@ class QuotationSerializer(serializers.ModelSerializer):
         model = Quotation
         fields = [
             'id', 'unique_id', 'company', 'company_name', 'status', 'status_title', 'contact', 'title', 'date_of_event',
-            'total_amount', 'required_downpayment_amount',
+            'total_amount', 'discount_amount', 'discount_type', 'total_override_amount',
+            'required_downpayment_amount',
             'paid_amount', 'paid_charge_amount', 'paid_processing_fees', 'paid_platform_fees',
             'refunded_amount', 'remaining_amount', 'can_edit',
             'groups', 'field_values', 'notes', 'sort_order', 'created_by',
@@ -353,6 +358,11 @@ class QuotationSerializer(serializers.ModelSerializer):
             company_id = getattr(request.user, 'company_id', None)
             if company_id is not None and contact.company_org_id != company_id:
                 raise serializers.ValidationError({'contact': ['Invalid contact for this company.']})
+        discount_type = (attrs.get('discount_type') or '').strip()
+        if discount_type and discount_type not in DISCOUNT_TYPES:
+            raise serializers.ValidationError(
+                {'discount_type': ['Invalid discount type. Use percent or fixed.']},
+            )
         return attrs
 
     def create(self, validated_data):
@@ -372,6 +382,7 @@ class QuotationSerializer(serializers.ModelSerializer):
         self._save_groups(quotation, groups_data)
         self._save_field_values(quotation, field_values_data)
         self._refresh_required_downpayment_amount(quotation)
+        sync_quotation_total_amount(quotation)
         self._enqueue_pdf_generation(quotation)
         request = self.context.get('request')
         transaction.on_commit(
@@ -409,6 +420,7 @@ class QuotationSerializer(serializers.ModelSerializer):
             self._save_groups(instance, groups_data)
         if field_values_data is not None:
             self._refresh_required_downpayment_amount(instance)
+        sync_quotation_total_amount(instance)
         self._enqueue_pdf_generation(instance)
         new_status_id = instance.status_id
         after = snapshot_quotation_full(instance)

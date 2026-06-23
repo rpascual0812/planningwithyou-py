@@ -12,6 +12,25 @@ from .kyb_serializers import (
 from .models import CompanyKybVerification
 
 
+def _kyb_active_verification_filter() -> Q:
+    """
+    At least one provider has pending or approved verification.
+
+    Excludes companies that have not started KYB on PayMongo or Xendit (both draft).
+    """
+    return Q(
+        paymongo_status__in=[
+            CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO,
+            CompanyKybVerification.PaymongoStatus.APPROVED,
+        ],
+    ) | Q(
+        xendit_status__in=[
+            CompanyKybVerification.XenditStatus.PENDING,
+            CompanyKybVerification.XenditStatus.APPROVED,
+        ],
+    )
+
+
 class CompanyKybVerificationAdminViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
@@ -33,19 +52,35 @@ class CompanyKybVerificationAdminViewSet(
         return CompanyKybVerificationSerializer
 
     def get_queryset(self):
-        qs = CompanyKybVerification.objects.select_related('company').order_by(
+        qs = CompanyKybVerification.objects.select_related('company').filter(
+            _kyb_active_verification_filter(),
+        ).order_by(
             '-updated_at',
         )
-        paymongo_status = self.request.query_params.get('paymongo_status', '').strip()
-        if paymongo_status in CompanyKybVerification.PaymongoStatus.values:
-            qs = qs.filter(paymongo_status=paymongo_status)
-        else:
+        status = (
+            self.request.query_params.get('status', '').strip()
+            or self.request.query_params.get('paymongo_status', '').strip()
+        )
+        if status == CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO:
             qs = qs.filter(
-                paymongo_status__in=[
-                    CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO,
-                    CompanyKybVerification.PaymongoStatus.APPROVED,
-                    CompanyKybVerification.PaymongoStatus.REJECTED,
-                ],
+                paymongo_status=CompanyKybVerification.PaymongoStatus.PENDING_PAYMONGO,
+            )
+        elif status == CompanyKybVerification.XenditStatus.PENDING:
+            qs = qs.filter(
+                xendit_status=CompanyKybVerification.XenditStatus.PENDING,
+            )
+        elif status == 'approved_paymongo':
+            qs = qs.filter(
+                paymongo_status=CompanyKybVerification.PaymongoStatus.APPROVED,
+            )
+        elif status == 'approved_xendit':
+            qs = qs.filter(
+                xendit_status=CompanyKybVerification.XenditStatus.APPROVED,
+            )
+        elif status == CompanyKybVerification.PaymongoStatus.APPROVED:
+            qs = qs.filter(
+                Q(paymongo_status=CompanyKybVerification.PaymongoStatus.APPROVED)
+                | Q(xendit_status=CompanyKybVerification.XenditStatus.APPROVED),
             )
         search = self.request.query_params.get('search', '').strip()
         if search:
