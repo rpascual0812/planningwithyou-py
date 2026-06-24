@@ -3,10 +3,10 @@ from rest_framework import serializers
 from companies.models import Company
 
 from .models import (
+    Package,
     SupplierSetting,
-    SupplierSettingTier,
+    SupplierSettingPackage,
     SupplierType,
-    Tier,
 )
 
 
@@ -17,9 +17,9 @@ class SupplierTypeSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class TierSerializer(serializers.ModelSerializer):
+class PackageSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Tier
+        model = Package
         fields = ['id', 'name', 'company', 'is_active', 'created_at']
         read_only_fields = ['id', 'created_at']
 
@@ -65,19 +65,19 @@ class SupplierOptionSerializer(serializers.Serializer):
 
 
 class SupplierOptionQuerySerializer(serializers.Serializer):
-    tier_id = serializers.IntegerField(required=False)
+    package_id = serializers.IntegerField(required=False)
     supplier_type = serializers.IntegerField(required=False)
     supplier_id = serializers.IntegerField(required=False)
 
-    def validate_tier_id(self, value):
+    def validate_package_id(self, value):
         company_id = self.context['request'].user.company_id
-        if not Tier.objects.filter(
+        if not Package.objects.filter(
             pk=value,
             company_id=company_id,
             is_active=True,
             deleted_at__isnull=True,
         ).exists():
-            raise serializers.ValidationError('Invalid or inactive tier.')
+            raise serializers.ValidationError('Invalid or inactive package.')
         return value
 
     def validate_supplier_type(self, value):
@@ -97,7 +97,7 @@ class CompanyListOptionSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
-class SupplierTierQuerySerializer(serializers.Serializer):
+class SupplierPackageQuerySerializer(serializers.Serializer):
     supplier_id = serializers.IntegerField()
 
     def validate_supplier_id(self, value):
@@ -118,10 +118,10 @@ class SupplierTierQuerySerializer(serializers.Serializer):
         return value
 
 
-class SupplierTierOptionSerializer(serializers.Serializer):
-    id = serializers.IntegerField(source='tier_id')
-    name = serializers.CharField(source='tier.name')
-    is_active = serializers.BooleanField(source='tier.is_active')
+class SupplierPackageOptionSerializer(serializers.Serializer):
+    id = serializers.IntegerField(source='package_id')
+    name = serializers.CharField(source='package.name')
+    is_active = serializers.BooleanField(source='package.is_active')
     discount = serializers.DecimalField(
         max_digits=10, decimal_places=2, allow_null=True,
     )

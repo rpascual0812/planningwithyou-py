@@ -8,23 +8,22 @@ from companies.models import Company
 from countries.models import Country
 from packages.models import PackagePrice, PackageVersion
 from suppliers.models import (
+    Package,
     SupplierSetting,
-    SupplierSettingTier,
+    SupplierSettingPackage,
     SupplierType,
-    Tier,
 )
 from users.models import Account
 from users.supplier_price import (
+    build_supplier_packages_by_company,
     build_supplier_setting_active_by_company,
-    build_supplier_tiers_by_company,
-    compute_tier_final_price,
-    save_supplier_company_tier_pricing,
+    compute_package_final_price,
+    save_supplier_company_package_pricing,
     set_supplier_setting_active,
 )
-from suppliers.models import SupplierSettingTier
 
 
-class SupplierTierListPricingTests(TestCase):
+class SupplierPackageListPricingTests(TestCase):
     def setUp(self):
         country = Country.objects.create(
             name='Testland',
@@ -47,12 +46,12 @@ class SupplierTierListPricingTests(TestCase):
             name='Supplier Co',
             supplier_type=self.supplier_type,
         )
-        self.tier_a = Tier.objects.create(
+        self.package_a = Package.objects.create(
             account=self.tenant_account,
             company=self.supplier,
             name='Gold',
         )
-        self.tier_b = Tier.objects.create(
+        self.package_b = Package.objects.create(
             account=self.tenant_account,
             company=self.supplier,
             name='Silver',
@@ -72,7 +71,7 @@ class SupplierTierListPricingTests(TestCase):
         )
         PackagePrice.objects.create(
             package_version=self.current_version,
-            tier=self.tier_a,
+            package=self.package_a,
             company=self.supplier,
             account=self.tenant_account,
             total_price=Decimal('100.00'),
@@ -80,7 +79,7 @@ class SupplierTierListPricingTests(TestCase):
         )
         PackagePrice.objects.create(
             package_version=self.old_version,
-            tier=self.tier_b,
+            package=self.package_b,
             company=self.supplier,
             account=self.tenant_account,
             total_price=Decimal('50.00'),
@@ -90,18 +89,18 @@ class SupplierTierListPricingTests(TestCase):
             supplier=self.supplier,
             account=self.tenant_account,
         )
-        SupplierSettingTier.objects.create(
+        SupplierSettingPackage.objects.create(
             supplier_setting=setting,
-            tier=self.tier_a,
+            package=self.package_a,
             price=Decimal('120.00'),
         )
 
-    def test_build_supplier_tiers_uses_company_tiers_and_current_package(self):
-        rows = build_supplier_tiers_by_company(
+    def test_build_supplier_packages_uses_company_packages_and_current_package(self):
+        rows = build_supplier_packages_by_company(
             [self.supplier.id],
             self.tenant_account.id,
         )[self.supplier.id]
-        by_name = {row['tier_name']: row for row in rows}
+        by_name = {row['package_name']: row for row in rows}
         self.assertEqual(by_name['Gold']['original_price'], '100')
         self.assertEqual(by_name['Gold']['price'], '120')
         self.assertIsNone(by_name['Silver']['original_price'])
@@ -130,7 +129,7 @@ class SupplierTierListPricingTests(TestCase):
         self.supplier.refresh_from_db()
         self.assertTrue(self.supplier.is_active)
 
-    def test_toggle_active_upserts_supplier_setting_tiers(self):
+    def test_toggle_active_upserts_supplier_setting_packages(self):
         set_supplier_setting_active(
             self.supplier.id,
             self.tenant_account.id,
@@ -141,23 +140,23 @@ class SupplierTierListPricingTests(TestCase):
             account_id=self.tenant_account.id,
         )
         self.assertTrue(setting.is_active)
-        tier_ids = set(
-            SupplierSettingTier.objects.filter(supplier_setting=setting).values_list(
-                'tier_id',
+        package_ids = set(
+            SupplierSettingPackage.objects.filter(supplier_setting=setting).values_list(
+                'package_id',
                 flat=True,
             ),
         )
-        self.assertEqual(tier_ids, {self.tier_a.id, self.tier_b.id})
+        self.assertEqual(package_ids, {self.package_a.id, self.package_b.id})
 
-    def test_compute_tier_final_price_no_adjustments(self):
+    def test_compute_package_final_price_no_adjustments(self):
         self.assertEqual(
-            compute_tier_final_price(Decimal('100'), None, 'percent', None, 'percent'),
+            compute_package_final_price(Decimal('100'), None, 'percent', None, 'percent'),
             Decimal('100'),
         )
 
-    def test_compute_tier_final_price_percent_discount_and_markup(self):
+    def test_compute_package_final_price_percent_discount_and_markup(self):
         self.assertEqual(
-            compute_tier_final_price(
+            compute_package_final_price(
                 Decimal('100'),
                 Decimal('10'),
                 'percent',
@@ -167,9 +166,9 @@ class SupplierTierListPricingTests(TestCase):
             Decimal('95'),
         )
 
-    def test_compute_tier_final_price_fixed_discount(self):
+    def test_compute_package_final_price_fixed_discount(self):
         self.assertEqual(
-            compute_tier_final_price(
+            compute_package_final_price(
                 Decimal('100'),
                 Decimal('15'),
                 'fixed',
@@ -179,13 +178,13 @@ class SupplierTierListPricingTests(TestCase):
             Decimal('85'),
         )
 
-    def test_save_tier_pricing_persists_computed_price(self):
-        save_supplier_company_tier_pricing(
+    def test_save_package_pricing_persists_computed_price(self):
+        save_supplier_company_package_pricing(
             self.supplier.id,
             self.tenant_account.id,
             [
                 {
-                    'tier_id': self.tier_a.id,
+                    'package_id': self.package_a.id,
                     'discount': '10',
                     'discount_type': 'percent',
                     'mark_up': '5',
@@ -194,9 +193,9 @@ class SupplierTierListPricingTests(TestCase):
             ],
             supplier_account_id=self.supplier.account_id,
         )
-        row = SupplierSettingTier.objects.get(
+        row = SupplierSettingPackage.objects.get(
             supplier_setting__supplier_id=self.supplier.id,
-            tier_id=self.tier_a.id,
+            package_id=self.package_a.id,
         )
         self.assertEqual(row.discount, Decimal('10'))
         self.assertEqual(row.discount_type, 'percent')

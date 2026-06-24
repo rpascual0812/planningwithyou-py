@@ -10,9 +10,9 @@ from countries.models import Country
 from packages.models import PackagePrice, PackageItem, PackageVersion
 from suppliers.models import (
     SupplierSetting,
-    SupplierSettingTier,
+    SupplierSettingPackage,
     SupplierType,
-    Tier,
+    Package,
 )
 from users.models import Account, User
 
@@ -40,7 +40,7 @@ class BookingSupplierPackageViewTests(TestCase):
             name='Supplier Co',
             supplier_type=supplier_type,
         )
-        self.tier = Tier.objects.create(
+        self.package = Package.objects.create(
             account=self.account,
             company=self.supplier,
             name='Gold',
@@ -54,7 +54,7 @@ class BookingSupplierPackageViewTests(TestCase):
         )
         self.package_price = PackagePrice.objects.create(
             package_version=self.version,
-            tier=self.tier,
+            package=self.package,
             company=self.supplier,
             account=self.account,
             total_price=Decimal('100.00'),
@@ -72,9 +72,9 @@ class BookingSupplierPackageViewTests(TestCase):
             account=self.account,
             is_active=True,
         )
-        SupplierSettingTier.objects.create(
+        SupplierSettingPackage.objects.create(
             supplier_setting=setting,
-            tier=self.tier,
+            package=self.package,
             price=Decimal('120.00'),
         )
         self.user = User.objects.create_user(
@@ -92,7 +92,7 @@ class BookingSupplierPackageViewTests(TestCase):
             '/booking-supplier-package/',
             {
                 'company_id': self.supplier.id,
-                'tier_id': self.tier.id,
+                'package_id': self.package.id,
                 'package_version_id': self.version.id,
             },
         )
@@ -106,7 +106,7 @@ class BookingSupplierPackageViewTests(TestCase):
             '/booking-supplier-package/',
             {
                 'company_id': self.supplier.id,
-                'tier_id': self.tier.id,
+                'package_id': self.package.id,
             },
         )
         self.assertEqual(res.status_code, 200)
@@ -124,7 +124,7 @@ class BookingSupplierPackageViewTests(TestCase):
             name='External Supplier',
             supplier_type=SupplierType.objects.get(pk=self.supplier.supplier_type_id),
         )
-        external_tier = Tier.objects.create(
+        external_package = Package.objects.create(
             account=other_account,
             company=external_supplier,
             name='Platinum',
@@ -143,14 +143,14 @@ class BookingSupplierPackageViewTests(TestCase):
         )
         PackagePrice.objects.create(
             package_version=version,
-            tier=external_tier,
+            package=external_package,
             company=external_supplier,
             account=other_account,
             total_price=Decimal('200.00'),
             is_active=True,
         )
         PackageItem.objects.create(
-            package_price=PackagePrice.objects.get(tier=external_tier),
+            package_price=PackagePrice.objects.get(package=external_package),
             account=other_account,
             company=external_supplier,
             title='External item',
@@ -159,7 +159,7 @@ class BookingSupplierPackageViewTests(TestCase):
             '/booking-supplier-package/',
             {
                 'company_id': external_supplier.id,
-                'tier_id': external_tier.id,
+                'package_id': external_package.id,
                 'package_version_id': version.id,
             },
         )
@@ -186,7 +186,7 @@ class BookingSupplierPackageViewTests(TestCase):
             '/booking-supplier-package/',
             {
                 'company_id': self.supplier.id,
-                'tier_id': self.tier.id,
+                'package_id': self.package.id,
             },
         )
         self.assertEqual(res.status_code, 200)

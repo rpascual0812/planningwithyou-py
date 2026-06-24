@@ -18,15 +18,15 @@ class PackagePriceViewSet(viewsets.ModelViewSet):
     feature_key = 'quotations'
     serializer_class = PackagePriceSerializer
     filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['id', 'tier', 'total_price', 'created_at']
-    ordering = ['tier_id', 'id']
+    ordering_fields = ['id', 'package', 'total_price', 'created_at']
+    ordering = ['package_id', 'id']
 
     def get_queryset(self):
         account_id = self.request.user.account_id
         qs = PackagePrice.objects.filter(
             account_id=account_id,
             deleted_at__isnull=True,
-        ).select_related('package_version', 'tier').prefetch_related(
+        ).select_related('package_version', 'package').prefetch_related(
             Prefetch(
                 'items',
                 queryset=PackageItem.objects.filter(
@@ -61,9 +61,9 @@ class PackagePriceViewSet(viewsets.ModelViewSet):
         version_id = self.request.query_params.get('package_version_id', '').strip()
         if version_id:
             qs = qs.filter(package_version_id=version_id)
-        tier_id = self.request.query_params.get('tier_id', '').strip()
-        if tier_id:
-            qs = qs.filter(tier_id=tier_id)
+        package_id = self.request.query_params.get('package_id', '').strip()
+        if package_id:
+            qs = qs.filter(package_id=package_id)
         return qs
 
     def perform_create(self, serializer):
@@ -76,7 +76,7 @@ class PackagePriceViewSet(viewsets.ModelViewSet):
         was_active = instance.is_active
         scope = {
             'company_id': instance.company_id,
-            'tier_id': instance.tier_id,
+            'package_id': instance.package_id,
             'package_version_id': instance.package_version_id,
         }
         instance.deleted_at = timezone.now()

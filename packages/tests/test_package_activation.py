@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 from companies.models import Company
 from countries.models import Country
 from packages.models import PackagePrice, PackageVersion
-from suppliers.models import SupplierType, Tier
+from suppliers.models import SupplierType, Package
 from users.models import Account
 from users.test_support import assign_owner_role
 
@@ -33,12 +33,12 @@ class PackageActivationTests(TestCase):
             supplier_type=supplier_type,
             is_main=True,
         )
-        self.tier = Tier.objects.create(
+        self.package = Package.objects.create(
             account=self.account,
             company=self.company,
             name='Gold',
         )
-        self.other_tier = Tier.objects.create(
+        self.other_package = Package.objects.create(
             account=self.account,
             company=self.company,
             name='Silver',
@@ -69,11 +69,11 @@ class PackageActivationTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    def _create_package(self, *, tier=None, version=None, description='Package', is_active=True):
+    def _create_package(self, *, package=None, version=None, description='Package', is_active=True):
         return PackagePrice.objects.create(
             account=self.account,
             company=self.company,
-            tier=tier or self.tier,
+            package=package or self.package,
             package_version=version or self.version,
             description=description,
             total_price=Decimal('1000.00'),
@@ -105,7 +105,7 @@ class PackageActivationTests(TestCase):
             '/package-prices/',
             {
                 'company': self.company.id,
-                'tier': self.tier.id,
+                'package': self.package.id,
                 'package_version': self.version.id,
                 'description': 'New active',
                 'total_price': '1500.00',
@@ -122,21 +122,21 @@ class PackageActivationTests(TestCase):
         self.assertTrue(
             PackagePrice.objects.filter(
                 company=self.company,
-                tier=self.tier,
+                package=self.package,
                 package_version=self.version,
                 is_active=True,
             ).count(),
             1,
         )
 
-    def test_activation_does_not_affect_other_tier_or_version(self):
-        same_tier_other_version = self._create_package(
+    def test_activation_does_not_affect_other_package_or_version(self):
+        same_package_other_version = self._create_package(
             description='Other version',
             version=self.other_version,
         )
-        other_tier_same_version = self._create_package(
-            description='Other tier',
-            tier=self.other_tier,
+        other_package_same_version = self._create_package(
+            description='Other package',
+            package=self.other_package,
         )
         target = self._create_package(description='Target', is_active=False)
 
@@ -147,9 +147,9 @@ class PackageActivationTests(TestCase):
         )
         self.assertEqual(res.status_code, 200, res.data)
 
-        same_tier_other_version.refresh_from_db()
-        other_tier_same_version.refresh_from_db()
+        same_package_other_version.refresh_from_db()
+        other_package_same_version.refresh_from_db()
         target.refresh_from_db()
-        self.assertTrue(same_tier_other_version.is_active)
-        self.assertTrue(other_tier_same_version.is_active)
+        self.assertTrue(same_package_other_version.is_active)
+        self.assertTrue(other_package_same_version.is_active)
         self.assertTrue(target.is_active)

@@ -8,12 +8,12 @@ from companies.models import Company
 
 from planningwithyou.permissions import FeatureAccess, HasAccount
 
-from .models import SupplierType, Tier
+from .models import Package, SupplierType
 from .serializers import (
+    PackageSerializer,
     SupplierOptionQuerySerializer,
-    SupplierTierQuerySerializer,
+    SupplierPackageQuerySerializer,
     SupplierTypeSerializer,
-    TierSerializer,
 )
 
 
@@ -48,19 +48,19 @@ class SupplierTypeViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 
-class TierViewSet(viewsets.ModelViewSet):
-    """CRUD for account tiers (soft-delete on destroy)."""
+class PackageViewSet(viewsets.ModelViewSet):
+    """CRUD for account packages (soft-delete on destroy)."""
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     feature_key = 'supplier_settings'
-    serializer_class = TierSerializer
+    serializer_class = PackageSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'name', 'created_at']
     ordering = ['name']
 
     def get_queryset(self):
         account_id = self.request.user.account_id
-        qs = Tier.objects.filter(
+        qs = Package.objects.filter(
             account_id=account_id,
             deleted_at__isnull=True,
         )
@@ -123,24 +123,24 @@ class SupplierOptionListView(APIView):
         )
 
 
-class SupplierTierListView(APIView):
-    """Tiers configured for a supplier through supplier_setting_tiers."""
+class SupplierPackageListView(APIView):
+    """Packages configured for a supplier through supplier_setting_packages."""
 
     permission_classes = [IsAuthenticated, HasAccount, FeatureAccess]
     feature_key = 'quotations'
 
     def get(self, request):
-        query = SupplierTierQuerySerializer(
+        query = SupplierPackageQuerySerializer(
             data=request.query_params,
             context={'request': request},
         )
         query.is_valid(raise_exception=True)
         supplier_company_id = query.validated_data['supplier_id']
 
-        from users.supplier_price import get_supplier_company_tier_options
+        from users.supplier_price import get_supplier_company_package_options
 
         return Response(
-            get_supplier_company_tier_options(
+            get_supplier_company_package_options(
                 supplier_company_id,
                 request.user.account_id,
                 request.user.company_id,

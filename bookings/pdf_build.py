@@ -18,7 +18,7 @@ from reportlab.pdfgen import canvas
 
 from companies.models import Company
 from .package_items import flat_package_item_rows
-from suppliers.models import Tier
+from suppliers.models import Package
 
 from planningwithyou.file_storage import (
     booking_pdf_storage_key,
@@ -150,56 +150,56 @@ def _format_money(
 def _format_line_value(
     line: QuotationLine,
     supplier_names: dict[int, str],
-    tier_names: dict[int, str],
+    package_names: dict[int, str],
 ) -> str:
     if line.field_type == 'supplier':
         parts = []
         if line.company_id:
             parts.append(supplier_names.get(line.company_id, f'Supplier #{line.company_id}'))
-        if line.tier_id:
-            parts.append(tier_names.get(line.tier_id, f'Tier #{line.tier_id}'))
+        if line.package_id:
+            parts.append(package_names.get(line.package_id, f'Package #{line.package_id}'))
         if not parts:
             parsed = supplier_selection_from_line(line)
             sid = parsed.get('supplier_id')
-            tid = parsed.get('tier_id')
+            tid = parsed.get('package_id')
             if sid is not None:
                 parts.append(supplier_names.get(sid, f'Supplier #{sid}'))
             if tid is not None:
-                parts.append(tier_names.get(tid, f'Tier #{tid}'))
+                parts.append(package_names.get(tid, f'Package #{tid}'))
         return ' — '.join(parts) if parts else ''
     if line.field_type == 'checkbox':
         return 'Yes' if line.value == 'true' else 'No'
     return (line.value or '').strip()
 
 
-def _load_supplier_and_tier_names(lines) -> tuple[dict[int, str], dict[int, str]]:
+def _load_supplier_and_package_names(lines) -> tuple[dict[int, str], dict[int, str]]:
     supplier_ids: set[int] = set()
-    tier_ids: set[int] = set()
+    package_ids: set[int] = set()
     for line in lines:
         if line.field_type != 'supplier':
             continue
         if line.company_id:
             supplier_ids.add(line.company_id)
-        if line.tier_id:
-            tier_ids.add(line.tier_id)
-        if not line.company_id or not line.tier_id:
+        if line.package_id:
+            package_ids.add(line.package_id)
+        if not line.company_id or not line.package_id:
             parsed = supplier_selection_from_line(line)
             if not line.company_id and parsed.get('supplier_id') is not None:
                 supplier_ids.add(parsed['supplier_id'])
-            if not line.tier_id and parsed.get('tier_id') is not None:
-                tier_ids.add(parsed['tier_id'])
+            if not line.package_id and parsed.get('package_id') is not None:
+                package_ids.add(parsed['package_id'])
 
     supplier_names = {}
     if supplier_ids:
         for row in Company.all_objects.filter(pk__in=supplier_ids).values('id', 'name'):
             supplier_names[row['id']] = row['name']
 
-    tier_names = {}
-    if tier_ids:
-        for row in Tier.all_objects.filter(pk__in=tier_ids).values('id', 'name'):
-            tier_names[row['id']] = row['name']
+    package_names = {}
+    if package_ids:
+        for row in Package.all_objects.filter(pk__in=package_ids).values('id', 'name'):
+            package_names[row['id']] = row['name']
 
-    return supplier_names, tier_names
+    return supplier_names, package_names
 
 
 def _package_item_bullet_and_text_x(depth: int) -> tuple[float, float]:
@@ -222,9 +222,9 @@ def _package_item_lines_for_supplier_line(line: QuotationLine) -> list[tuple[int
 def _line_spec_text(
     line: QuotationLine,
     supplier_names: dict[int, str],
-    tier_names: dict[int, str],
+    package_names: dict[int, str],
 ) -> str | None:
-    value = _format_line_value(line, supplier_names, tier_names)
+    value = _format_line_value(line, supplier_names, package_names)
     if not value or value == '—':
         return None
     return f'{line.label} - {value}'
@@ -233,7 +233,7 @@ def _line_spec_text(
 def _group_into_blocks(
     group_lines: list[QuotationLine],
     supplier_names: dict[int, str],
-    tier_names: dict[int, str],
+    package_names: dict[int, str],
 ) -> list[ProductBlock]:
     blocks: list[ProductBlock] = []
     pending_specs: list[str] = []
@@ -247,7 +247,7 @@ def _group_into_blocks(
         if price is not None:
             title = line.label.strip()
             if line.field_type == 'supplier':
-                display = _format_line_value(line, supplier_names, tier_names)
+                display = _format_line_value(line, supplier_names, package_names)
                 if display:
                     title = display
             else:
@@ -260,7 +260,7 @@ def _group_into_blocks(
             ))
             pending_specs = []
             continue
-        spec = _line_spec_text(line, supplier_names, tier_names)
+        spec = _line_spec_text(line, supplier_names, package_names)
         if spec:
             if blocks:
                 blocks[-1].specs.append(spec)
@@ -272,7 +272,7 @@ def _group_into_blocks(
 def _organize_sections(
     lines: list[QuotationLine],
     supplier_names: dict[int, str],
-    tier_names: dict[int, str],
+    package_names: dict[int, str],
 ) -> tuple[list[GroupSection], list[SummaryRow]]:
     groups: dict[int, list[QuotationLine]] = {}
     group_names: dict[int, str] = {}
@@ -296,7 +296,7 @@ def _organize_sections(
         if is_client_group_name(name):
             continue
         group_lines = groups[gid]
-        blocks = _group_into_blocks(group_lines, supplier_names, tier_names)
+        blocks = _group_into_blocks(group_lines, supplier_names, package_names)
         if not blocks:
             continue
         subtotal = sum(b.price for b in blocks)
@@ -378,12 +378,12 @@ def _wrap_text_lines(
 def _metadata_from_lines(
     lines: list[QuotationLine],
     supplier_names: dict[int, str],
-    tier_names: dict[int, str],
+    package_names: dict[int, str],
 ) -> dict[str, str]:
     def pick(pattern: str) -> str:
         for line in lines:
             if re.search(pattern, line.label, re.IGNORECASE):
-                val = _format_line_value(line, supplier_names, tier_names)
+                val = _format_line_value(line, supplier_names, package_names)
                 if val:
                     return val
         return ''
@@ -400,12 +400,12 @@ class BookingQuotePDF:
     def __init__(self, booking: Quotation, lines: list[QuotationLine]):
         self.booking = booking
         self.lines = lines
-        self.supplier_names, self.tier_names = _load_supplier_and_tier_names(lines)
+        self.supplier_names, self.package_names = _load_supplier_and_package_names(lines)
         self.sections, self.extra_summary_rows = _organize_sections(
-            lines, self.supplier_names, self.tier_names,
+            lines, self.supplier_names, self.package_names,
         )
         self.metadata = _metadata_from_lines(
-            lines, self.supplier_names, self.tier_names,
+            lines, self.supplier_names, self.package_names,
         )
         self.currency_symbol, self.currency_code = _currency_for_account(
             booking.account,
@@ -511,7 +511,7 @@ class BookingQuotePDF:
         client_lines = client_detail_lines(self.lines)
         texts = []
         for line in client_lines:
-            val = _format_line_value(line, self.supplier_names, self.tier_names)
+            val = _format_line_value(line, self.supplier_names, self.package_names)
             if val:
                 texts.append(val)
         return texts or ['—']
@@ -958,7 +958,7 @@ def build_booking_pdf(booking: Quotation) -> None:
         booking.lines.select_related(
             'quotation_group',
             'company',
-            'tier',
+            'package',
             'package_version',
         ).order_by(
             'quotation_group__id', 'sort_order', 'id',

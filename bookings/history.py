@@ -32,7 +32,7 @@ LINE_SNAPSHOT_FIELDS = (
     'required_downpayment',
     'value',
     'company_id',
-    'tier_id',
+    'package_id',
     'package_version_id',
     'sort_order',
 )

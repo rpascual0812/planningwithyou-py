@@ -23,7 +23,7 @@ def generate_booking_pdf_task(self, quotation_id: int):
             .prefetch_related(
                 'lines__quotation_group',
                 'lines__company',
-                'lines__tier',
+                'lines__package',
                 'lines__package_version',
             )
             .get(pk=quotation_id)

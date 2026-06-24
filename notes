@@ -661,7 +661,3 @@ curl --request POST \
 
   {"id":"splitru_662960c1-5311-45d2-bd81-f9eac06e8695","name":"Platform Fee","description":"Platform fee for a Marketplace","created_at":"2026-06-23T15:12:02.10541126Z","updated_at":"2026-06-23T15:12:02.10541126Z","routes":[{"currency":"PHP","destination_account_id":"6a21a010ec9da1e87d1d687d","reference_id":"Split 1","percent_amount":1}]}
 
-
-  need to fix
-  - Quotation Settings > Form Templates - add supplier type when adding supplier
-  - In Add/Edit quotation, form template dropdown is missing

@@ -37,9 +37,9 @@ from bookings.supplier_capacity import supplier_booking_capacity_status
 from bookings.unique_id import allocate_booking_unique_id, format_booking_unique_id
 from countries.models import Country
 from packages.models import PackagePrice, PackageItem, PackageVersion
-from suppliers.models import SupplierType, Tier
+from suppliers.models import SupplierType, Package
 from users.models import Account
-from users.supplier_price import resolve_active_package_for_supplier_tier
+from users.supplier_price import resolve_active_package_for_supplier_package
 
 
 class BookingUniqueIdTests(TestCase):
@@ -168,7 +168,7 @@ class BookingSupplierLineStorageTests(TestCase):
             name='Supplier Co',
             supplier_type=supplier_type,
         )
-        self.tier = Tier.objects.create(
+        self.package = Package.objects.create(
             account=self.account,
             company=self.supplier,
             name='Gold',
@@ -182,7 +182,7 @@ class BookingSupplierLineStorageTests(TestCase):
         )
         self.package = PackagePrice.objects.create(
             package_version=self.version,
-            tier=self.tier,
+            package=self.package,
             company=self.supplier,
             account=self.account,
             total_price=Decimal('100.00'),
@@ -194,14 +194,14 @@ class BookingSupplierLineStorageTests(TestCase):
             'field_type': 'supplier',
             'label': 'Venue',
             'value': (
-                f'{{"tier_id": {self.tier.id}, "supplier_id": {self.supplier.id}, '
+                f'{{"package_id": {self.package.id}, "supplier_id": {self.supplier.id}, '
                 f'"price": "75.00"}}'
             ),
             'price': None,
         }
         prepare_supplier_field_dict(fv)
         self.assertEqual(fv['company_id'], self.supplier.id)
-        self.assertEqual(fv['tier_id'], self.tier.id)
+        self.assertEqual(fv['package_id'], self.package.id)
         self.assertEqual(fv['package_version_id'], self.version.id)
         self.assertEqual(fv['value'], '')
         self.assertEqual(fv['price'], '75.00')
@@ -211,7 +211,7 @@ class BookingSupplierLineStorageTests(TestCase):
             'field_type': 'supplier',
             'label': 'Venue',
             'value': (
-                f'{{"tier_id": {self.tier.id}, "supplier_id": {self.supplier.id}}}'
+                f'{{"package_id": {self.package.id}, "supplier_id": {self.supplier.id}}}'
             ),
             'price': None,
         }
@@ -222,7 +222,7 @@ class BookingSupplierLineStorageTests(TestCase):
         """Some rows may store ``package_prices.id`` in ``package_version_id``."""
         pkg = _package_query_for_supplier_line(
             self.supplier.id,
-            self.tier.id,
+            self.package.id,
             self.package.id,
         )
         self.assertIsNotNone(pkg)
@@ -255,7 +255,7 @@ class BookingSupplierLineStorageTests(TestCase):
             label='Venue',
             field_type='supplier',
             company=self.supplier,
-            tier=self.tier,
+            package=self.package,
             package_version=self.version,
             value='',
         )
@@ -290,7 +290,7 @@ class BookingSupplierLineStorageTests(TestCase):
             label='Venue',
             field_type='supplier',
             company=self.supplier,
-            tier=self.tier,
+            package=self.package,
             package_version=self.version,
             price=Decimal('88.00'),
             value='',
@@ -350,7 +350,7 @@ class BookingPdfPackageItemsTests(TestCase):
             name='Supplier Co',
             supplier_type=supplier_type,
         )
-        self.tier = Tier.objects.create(
+        self.package = Package.objects.create(
             account=self.account,
             company=self.supplier,
             name='Gold',
@@ -364,7 +364,7 @@ class BookingPdfPackageItemsTests(TestCase):
         )
         self.package = PackagePrice.objects.create(
             package_version=self.version,
-            tier=self.tier,
+            package=self.package,
             company=self.supplier,
             account=self.account,
             total_price=Decimal('100.00'),
@@ -436,12 +436,12 @@ class BookingPdfPackageItemsTests(TestCase):
             label='Venue',
             field_type='supplier',
             company=self.supplier,
-            tier=self.tier,
+            package=self.package,
             package_version=self.version,
             price=Decimal('50.00'),
             value='',
         )
-        blocks = _group_into_blocks([line], {}, {self.tier.id: 'Gold'})
+        blocks = _group_into_blocks([line], {}, {self.package.id: 'Gold'})
         self.assertEqual(len(blocks), 1)
         self.assertEqual(blocks[0].package_items, [(0, 'Included item')])
 
@@ -479,7 +479,7 @@ class BookingPdfPackageItemsTests(TestCase):
             label='Venue',
             field_type='supplier',
             company=self.supplier,
-            tier=self.tier,
+            package=self.package,
             package_version=self.version,
             price=Decimal('50.00'),
             value='',
@@ -514,7 +514,7 @@ class BookingPdfPackageItemsTests(TestCase):
             label='Venue',
             field_type='supplier',
             price=Decimal('10.00'),
-            value=f'{{"tier_id": {self.tier.id}, "supplier_id": {self.supplier.id + 9999}}}',
+            value=f'{{"package_id": {self.package.id}, "supplier_id": {self.supplier.id + 9999}}}',
         )
         self.assertEqual(_package_item_lines_for_supplier_line(line), [])
 
@@ -522,7 +522,7 @@ class BookingPdfPackageItemsTests(TestCase):
         self.version.is_active = False
         self.version.save(update_fields=['is_active'])
         self.assertIsNone(
-            resolve_active_package_for_supplier_tier(self.supplier.id, self.tier.id),
+            resolve_active_package_for_supplier_package(self.supplier.id, self.package.id),
         )
 
     def test_resolve_uses_latest_active_eligible_version(self):
@@ -536,24 +536,24 @@ class BookingPdfPackageItemsTests(TestCase):
             account=self.account,
             is_active=False,
         )
-        pkg = resolve_active_package_for_supplier_tier(self.supplier.id, self.tier.id)
+        pkg = resolve_active_package_for_supplier_package(self.supplier.id, self.package.id)
         self.assertIsNotNone(pkg)
         self.assertEqual(pkg.id, self.package.id)
         self.assertEqual(pkg.package_version_id, self.version.id)
 
-    def test_resolve_rejects_tier_not_on_supplier_company(self):
+    def test_resolve_rejects_package_not_on_supplier_company(self):
         other = Company.objects.create(
             account=self.account,
             name='Other co',
             supplier_type=SupplierType.objects.create(name='Zed'),
         )
-        foreign_tier = Tier.objects.create(
+        foreign_package = Package.objects.create(
             account=self.account,
             company=other,
             name='Silver',
         )
         self.assertIsNone(
-            resolve_active_package_for_supplier_tier(self.supplier.id, foreign_tier.id),
+            resolve_active_package_for_supplier_package(self.supplier.id, foreign_package.id),
         )
 
 
@@ -688,7 +688,7 @@ class BookingRequiredDownpaymentTests(TestCase):
             name='Supplier Co',
             supplier_type=supplier_type,
         )
-        self.tier = Tier.objects.create(
+        self.package = Package.objects.create(
             account=self.account,
             company=self.supplier,
             name='Gold',
@@ -702,7 +702,7 @@ class BookingRequiredDownpaymentTests(TestCase):
         )
         self.package = PackagePrice.objects.create(
             package_version=self.version,
-            tier=self.tier,
+            package=self.package,
             company=self.supplier,
             account=self.account,
             total_price=Decimal('1000.00'),
@@ -732,7 +732,7 @@ class BookingRequiredDownpaymentTests(TestCase):
             label='Venue',
             field_type='supplier',
             company=self.supplier,
-            tier=self.tier,
+            package=self.package,
             package_version=self.version,
             price=Decimal('1000.00'),
             value='',
@@ -770,7 +770,7 @@ class BookingRequiredDownpaymentTests(TestCase):
             validate_field_value_downpayment({
                 'field_type': 'supplier',
                 'company_id': self.supplier.id,
-                'tier_id': self.tier.id,
+                'package_id': self.package.id,
                 'package_version_id': self.version.id,
                 'price': '200.00',
             })

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import SupplierSetting, SupplierSettingTier, SupplierType, Tier
+from .models import Package, SupplierSetting, SupplierSettingPackage, SupplierType
 
 
 @admin.register(SupplierType)
@@ -11,10 +11,10 @@ class SupplierTypeAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
 
 
-class SupplierSettingTierInline(admin.TabularInline):
-    model = SupplierSettingTier
+class SupplierSettingPackageInline(admin.TabularInline):
+    model = SupplierSettingPackage
     extra = 0
-    raw_id_fields = ('tier',)
+    raw_id_fields = ('package',)
 
 
 @admin.register(SupplierSetting)
@@ -26,11 +26,11 @@ class SupplierSettingAdmin(admin.ModelAdmin):
     search_fields = ('supplier__name', 'account__name')
     readonly_fields = ('created_at', 'updated_at')
     raw_id_fields = ('supplier', 'account')
-    inlines = [SupplierSettingTierInline]
+    inlines = [SupplierSettingPackageInline]
 
 
-@admin.register(Tier)
-class TierAdmin(admin.ModelAdmin):
+@admin.register(Package)
+class PackageAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'account', 'company', 'name', 'is_active',
         'created_by', 'created_at', 'deleted_at',
@@ -41,12 +41,12 @@ class TierAdmin(admin.ModelAdmin):
     raw_id_fields = ('account', 'company', 'created_by')
 
 
-@admin.register(SupplierSettingTier)
-class SupplierSettingTierAdmin(admin.ModelAdmin):
+@admin.register(SupplierSettingPackage)
+class SupplierSettingPackageAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'supplier_setting',
-        'tier',
+        'package',
         'discount',
         'discount_type',
         'mark_up',
@@ -58,4 +58,4 @@ class SupplierSettingTierAdmin(admin.ModelAdmin):
     )
     list_filter = ('discount_type', 'mark_up_type')
     readonly_fields = ('created_at', 'updated_at')
-    raw_id_fields = ('supplier_setting', 'tier')
+    raw_id_fields = ('supplier_setting', 'package')

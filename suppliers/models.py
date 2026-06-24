@@ -65,32 +65,32 @@ class SupplierSetting(models.Model):
         return f'{self.supplier_id} → {self.account_id}'
 
 
-class TierQuerySet(models.QuerySet):
+class PackageQuerySet(models.QuerySet):
     def alive(self):
         return self.filter(deleted_at__isnull=True)
 
 
-class TierManager(models.Manager.from_queryset(TierQuerySet)):
+class PackageManager(models.Manager.from_queryset(PackageQuerySet)):
     def get_queryset(self):
         return super().get_queryset().filter(deleted_at__isnull=True)
 
 
-class TierAllManager(models.Manager.from_queryset(TierQuerySet)):
+class PackageAllManager(models.Manager.from_queryset(PackageQuerySet)):
     pass
 
 
-class Tier(models.Model):
+class Package(models.Model):
     account = models.ForeignKey(
         'users.Account',
         on_delete=models.CASCADE,
         db_column='account_id',
-        related_name='tiers',
+        related_name='packages',
     )
     company = models.ForeignKey(
         'companies.Company',
         on_delete=models.CASCADE,
         db_column='company_id',
-        related_name='tiers',
+        related_name='packages',
     )
     name = models.CharField(max_length=255)
     is_active = models.BooleanField(default=True)
@@ -102,21 +102,21 @@ class Tier(models.Model):
         null=True,
         blank=True,
         db_column='created_by_id',
-        related_name='tiers_created',
+        related_name='packages_created',
     )
 
-    objects = TierManager()
-    all_objects = TierAllManager()
+    objects = PackageManager()
+    all_objects = PackageAllManager()
 
     class Meta:
-        db_table = 'tiers'
+        db_table = 'packages'
         ordering = ['name']
 
     def __str__(self):
         return self.name
 
 
-class SupplierSettingTier(models.Model):
+class SupplierSettingPackage(models.Model):
     class AdjustmentType(models.TextChoices):
         PERCENT = 'percent', 'Percent'
         FIXED = 'fixed', 'Fixed amount'
@@ -125,13 +125,13 @@ class SupplierSettingTier(models.Model):
         SupplierSetting,
         on_delete=models.CASCADE,
         db_column='supplier_setting_id',
-        related_name='tiers',
+        related_name='packages',
     )
-    tier = models.ForeignKey(
-        Tier,
+    package = models.ForeignKey(
+        Package,
         on_delete=models.PROTECT,
-        db_column='tier_id',
-        related_name='supplier_setting_tiers',
+        db_column='package_id',
+        related_name='supplier_setting_packages',
     )
     discount = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
@@ -162,14 +162,14 @@ class SupplierSettingTier(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'supplier_setting_tiers'
-        ordering = ['tier__name', 'id']
+        db_table = 'supplier_setting_packages'
+        ordering = ['package__name', 'id']
         constraints = [
             models.UniqueConstraint(
-                fields=['supplier_setting', 'tier'],
-                name='supplier_setting_tiers_setting_tier_uniq',
+                fields=['supplier_setting', 'package'],
+                name='supplier_setting_packages_setting_package_uniq',
             ),
         ]
 
     def __str__(self):
-        return f'{self.supplier_setting_id} / {self.tier_id}'
+        return f'{self.supplier_setting_id} / {self.package_id}'

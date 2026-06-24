@@ -5,7 +5,7 @@ from companies.models import Company, CompanyKybVerification
 from countries.models import Country
 from documents.models import DocumentFolder
 from emails.models import EmailTemplate
-from suppliers.models import SupplierType, Tier
+from suppliers.models import SupplierType, Package
 from users.models import Account, User
 from users.test_support import assign_owner_role
 
@@ -277,13 +277,13 @@ class CompanyCreateDefaultsApiTests(TestCase):
         self.assertEqual(res.status_code, 201)
         company_id = res.data['id']
 
-        tiers = set(
-            Tier.objects.filter(account=self.account, company_id=company_id).values_list(
+        packages = set(
+            Package.objects.filter(account=self.account, company_id=company_id).values_list(
                 'name',
                 flat=True,
             ),
         )
-        self.assertEqual(tiers, {'Bronze', 'Silver', 'Gold'})
+        self.assertEqual(packages, {'Bronze', 'Silver', 'Gold'})
 
         templates = set(
             EmailTemplate.objects.filter(

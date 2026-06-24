@@ -116,6 +116,7 @@ def snapshot_form_template_field(field) -> dict[str, Any]:
         'field_type': json_value(field.field_type),
         'is_required': json_value(field.is_required),
         'price': json_value(field.price),
+        'supplier_type_id': json_value(field.supplier_type_id),
         'sort_order': json_value(field.sort_order),
         'options': [
             snapshot_form_template_option(o)
@@ -136,7 +137,7 @@ def snapshot_form_template(template) -> dict[str, Any]:
 def snapshot_supplier_setting(company_id: int, tenant_account_id: int) -> dict[str, Any]:
     from companies.models import Company
     from users.supplier_price import (
-        get_supplier_company_tier_pricing,
+        get_supplier_company_package_pricing,
         supplier_setting_is_active,
     )
 
@@ -145,7 +146,7 @@ def snapshot_supplier_setting(company_id: int, tenant_account_id: int) -> dict[s
         'supplier_company_id': company_id,
         'supplier_name': company.name if company else '',
         'is_active': supplier_setting_is_active(company_id, tenant_account_id),
-        'tiers': get_supplier_company_tier_pricing(
+        'packages': get_supplier_company_package_pricing(
             company_id,
             tenant_account_id,
             supplier_account_id=company.account_id if company else None,
@@ -189,17 +190,17 @@ def diff_supplier_setting(before: dict[str, Any], after: dict[str, Any]) -> dict
             'old': before.get('supplier_name'),
             'new': after.get('supplier_name'),
         }
-    before_tiers = {t['tier_id']: t for t in before.get('tiers', [])}
-    after_tiers = {t['tier_id']: t for t in after.get('tiers', [])}
-    tier_changes = []
-    for tier_id in sorted(set(before_tiers) | set(after_tiers)):
-        old_t = before_tiers.get(tier_id)
-        new_t = after_tiers.get(tier_id)
+    before_packages = {t['package_id']: t for t in before.get('packages', [])}
+    after_packages = {t['package_id']: t for t in after.get('packages', [])}
+    package_changes = []
+    for package_id in sorted(set(before_packages) | set(after_packages)):
+        old_t = before_packages.get(package_id)
+        new_t = after_packages.get(package_id)
         if old_t == new_t:
             continue
-        tier_changes.append({'tier_id': tier_id, 'old': old_t, 'new': new_t})
-    if tier_changes:
-        changes['tiers'] = tier_changes
+        package_changes.append({'package_id': package_id, 'old': old_t, 'new': new_t})
+    if package_changes:
+        changes['packages'] = package_changes
     return changes
 
 

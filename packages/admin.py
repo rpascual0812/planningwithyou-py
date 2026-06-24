@@ -13,7 +13,7 @@ class PackageItemInline(admin.TabularInline):
 class PackagePriceAdmin(admin.ModelAdmin):
     list_display = (
         'id',
-        'tier',
+        'package',
         'package_version',
         'company',
         'account',
@@ -22,10 +22,10 @@ class PackagePriceAdmin(admin.ModelAdmin):
         'created_at',
         'deleted_at',
     )
-    list_filter = ('is_active', 'account', 'package_version', 'tier')
+    list_filter = ('is_active', 'account', 'package_version', 'package')
     search_fields = ('description',)
     readonly_fields = ('created_at',)
-    raw_id_fields = ('package_version', 'tier', 'company', 'account', 'created_by')
+    raw_id_fields = ('package_version', 'package', 'company', 'account', 'created_by')
     inlines = [PackageItemInline]
 
 

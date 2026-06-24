@@ -27,16 +27,16 @@ from planningwithyou.permissions import FeatureAccess, HasAccount
 from users.registration import seed_company_defaults
 from users.supplier_price import (
     build_supplier_setting_active_by_company,
-    build_supplier_tiers_by_company,
-    get_supplier_company_tier_pricing,
-    save_supplier_company_tier_pricing,
+    build_supplier_packages_by_company,
+    get_supplier_company_package_pricing,
+    save_supplier_company_package_pricing,
 )
 
 from suppliers.models import SupplierSetting
 
 from .kyb_serializers import CompanyKybVerificationSerializer
 from .models import Company, CompanyKybVerification
-from .serializers import CompanySerializer, SupplierCompanyTierPricingSerializer
+from .serializers import CompanySerializer, SupplierCompanyPackagePricingSerializer
 
 
 class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
@@ -118,7 +118,7 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
             user = self.request.user
             qs = self.filter_queryset(self.get_queryset())
             company_ids = list(qs.values_list('id', flat=True))
-            context['tier_pricing_by_supplier'] = build_supplier_tiers_by_company(
+            context['package_pricing_by_supplier'] = build_supplier_packages_by_company(
                 company_ids,
                 user.account_id,
             )
@@ -186,8 +186,8 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at'])
 
-    @action(detail=True, methods=['get', 'patch'], url_path='tier-pricing')
-    def tier_pricing(self, request, pk=None):
+    @action(detail=True, methods=['get', 'patch'], url_path='package-pricing')
+    def package_pricing(self, request, pk=None):
         company = self.get_object()
         tenant_account_id = request.user.account_id
 
@@ -195,7 +195,7 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
             return Response(
                 {
                     'name': company.name,
-                    'tiers': get_supplier_company_tier_pricing(
+                    'packages': get_supplier_company_package_pricing(
                         company.id,
                         tenant_account_id,
                         supplier_account_id=company.account_id,
@@ -203,7 +203,7 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
                 },
             )
 
-        serializer = SupplierCompanyTierPricingSerializer(
+        serializer = SupplierCompanyPackagePricingSerializer(
             data=request.data,
             context={'request': request, 'supplier_company': company},
         )
@@ -215,10 +215,10 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
             if name != company.name:
                 company.name = name
                 company.save(update_fields=['name'])
-        save_supplier_company_tier_pricing(
+        save_supplier_company_package_pricing(
             company.id,
             tenant_account_id,
-            data['tiers'],
+            data['packages'],
             supplier_account_id=company.account_id,
         )
         after = snapshot_supplier_setting(company.id, tenant_account_id)
@@ -239,7 +239,7 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
         return Response(
             {
                 'name': company.name,
-                'tiers': get_supplier_company_tier_pricing(
+                'packages': get_supplier_company_package_pricing(
                     company.id,
                     tenant_account_id,
                     supplier_account_id=company.account_id,

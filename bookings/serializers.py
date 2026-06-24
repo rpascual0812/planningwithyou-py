@@ -82,7 +82,7 @@ class QuotationLineSerializer(serializers.ModelSerializer):
             'quotation_group_id',
             'group_name',
             'company',
-            'tier',
+            'package',
             'package_version',
             'supplier_type',
             'field_type',
@@ -108,7 +108,7 @@ class QuotationLineSerializer(serializers.ModelSerializer):
             data['value'] = supplier_value_json_for_line(instance)
             company_id = instance.company_id
             data['company'] = company_id
-            data['tier'] = instance.tier_id
+            data['package'] = instance.package_id
             data['package_version'] = instance.package_version_id
             if company_id:
                 logo_stored = ''
@@ -546,7 +546,7 @@ class FormTemplateFieldSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FormTemplateField
-        fields = ['id', 'label', 'field_type', 'is_required', 'price', 'options', 'sort_order']
+        fields = ['id', 'label', 'field_type', 'is_required', 'price', 'supplier_type', 'options', 'sort_order']
 
 
 class FormTemplateSerializer(serializers.ModelSerializer):

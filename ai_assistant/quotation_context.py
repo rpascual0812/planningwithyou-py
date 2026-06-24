@@ -28,7 +28,7 @@ def build_quotation_ai_context(quotation: Quotation) -> dict:
             'groups',
             'lines__quotation_group',
             'lines__company',
-            'lines__tier',
+            'lines__package',
         )
         .first()
     )

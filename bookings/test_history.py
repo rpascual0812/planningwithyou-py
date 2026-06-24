@@ -298,3 +298,29 @@ class BookingHistoryTests(TestCase):
                 action=History.Action.CREATE,
             ).exists(),
         )
+
+    def test_form_template_supplier_field_persists_supplier_type(self):
+        res = self.client.post(
+            '/form-templates/',
+            {
+                'name': 'Supplier Form',
+                'description': '',
+                'is_active': True,
+                'is_default': False,
+                'fields': [
+                    {
+                        'label': 'Venue',
+                        'field_type': 'supplier',
+                        'is_required': True,
+                        'supplier_type': self.supplier_type.pk,
+                        'options': [],
+                        'sort_order': 0,
+                    },
+                ],
+            },
+            format='json',
+        )
+        self.assertEqual(res.status_code, 201, res.content)
+        field = res.json()['fields'][0]
+        self.assertEqual(field['field_type'], 'supplier')
+        self.assertEqual(field['supplier_type'], self.supplier_type.pk)

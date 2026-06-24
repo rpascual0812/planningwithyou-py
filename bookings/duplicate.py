@@ -95,7 +95,7 @@ def duplicate_quotation(
                 quotation_group=group,
                 label=line.label,
                 company_id=line.company_id,
-                tier_id=line.tier_id,
+                package_id=line.package_id,
                 package_version_id=line.package_version_id,
                 field_type=line.field_type,
                 is_required=line.is_required,

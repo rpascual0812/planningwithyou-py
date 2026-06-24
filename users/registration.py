@@ -30,7 +30,7 @@ from planningwithyou.template_placeholders import (
 )
 from subscriptions.lifecycle import get_subscription_catalog
 from subscriptions.models import AccountSubscription
-from suppliers.models import SupplierType, Tier
+from suppliers.models import SupplierType, Package
 
 from .models import Account
 from .roles import ensure_owner_role
@@ -57,7 +57,7 @@ CALENDAR_STATUSES = [
     ('Declined', '#ffffff', '#d65a5a'),
 ]
 
-DEFAULT_TIERS = ('Bronze', 'Silver', 'Gold')
+DEFAULT_PACKAGES = ('Bronze', 'Silver', 'Gold')
 DEFAULT_COMPANY_TAGS = ('new', 'confirmed', 'cancelled', 'completed', 'done')
 
 EMAIL_TEMPLATES = [
@@ -269,11 +269,11 @@ def seed_company_defaults(
                 created_by=created_by,
             )
 
-    for tier_name in DEFAULT_TIERS:
-        Tier.objects.get_or_create(
+    for package_name in DEFAULT_PACKAGES:
+        Package.objects.get_or_create(
             account=account,
             company=company,
-            name=tier_name,
+            name=package_name,
             defaults={'is_active': True},
         )
 

@@ -23,10 +23,10 @@ class PackagePrice(models.Model):
         db_column='package_version_id',
         related_name='package_prices',
     )
-    tier = models.ForeignKey(
-        'suppliers.Tier',
+    package = models.ForeignKey(
+        'suppliers.Package',
         on_delete=models.PROTECT,
-        db_column='tier_id',
+        db_column='package_id',
         related_name='package_prices',
     )
     description = models.TextField(blank=True, default='')
@@ -65,18 +65,18 @@ class PackagePrice(models.Model):
 
     class Meta:
         db_table = 'package_prices'
-        ordering = ['tier_id', 'id']
+        ordering = ['package_id', 'id']
         constraints = [
             models.UniqueConstraint(
-                fields=['company', 'tier', 'package_version'],
+                fields=['company', 'package', 'package_version'],
                 condition=models.Q(is_active=True, deleted_at__isnull=True),
-                name='package_prices_one_active_per_company_tier_version',
+                name='package_prices_one_active_per_company_package_version',
             ),
         ]
 
     def __str__(self):
-        if self.tier_id and getattr(self, 'tier', None) is not None:
-            return self.tier.name
+        if self.package_id and getattr(self, 'package', None) is not None:
+            return self.package.name
         return f'Package price {self.id}'
 
 

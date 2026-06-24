@@ -9,14 +9,14 @@ from countries.models import Country
 from packages.models import PackagePrice, PackageVersion
 from suppliers.models import (
     SupplierSetting,
-    SupplierSettingTier,
+    SupplierSettingPackage,
     SupplierType,
-    Tier,
+    Package,
 )
 from users.models import Account
 from users.supplier_price import (
     get_booking_supplier_options,
-    get_supplier_company_tier_options,
+    get_supplier_company_package_options,
 )
 
 
@@ -54,7 +54,7 @@ class BookingSupplierFieldOptionsTests(TestCase):
             name='Active Caterer',
             supplier_type=self.supplier_type_b,
         )
-        self.tier = Tier.objects.create(
+        self.package = Package.objects.create(
             account=self.tenant_account,
             company=self.active_supplier,
             name='Gold',
@@ -74,9 +74,9 @@ class BookingSupplierFieldOptionsTests(TestCase):
             account=self.tenant_account,
             is_active=True,
         )
-        SupplierSettingTier.objects.create(
+        SupplierSettingPackage.objects.create(
             supplier_setting=active_setting,
-            tier=self.tier,
+            package=self.package,
             price=Decimal('250.00'),
         )
         past = timezone.now() - timedelta(days=1)
@@ -88,7 +88,7 @@ class BookingSupplierFieldOptionsTests(TestCase):
         )
         self.package_price = PackagePrice.objects.create(
             package_version=self.package_version,
-            tier=self.tier,
+            package=self.package,
             company=self.active_supplier,
             account=self.tenant_account,
             total_price=Decimal('100.00'),
@@ -112,7 +112,7 @@ class BookingSupplierFieldOptionsTests(TestCase):
         self.assertEqual(options[0]['supplier_type_id'], self.supplier_type_a.id)
 
     def test_tier_options_use_supplier_setting_tier_price(self):
-        rows = get_supplier_company_tier_options(
+        rows = get_supplier_company_package_options(
             self.active_supplier.id,
             self.tenant_account.id,
             self.tenant_company.id,
@@ -125,11 +125,11 @@ class BookingSupplierFieldOptionsTests(TestCase):
         self.assertEqual(rows[0]['package_version_id'], self.package_version.id)
 
     def test_tier_options_fall_back_to_package_total_when_price_unset(self):
-        SupplierSettingTier.objects.filter(
+        SupplierSettingPackage.objects.filter(
             supplier_setting__supplier_id=self.active_supplier.id,
-            tier_id=self.tier.id,
+            package_id=self.package.id,
         ).update(price=None)
-        rows = get_supplier_company_tier_options(
+        rows = get_supplier_company_package_options(
             self.active_supplier.id,
             self.tenant_account.id,
             self.tenant_company.id,
@@ -138,7 +138,7 @@ class BookingSupplierFieldOptionsTests(TestCase):
         self.assertEqual(rows[0]['package_total_price'], '100')
 
     def test_tier_options_empty_when_setting_inactive(self):
-        rows = get_supplier_company_tier_options(
+        rows = get_supplier_company_package_options(
             self.inactive_setting_supplier.id,
             self.tenant_account.id,
             self.tenant_company.id,

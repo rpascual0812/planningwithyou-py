@@ -10,9 +10,9 @@ from .models import Company
 from .kyb import provider_verifications_for_company
 
 
-class SupplierCompanyTierPricingItemSerializer(serializers.Serializer):
-    tier_id = serializers.IntegerField()
-    tier_name = serializers.CharField(read_only=True)
+class SupplierCompanyPackagePricingItemSerializer(serializers.Serializer):
+    package_id = serializers.IntegerField()
+    package_name = serializers.CharField(read_only=True)
     discount = serializers.DecimalField(
         max_digits=10, decimal_places=2, required=False, allow_null=True,
     )
@@ -45,27 +45,27 @@ class SupplierCompanyTierPricingItemSerializer(serializers.Serializer):
     )
 
 
-class SupplierCompanyTierPricingSerializer(serializers.Serializer):
+class SupplierCompanyPackagePricingSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True, max_length=255)
-    tiers = SupplierCompanyTierPricingItemSerializer(many=True)
+    packages = SupplierCompanyPackagePricingItemSerializer(many=True)
 
-    def validate_tiers(self, value):
+    def validate_packages(self, value):
         supplier_company = self.context.get('supplier_company')
         if supplier_company is None:
-            raise serializers.ValidationError('No supplier company for tiers.')
-        from suppliers.models import Tier
+            raise serializers.ValidationError('No supplier company for packages.')
+        from suppliers.models import Package
 
         valid_ids = set(
-            Tier.objects.filter(
+            Package.objects.filter(
                 company_id=supplier_company.id,
                 is_active=True,
                 deleted_at__isnull=True,
             ).values_list('id', flat=True),
         )
         for item in value:
-            if item['tier_id'] not in valid_ids:
+            if item['package_id'] not in valid_ids:
                 raise serializers.ValidationError(
-                    f'Invalid or inactive tier id {item["tier_id"]}.',
+                    f'Invalid or inactive package id {item["package_id"]}.',
                 )
         return value
 
@@ -75,7 +75,7 @@ class CompanySerializer(serializers.ModelSerializer):
         source='supplier_type.name',
         read_only=True,
     )
-    supplier_tiers = serializers.SerializerMethodField()
+    supplier_packages = serializers.SerializerMethodField()
     currency_symbol = serializers.SerializerMethodField()
     currency_code = serializers.SerializerMethodField()
     logo_url = serializers.SerializerMethodField()
@@ -95,7 +95,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'business_legal_name',
             'supplier_type',
             'supplier_type_name',
-            'supplier_tiers',
+            'supplier_packages',
             'currency_symbol',
             'currency_code',
             'timezone',
@@ -146,8 +146,8 @@ class CompanySerializer(serializers.ModelSerializer):
             return 'USD'
         return (country.currency_code or '').strip() or 'USD'
 
-    def get_supplier_tiers(self, obj):
-        by_supplier = self.context.get('tier_pricing_by_supplier')
+    def get_supplier_packages(self, obj):
+        by_supplier = self.context.get('package_pricing_by_supplier')
         if not by_supplier:
             return []
         return by_supplier.get(obj.id, [])

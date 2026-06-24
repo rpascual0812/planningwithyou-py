@@ -38,7 +38,7 @@ def resolve_booking_line_price(line: QuotationLine) -> Decimal | None:
 
     if line.field_type == 'supplier':
         parsed = supplier_selection_from_line(line)
-        if parsed['tier_id'] is None or parsed['supplier_id'] is None:
+        if parsed['package_id'] is None or parsed['supplier_id'] is None:
             return None
         raw = line.price if line.price is not None else parsed.get('price')
         amount = _parse_amount(raw)

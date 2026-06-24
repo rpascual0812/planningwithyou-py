@@ -12,7 +12,7 @@ from config.views import BOOKINGS_GROUP_NAME_NAME, BOOKING_VIEW_NAME
 from documents.models import DocumentFolder
 from emails.models import EmailTemplate
 from subscriptions.models import AccountSubscription, Subscription
-from suppliers.models import SupplierType, Tier
+from suppliers.models import SupplierType, Package
 from users.models import Account
 
 User = get_user_model()
@@ -118,12 +118,12 @@ class RegisterApiTests(TestCase):
         )
         self.assertEqual(group_name.value, 'Group')
 
-        tier_names = list(
-            Tier.objects.filter(account=account, company=company)
+        package_names = list(
+            Package.objects.filter(account=account, company=company)
             .order_by('name')
             .values_list('name', flat=True),
         )
-        self.assertEqual(tier_names, ['Bronze', 'Gold', 'Silver'])
+        self.assertEqual(package_names, ['Bronze', 'Gold', 'Silver'])
 
         template_names = set(
             EmailTemplate.objects.filter(account=account, company=company).values_list(

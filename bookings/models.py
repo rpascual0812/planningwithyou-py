@@ -444,12 +444,12 @@ class QuotationLine(models.Model):
         db_column='company_id',
         related_name='quotation_lines',
     )
-    tier = models.ForeignKey(
-        'suppliers.Tier',
+    package = models.ForeignKey(
+        'suppliers.Package',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        db_column='tier_id',
+        db_column='package_id',
         related_name='quotation_lines',
     )
     package_version = models.ForeignKey(
@@ -640,6 +640,14 @@ class FormTemplateField(models.Model):
     is_required = models.BooleanField(default=False)
     price = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
+    )
+    supplier_type = models.ForeignKey(
+        'suppliers.SupplierType',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='supplier_type_id',
+        related_name='+',
     )
     sort_order = models.PositiveIntegerField(default=0)
 
