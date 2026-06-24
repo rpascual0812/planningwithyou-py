@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from companies.models import Company
 from countries.models import Country
-from packages.models import Package, PackageVersion
+from packages.models import PackagePrice, PackageVersion
 from suppliers.models import (
     SupplierSetting,
     SupplierSettingTier,
@@ -70,7 +70,7 @@ class SupplierTierListPricingTests(TestCase):
             company=self.supplier,
             account=self.tenant_account,
         )
-        Package.objects.create(
+        PackagePrice.objects.create(
             package_version=self.current_version,
             tier=self.tier_a,
             company=self.supplier,
@@ -78,7 +78,7 @@ class SupplierTierListPricingTests(TestCase):
             total_price=Decimal('100.00'),
             is_active=True,
         )
-        Package.objects.create(
+        PackagePrice.objects.create(
             package_version=self.old_version,
             tier=self.tier_b,
             company=self.supplier,

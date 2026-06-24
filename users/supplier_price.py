@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.utils import timezone
 
-from packages.models import Package, PackageVersion
+from packages.models import PackagePrice, PackageVersion
 from suppliers.models import SupplierSetting, SupplierSettingTier, Tier
 
 
@@ -34,7 +34,7 @@ def _current_package_version_for_company(*, company_id, account_id):
 def resolve_active_package_for_supplier_tier(
     supplier_company_id: int,
     tier_id: int,
-) -> Package | None:
+) -> PackagePrice | None:
     """
     Active package row for a supplier company + tier: tier must belong to that
     company; version must be active, in effect (effectivity_date <= now), not
@@ -63,7 +63,7 @@ def resolve_active_package_for_supplier_tier(
     if version is None:
         return None
     return (
-        Package.objects.filter(
+        PackagePrice.objects.filter(
             company_id=supplier_company_id,
             tier_id=tier_id,
             package_version_id=version.id,
@@ -81,7 +81,7 @@ def _original_prices_by_tier_id(*, company_id, account_id):
     )
     if version is None:
         return {}
-    rows = Package.objects.filter(
+    rows = PackagePrice.objects.filter(
         company_id=company_id,
         package_version_id=version.id,
         is_active=True,
@@ -98,7 +98,7 @@ def _required_downpayment_by_tier_id(*, company_id, account_id):
     )
     if version is None:
         return {}
-    rows = Package.objects.filter(
+    rows = PackagePrice.objects.filter(
         company_id=company_id,
         package_version_id=version.id,
         is_active=True,
@@ -342,7 +342,7 @@ def get_supplier_company_tier_options(
     if active_version_id is not None:
         package_by_tier = {
             row['tier_id']: row
-            for row in Package.objects.filter(
+            for row in PackagePrice.objects.filter(
                 company_id=supplier_company_id,
                 package_version_id=active_version_id,
                 is_active=True,
@@ -383,7 +383,7 @@ def get_supplier_company_tier_options(
             'required_downpayment_amount': _decimal_to_api(
                 downpayment_by_tier.get(tier.id),
             ),
-            'package_id': pkg['id'] if pkg is not None else None,
+            'package_price_id': pkg['id'] if pkg is not None else None,
             'package_version_id': active_version_id,
         })
     return result

@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 
 from companies.models import Company
 from countries.models import Country
-from packages.models import Package, PackageItem, PackageVersion
+from packages.models import PackagePrice, PackageItem, PackageVersion
 from suppliers.models import (
     SupplierSetting,
     SupplierSettingTier,
@@ -52,7 +52,7 @@ class BookingSupplierPackageViewTests(TestCase):
             company=self.supplier,
             account=self.account,
         )
-        self.package = Package.objects.create(
+        self.package_price = PackagePrice.objects.create(
             package_version=self.version,
             tier=self.tier,
             company=self.supplier,
@@ -61,7 +61,7 @@ class BookingSupplierPackageViewTests(TestCase):
             is_active=True,
         )
         self.item = PackageItem.objects.create(
-            package=self.package,
+            package_price=self.package_price,
             account=self.account,
             company=self.supplier,
             title='Main dish',
@@ -97,7 +97,7 @@ class BookingSupplierPackageViewTests(TestCase):
             },
         )
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data['id'], self.package.id)
+        self.assertEqual(res.data['id'], self.package_price.id)
         self.assertEqual(len(res.data['items']), 1)
         self.assertEqual(res.data['items'][0]['title'], 'Main dish')
 
@@ -110,7 +110,7 @@ class BookingSupplierPackageViewTests(TestCase):
             },
         )
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data['id'], self.package.id)
+        self.assertEqual(res.data['id'], self.package_price.id)
         self.assertEqual(len(res.data['items']), 1)
 
     def test_allows_supplier_company_linked_via_supplier_setting_only(self):
@@ -141,7 +141,7 @@ class BookingSupplierPackageViewTests(TestCase):
             company=external_supplier,
             account=other_account,
         )
-        Package.objects.create(
+        PackagePrice.objects.create(
             package_version=version,
             tier=external_tier,
             company=external_supplier,
@@ -150,7 +150,7 @@ class BookingSupplierPackageViewTests(TestCase):
             is_active=True,
         )
         PackageItem.objects.create(
-            package=Package.objects.get(tier=external_tier),
+            package_price=PackagePrice.objects.get(tier=external_tier),
             account=other_account,
             company=external_supplier,
             title='External item',
@@ -168,14 +168,14 @@ class BookingSupplierPackageViewTests(TestCase):
 
     def test_nested_items_match_pdf_tree(self):
         root = PackageItem.objects.create(
-            package=self.package,
+            package_price=self.package_price,
             account=self.account,
             company=self.supplier,
             title='Root service',
             sort_order=1,
         )
         PackageItem.objects.create(
-            package=self.package,
+            package_price=self.package_price,
             parent=root,
             account=self.account,
             company=self.supplier,

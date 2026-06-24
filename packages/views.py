@@ -7,23 +7,23 @@ from companies.models import Company
 from planningwithyou.permissions import FeatureAccess, HasAccount, HasCompany
 from users.company_access import effective_company_id
 
-from .models import Package, PackageItem, PackageVersion
-from .serializers import PackageSerializer, PackageVersionSerializer
+from .models import PackagePrice, PackageItem, PackageVersion
+from .serializers import PackagePriceSerializer, PackageVersionSerializer
 
 
-class PackageViewSet(viewsets.ModelViewSet):
-    """CRUD for packages (soft-delete on destroy)."""
+class PackagePriceViewSet(viewsets.ModelViewSet):
+    """CRUD for package prices (soft-delete on destroy)."""
 
     permission_classes = [IsAuthenticated, HasAccount, HasCompany, FeatureAccess]
     feature_key = 'quotations'
-    serializer_class = PackageSerializer
+    serializer_class = PackagePriceSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['id', 'tier', 'total_price', 'created_at']
     ordering = ['tier_id', 'id']
 
     def get_queryset(self):
         account_id = self.request.user.account_id
-        qs = Package.objects.filter(
+        qs = PackagePrice.objects.filter(
             account_id=account_id,
             deleted_at__isnull=True,
         ).select_related('package_version', 'tier').prefetch_related(
@@ -84,7 +84,7 @@ class PackageViewSet(viewsets.ModelViewSet):
         instance.save(update_fields=['deleted_at', 'is_active'])
         if was_active:
             replacement = (
-                Package.objects.filter(
+                PackagePrice.objects.filter(
                     deleted_at__isnull=True,
                     is_active=False,
                     **scope,
@@ -93,7 +93,7 @@ class PackageViewSet(viewsets.ModelViewSet):
                 .first()
             )
             if replacement is not None:
-                Package.objects.filter(pk=replacement.pk).update(is_active=True)
+                PackagePrice.objects.filter(pk=replacement.pk).update(is_active=True)
 
 
 class PackageVersionViewSet(viewsets.ModelViewSet):

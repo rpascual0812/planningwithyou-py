@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from companies.models import Company
 from countries.models import Country
-from packages.models import Package, PackageVersion
+from packages.models import PackagePrice, PackageVersion
 from suppliers.models import (
     SupplierSetting,
     SupplierSettingTier,
@@ -86,7 +86,7 @@ class BookingSupplierFieldOptionsTests(TestCase):
             company=self.active_supplier,
             account=self.tenant_account,
         )
-        self.package = Package.objects.create(
+        self.package_price = PackagePrice.objects.create(
             package_version=self.package_version,
             tier=self.tier,
             company=self.active_supplier,
@@ -121,7 +121,7 @@ class BookingSupplierFieldOptionsTests(TestCase):
         self.assertEqual(rows[0]['name'], 'Gold')
         self.assertEqual(rows[0]['price'], '250')
         self.assertEqual(rows[0]['package_total_price'], '100')
-        self.assertEqual(rows[0]['package_id'], self.package.id)
+        self.assertEqual(rows[0]['package_price_id'], self.package_price.id)
         self.assertEqual(rows[0]['package_version_id'], self.package_version.id)
 
     def test_tier_options_fall_back_to_package_total_when_price_unset(self):

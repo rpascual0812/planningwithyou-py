@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 
 from companies.models import Company
 from countries.models import Country
-from packages.models import Package, PackageVersion
+from packages.models import PackagePrice, PackageVersion
 from suppliers.models import SupplierType, Tier
 from users.models import Account
 from users.test_support import assign_owner_role
@@ -70,7 +70,7 @@ class PackageActivationTests(TestCase):
         self.client.force_authenticate(user=self.user)
 
     def _create_package(self, *, tier=None, version=None, description='Package', is_active=True):
-        return Package.objects.create(
+        return PackagePrice.objects.create(
             account=self.account,
             company=self.company,
             tier=tier or self.tier,
@@ -87,7 +87,7 @@ class PackageActivationTests(TestCase):
         second = self._create_package(description='Second', is_active=False)
 
         res = self.client.patch(
-            f'/packages/{second.id}/',
+            f'/package-prices/{second.id}/',
             {'is_active': True},
             format='json',
         )
@@ -102,7 +102,7 @@ class PackageActivationTests(TestCase):
         existing = self._create_package(description='Existing')
 
         res = self.client.post(
-            '/packages/',
+            '/package-prices/',
             {
                 'company': self.company.id,
                 'tier': self.tier.id,
@@ -120,7 +120,7 @@ class PackageActivationTests(TestCase):
         existing.refresh_from_db()
         self.assertFalse(existing.is_active)
         self.assertTrue(
-            Package.objects.filter(
+            PackagePrice.objects.filter(
                 company=self.company,
                 tier=self.tier,
                 package_version=self.version,
@@ -141,7 +141,7 @@ class PackageActivationTests(TestCase):
         target = self._create_package(description='Target', is_active=False)
 
         res = self.client.patch(
-            f'/packages/{target.id}/',
+            f'/package-prices/{target.id}/',
             {'is_active': True},
             format='json',
         )

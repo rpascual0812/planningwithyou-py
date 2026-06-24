@@ -5,7 +5,7 @@ from rest_framework import serializers
 from companies.models import Company
 from suppliers.models import Tier
 
-from .models import Package, PackageItem, PackageVersion
+from .models import PackagePrice, PackageItem, PackageVersion
 
 
 def _default_package_version_for_company(account_id, company_id, created_by=None):
@@ -91,12 +91,12 @@ PackageItemInputSerializer._declared_fields['children'] = PackageItemInputSerial
 )
 
 
-class PackageSerializer(serializers.ModelSerializer):
+class PackagePriceSerializer(serializers.ModelSerializer):
     items = PackageItemInputSerializer(many=True, required=False, write_only=True)
     tier_name = serializers.CharField(source='tier.name', read_only=True)
 
     class Meta:
-        model = Package
+        model = PackagePrice
         fields = [
             'id',
             'package_version',
@@ -245,7 +245,7 @@ class PackageSerializer(serializers.ModelSerializer):
         return attrs
 
     def _sibling_packages(self, company, tier, package_version):
-        return Package.objects.filter(
+        return PackagePrice.objects.filter(
             company=company,
             tier=tier,
             package_version=package_version,
@@ -260,7 +260,7 @@ class PackageSerializer(serializers.ModelSerializer):
         package_version_id,
         exclude_pk=None,
     ):
-        qs = Package.objects.filter(
+        qs = PackagePrice.objects.filter(
             company_id=company_id,
             tier_id=tier_id,
             package_version_id=package_version_id,
@@ -271,14 +271,14 @@ class PackageSerializer(serializers.ModelSerializer):
             qs = qs.exclude(pk=exclude_pk)
         qs.update(is_active=False)
 
-    def _create_item_tree(self, package, items_data, parent=None, created_by=None):
+    def _create_item_tree(self, package_price, items_data, parent=None, created_by=None):
         for sort_order, item_data in enumerate(items_data):
             children_data = item_data.pop('children', [])
             item = PackageItem.objects.create(
-                package=package,
+                package_price=package_price,
                 parent=parent,
-                account_id=package.account_id,
-                company_id=package.company_id,
+                account_id=package_price.account_id,
+                company_id=package_price.company_id,
                 created_by=created_by,
                 sort_order=sort_order,
                 is_active=item_data.get('is_active', True),
@@ -287,18 +287,18 @@ class PackageSerializer(serializers.ModelSerializer):
             )
             if children_data:
                 self._create_item_tree(
-                    package,
+                    package_price,
                     children_data,
                     parent=item,
                     created_by=created_by,
                 )
 
-    def _replace_items(self, package, items_data):
+    def _replace_items(self, package_price, items_data):
         now = timezone.now()
-        package.items.filter(deleted_at__isnull=True).update(deleted_at=now)
+        package_price.items.filter(deleted_at__isnull=True).update(deleted_at=now)
         request = self.context.get('request')
         created_by = request.user if request and request.user.is_authenticated else None
-        self._create_item_tree(package, items_data, parent=None, created_by=created_by)
+        self._create_item_tree(package_price, items_data, parent=None, created_by=created_by)
 
     @transaction.atomic
     def create(self, validated_data):
@@ -325,11 +325,11 @@ class PackageSerializer(serializers.ModelSerializer):
                 tier_id=validated_data['tier'].pk,
                 package_version_id=validated_data['package_version'].pk,
             )
-        package = super().create(validated_data)
+        package_price = super().create(validated_data)
         if items_data:
             created_by = request.user if request and request.user.is_authenticated else None
-            self._create_item_tree(package, items_data, parent=None, created_by=created_by)
-        return package
+            self._create_item_tree(package_price, items_data, parent=None, created_by=created_by)
+        return package_price
 
     @transaction.atomic
     def update(self, instance, validated_data):
@@ -344,7 +344,7 @@ class PackageSerializer(serializers.ModelSerializer):
                 package_version_id=instance.package_version_id,
                 exclude_pk=instance.pk,
             )
-        package = super().update(instance, validated_data)
+        package_price = super().update(instance, validated_data)
         if items_data is not None:
-            self._replace_items(package, items_data)
-        return package
+            self._replace_items(package_price, items_data)
+        return package_price

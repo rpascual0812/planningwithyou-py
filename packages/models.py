@@ -2,32 +2,32 @@ from django.conf import settings
 from django.db import models
 
 
-class PackageQuerySet(models.QuerySet):
+class PackagePriceQuerySet(models.QuerySet):
     def alive(self):
         return self.filter(deleted_at__isnull=True)
 
 
-class PackageManager(models.Manager.from_queryset(PackageQuerySet)):
+class PackagePriceManager(models.Manager.from_queryset(PackagePriceQuerySet)):
     def get_queryset(self):
         return super().get_queryset().filter(deleted_at__isnull=True)
 
 
-class PackageAllManager(models.Manager.from_queryset(PackageQuerySet)):
+class PackagePriceAllManager(models.Manager.from_queryset(PackagePriceQuerySet)):
     pass
 
 
-class Package(models.Model):
+class PackagePrice(models.Model):
     package_version = models.ForeignKey(
         'PackageVersion',
         on_delete=models.PROTECT,
         db_column='package_version_id',
-        related_name='packages',
+        related_name='package_prices',
     )
     tier = models.ForeignKey(
         'suppliers.Tier',
         on_delete=models.PROTECT,
         db_column='tier_id',
-        related_name='packages',
+        related_name='package_prices',
     )
     description = models.TextField(blank=True, default='')
     total_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -40,14 +40,14 @@ class Package(models.Model):
         'companies.Company',
         on_delete=models.CASCADE,
         db_column='company_id',
-        related_name='packages',
+        related_name='package_prices',
     )
     is_active = models.BooleanField(default=True)
     account = models.ForeignKey(
         'users.Account',
         on_delete=models.CASCADE,
         db_column='account_id',
-        related_name='packages',
+        related_name='package_prices',
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -55,29 +55,29 @@ class Package(models.Model):
         null=True,
         blank=True,
         db_column='created_by',
-        related_name='packages_created',
+        related_name='package_prices_created',
     )
     created_at = models.DateTimeField(auto_now_add=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
-    objects = PackageManager()
-    all_objects = PackageAllManager()
+    objects = PackagePriceManager()
+    all_objects = PackagePriceAllManager()
 
     class Meta:
-        db_table = 'packages'
+        db_table = 'package_prices'
         ordering = ['tier_id', 'id']
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'tier', 'package_version'],
                 condition=models.Q(is_active=True, deleted_at__isnull=True),
-                name='packages_one_active_per_company_tier_version',
+                name='package_prices_one_active_per_company_tier_version',
             ),
         ]
 
     def __str__(self):
         if self.tier_id and getattr(self, 'tier', None) is not None:
             return self.tier.name
-        return f'Package {self.id}'
+        return f'Package price {self.id}'
 
 
 class PackageItemQuerySet(models.QuerySet):
@@ -95,10 +95,10 @@ class PackageItemAllManager(models.Manager.from_queryset(PackageItemQuerySet)):
 
 
 class PackageItem(models.Model):
-    package = models.ForeignKey(
-        Package,
+    package_price = models.ForeignKey(
+        PackagePrice,
         on_delete=models.CASCADE,
-        db_column='package_id',
+        db_column='package_price_id',
         related_name='items',
     )
     parent = models.ForeignKey(

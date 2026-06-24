@@ -17,8 +17,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from companies.models import Company
-from packages.models import Package
-
 from .package_items import flat_package_item_rows
 from suppliers.models import Tier
 

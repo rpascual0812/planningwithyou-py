@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from packages.models import Package, PackageItem
+from packages.models import PackageItem, PackagePrice
 
 
 def _package_items_by_parent(
-    package: Package,
+    package_price: PackagePrice,
     *,
     include_inactive: bool = False,
 ) -> dict[int | None, list[PackageItem]]:
     item_qs = PackageItem.objects.filter(
-        package_id=package.pk,
+        package_price_id=package_price.pk,
         deleted_at__isnull=True,
     )
     if not include_inactive:
@@ -25,12 +25,12 @@ def _package_items_by_parent(
 
 
 def flat_package_item_rows(
-    package: Package,
+    package_price: PackagePrice,
     *,
     include_inactive: bool = False,
 ) -> list[tuple[int, str]]:
     """Package item rows as ``(depth, title)`` for PDF (tree order). Depth 0 = root."""
-    by_parent = _package_items_by_parent(package, include_inactive=include_inactive)
+    by_parent = _package_items_by_parent(package_price, include_inactive=include_inactive)
     rows: list[tuple[int, str]] = []
 
     def walk(parent_id: int | None, depth: int) -> None:
@@ -44,12 +44,12 @@ def flat_package_item_rows(
 
 
 def nested_package_items_for_api(
-    package: Package,
+    package_price: PackagePrice,
     *,
     include_inactive: bool = False,
 ) -> list[dict]:
     """Nested package items for JSON APIs (same source rows as booking PDF)."""
-    by_parent = _package_items_by_parent(package, include_inactive=include_inactive)
+    by_parent = _package_items_by_parent(package_price, include_inactive=include_inactive)
 
     def node(item: PackageItem) -> dict:
         children = by_parent.get(item.pk, [])

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from packages.models import Package
+from packages.models import PackagePrice
 
 from .models import QuotationLine
 
@@ -93,19 +93,19 @@ def prepare_supplier_field_dict(
     for key in ('tier', 'company', 'package_version'):
         field_value.pop(key, None)
     if tier_id is not None and company_id is not None:
-        package = _package_query_for_supplier_line(
+        package_price = _package_query_for_supplier_line(
             company_id,
             tier_id,
             package_version_id,
         )
-        if package is None:
+        if package_price is None:
             from users.supplier_price import resolve_active_package_for_supplier_tier
 
-            package = resolve_active_package_for_supplier_tier(company_id, tier_id)
+            package_price = resolve_active_package_for_supplier_tier(company_id, tier_id)
         field_value['company_id'] = company_id
         field_value['tier_id'] = tier_id
         field_value['package_version_id'] = (
-            package.package_version_id if package is not None else None
+            package_price.package_version_id if package_price is not None else None
         )
         if field_value.get('price') in (None, '') and tenant_account_id is not None:
             from users.supplier_price import resolve_supplier_tier_booking_price
@@ -117,8 +117,8 @@ def prepare_supplier_field_dict(
             )
             if resolved is not None:
                 field_value['price'] = resolved
-            elif package is not None:
-                field_value['price'] = package.total_price
+            elif package_price is not None:
+                field_value['price'] = package_price.total_price
     else:
         field_value['company_id'] = None
         field_value['tier_id'] = None
@@ -152,25 +152,25 @@ def _package_query_for_supplier_line(
     company_id: int,
     tier_id: int,
     package_version_id: int | None = None,
-) -> Package | None:
-    """Match ``packages`` row for supplier company + tier (+ optional version)."""
-    qs = Package.objects.filter(
+) -> PackagePrice | None:
+    """Match ``package_prices`` row for supplier company + tier (+ optional version)."""
+    qs = PackagePrice.objects.filter(
         company_id=company_id,
         tier_id=tier_id,
         deleted_at__isnull=True,
     )
     if package_version_id is not None:
-        package = qs.filter(package_version_id=package_version_id).first()
-        if package is not None:
-            return package
-        # Support rows where ``package_version_id`` was stored as ``packages.id``.
+        package_price = qs.filter(package_version_id=package_version_id).first()
+        if package_price is not None:
+            return package_price
+        # Support rows where ``package_version_id`` was stored as ``package_prices.id``.
         return qs.filter(pk=package_version_id).first()
     return qs.order_by('-is_active', '-id').first()
 
 
-def package_for_supplier_booking_line(line: QuotationLine) -> Package | None:
+def package_for_supplier_booking_line(line: QuotationLine) -> PackagePrice | None:
     """
-    Package row for a supplier booking line using stored FK columns.
+    Package price row for a supplier booking line using stored FK columns.
 
     Uses ``booking_items.company_id``, ``tier_id``, and ``package_version_id``.
     Falls back to legacy JSON value + current version resolution when FKs are missing.
@@ -178,13 +178,13 @@ def package_for_supplier_booking_line(line: QuotationLine) -> Package | None:
     if line.field_type != 'supplier':
         return None
     if line.company_id and line.tier_id:
-        package = _package_query_for_supplier_line(
+        package_price = _package_query_for_supplier_line(
             line.company_id,
             line.tier_id,
             line.package_version_id,
         )
-        if package is not None:
-            return package
+        if package_price is not None:
+            return package_price
     parsed = supplier_selection_from_line(line)
     company_id = parsed.get('supplier_id')
     tier_id = parsed.get('tier_id')

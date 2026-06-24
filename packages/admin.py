@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Package, PackageItem, PackageVersion
+from .models import PackagePrice, PackageItem, PackageVersion
 
 
 class PackageItemInline(admin.TabularInline):
@@ -9,8 +9,8 @@ class PackageItemInline(admin.TabularInline):
     raw_id_fields = ('company', 'account', 'created_by')
 
 
-@admin.register(Package)
-class PackageAdmin(admin.ModelAdmin):
+@admin.register(PackagePrice)
+class PackagePriceAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'tier',
@@ -34,7 +34,7 @@ class PackageItemAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'title',
-        'package',
+        'package_price',
         'parent',
         'company',
         'price',
@@ -43,10 +43,10 @@ class PackageItemAdmin(admin.ModelAdmin):
         'created_at',
         'deleted_at',
     )
-    list_filter = ('is_active', 'account', 'package')
+    list_filter = ('is_active', 'account', 'package_price')
     search_fields = ('title', 'description')
     readonly_fields = ('created_at',)
-    raw_id_fields = ('package', 'parent', 'company', 'account', 'created_by')
+    raw_id_fields = ('package_price', 'parent', 'company', 'account', 'created_by')
 
 
 @admin.register(PackageVersion)

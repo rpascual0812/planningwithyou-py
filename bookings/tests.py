@@ -36,7 +36,7 @@ from rest_framework.exceptions import ValidationError
 from bookings.supplier_capacity import supplier_booking_capacity_status
 from bookings.unique_id import allocate_booking_unique_id, format_booking_unique_id
 from countries.models import Country
-from packages.models import Package, PackageItem, PackageVersion
+from packages.models import PackagePrice, PackageItem, PackageVersion
 from suppliers.models import SupplierType, Tier
 from users.models import Account
 from users.supplier_price import resolve_active_package_for_supplier_tier
@@ -180,7 +180,7 @@ class BookingSupplierLineStorageTests(TestCase):
             company=self.supplier,
             account=self.account,
         )
-        self.package = Package.objects.create(
+        self.package = PackagePrice.objects.create(
             package_version=self.version,
             tier=self.tier,
             company=self.supplier,
@@ -219,7 +219,7 @@ class BookingSupplierLineStorageTests(TestCase):
         self.assertEqual(fv['price'], Decimal('100.00'))
 
     def test_package_query_when_package_version_id_is_package_pk(self):
-        """Some rows may store ``packages.id`` in ``package_version_id``."""
+        """Some rows may store ``package_prices.id`` in ``package_version_id``."""
         pkg = _package_query_for_supplier_line(
             self.supplier.id,
             self.tier.id,
@@ -362,7 +362,7 @@ class BookingPdfPackageItemsTests(TestCase):
             company=self.supplier,
             account=self.account,
         )
-        self.package = Package.objects.create(
+        self.package = PackagePrice.objects.create(
             package_version=self.version,
             tier=self.tier,
             company=self.supplier,
@@ -373,7 +373,7 @@ class BookingPdfPackageItemsTests(TestCase):
 
     def test_flat_package_item_rows_nested(self):
         root_a = PackageItem.objects.create(
-            package=self.package,
+            package_price=self.package,
             parent=None,
             title='Main service',
             company=self.supplier,
@@ -381,7 +381,7 @@ class BookingPdfPackageItemsTests(TestCase):
             sort_order=0,
         )
         PackageItem.objects.create(
-            package=self.package,
+            package_price=self.package,
             parent=root_a,
             title='Sub A',
             company=self.supplier,
@@ -389,7 +389,7 @@ class BookingPdfPackageItemsTests(TestCase):
             sort_order=0,
         )
         PackageItem.objects.create(
-            package=self.package,
+            package_price=self.package,
             parent=None,
             title='Second',
             company=self.supplier,
@@ -423,7 +423,7 @@ class BookingPdfPackageItemsTests(TestCase):
         )
         group = QuotationGroup.objects.create(quotation=booking, name='Suppliers')
         PackageItem.objects.create(
-            package=self.package,
+            package_price=self.package,
             parent=None,
             title='Included item',
             company=self.supplier,
@@ -466,7 +466,7 @@ class BookingPdfPackageItemsTests(TestCase):
         )
         group = QuotationGroup.objects.create(quotation=booking, name='Services')
         PackageItem.objects.create(
-            package=self.package,
+            package_price=self.package,
             parent=None,
             title='Included item',
             company=self.supplier,
@@ -700,7 +700,7 @@ class BookingRequiredDownpaymentTests(TestCase):
             company=self.supplier,
             account=self.account,
         )
-        self.package = Package.objects.create(
+        self.package = PackagePrice.objects.create(
             package_version=self.version,
             tier=self.tier,
             company=self.supplier,
