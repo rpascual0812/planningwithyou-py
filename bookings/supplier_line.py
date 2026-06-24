@@ -79,7 +79,11 @@ def _extract_supplier_price_from_value(field_value: dict) -> None:
         field_value['price'] = json_price
 
 
-def prepare_supplier_field_dict(field_value: dict) -> None:
+def prepare_supplier_field_dict(
+    field_value: dict,
+    *,
+    tenant_account_id: int | None = None,
+) -> None:
     """Persist supplier selection on FK columns; keep ``value`` empty."""
     if field_value.get('field_type') != 'supplier':
         return
@@ -103,6 +107,18 @@ def prepare_supplier_field_dict(field_value: dict) -> None:
         field_value['package_version_id'] = (
             package.package_version_id if package is not None else None
         )
+        if field_value.get('price') in (None, '') and tenant_account_id is not None:
+            from users.supplier_price import resolve_supplier_tier_booking_price
+
+            resolved = resolve_supplier_tier_booking_price(
+                company_id,
+                tier_id,
+                tenant_account_id,
+            )
+            if resolved is not None:
+                field_value['price'] = resolved
+            elif package is not None:
+                field_value['price'] = package.total_price
     else:
         field_value['company_id'] = None
         field_value['tier_id'] = None

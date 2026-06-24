@@ -312,7 +312,7 @@ class QuotationSerializer(serializers.ModelSerializer):
     def _save_field_values(self, booking, field_values_data):
         for idx, fv in enumerate(field_values_data):
             fv.setdefault('sort_order', idx)
-            prepare_supplier_field_dict(fv)
+            prepare_supplier_field_dict(fv, tenant_account_id=booking.account_id)
             validate_field_value_downpayment(fv)
             booking_group = self._resolve_booking_group(booking, fv)
             QuotationLine.objects.create(

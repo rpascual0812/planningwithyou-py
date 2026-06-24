@@ -120,8 +120,22 @@ class BookingSupplierFieldOptionsTests(TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['name'], 'Gold')
         self.assertEqual(rows[0]['price'], '250')
+        self.assertEqual(rows[0]['package_total_price'], '100')
         self.assertEqual(rows[0]['package_id'], self.package.id)
         self.assertEqual(rows[0]['package_version_id'], self.package_version.id)
+
+    def test_tier_options_fall_back_to_package_total_when_price_unset(self):
+        SupplierSettingTier.objects.filter(
+            supplier_setting__supplier_id=self.active_supplier.id,
+            tier_id=self.tier.id,
+        ).update(price=None)
+        rows = get_supplier_company_tier_options(
+            self.active_supplier.id,
+            self.tenant_account.id,
+            self.tenant_company.id,
+        )
+        self.assertEqual(rows[0]['price'], '100')
+        self.assertEqual(rows[0]['package_total_price'], '100')
 
     def test_tier_options_empty_when_setting_inactive(self):
         rows = get_supplier_company_tier_options(

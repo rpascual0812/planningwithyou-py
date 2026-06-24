@@ -330,6 +330,14 @@ def get_supplier_company_tier_options(
         else None
     )
     active_version_id = active_version.id if active_version is not None else None
+    original_by_tier = (
+        _original_prices_by_tier_id(
+            company_id=supplier_company_id,
+            account_id=supplier_account_id,
+        )
+        if supplier_account_id is not None
+        else {}
+    )
     package_by_tier: dict[int, dict] = {}
     if active_version_id is not None:
         package_by_tier = {
@@ -347,6 +355,19 @@ def get_supplier_company_tier_options(
         if not tier.is_active or tier.deleted_at is not None:
             continue
         pkg = package_by_tier.get(tier.id)
+        original = original_by_tier.get(tier.id)
+        if row.price is not None:
+            line_price = row.price
+        else:
+            line_price = compute_tier_final_price(
+                original,
+                row.discount,
+                row.discount_type or default_type,
+                row.mark_up,
+                row.mark_up_type or default_type,
+            )
+            if line_price is None and original is not None:
+                line_price = original
         result.append({
             'id': tier.id,
             'name': tier.name,
@@ -357,7 +378,8 @@ def get_supplier_company_tier_options(
             'mark_up_type': row.mark_up_type or default_type,
             'price_override': _decimal_to_api(row.price_override),
             'tax': _decimal_to_api(row.tax),
-            'price': _decimal_to_api(row.price),
+            'price': _decimal_to_api(line_price),
+            'package_total_price': _decimal_to_api(original),
             'required_downpayment_amount': _decimal_to_api(
                 downpayment_by_tier.get(tier.id),
             ),
@@ -365,6 +387,24 @@ def get_supplier_company_tier_options(
             'package_version_id': active_version_id,
         })
     return result
+
+
+def resolve_supplier_tier_booking_price(
+    supplier_company_id: int,
+    tier_id: int,
+    tenant_account_id: int,
+):
+    """Quotation line price for a supplier package (SST price or package total)."""
+    for row in get_supplier_company_tier_options(
+        supplier_company_id,
+        tenant_account_id,
+    ):
+        if row['id'] == tier_id:
+            return parse_price_value(row.get('price'))
+    package = resolve_active_package_for_supplier_tier(supplier_company_id, tier_id)
+    if package is not None:
+        return package.total_price
+    return None
 
 
 def get_supplier_company_tier_pricing(

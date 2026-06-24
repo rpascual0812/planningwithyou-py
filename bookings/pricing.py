@@ -41,7 +41,15 @@ def resolve_booking_line_price(line: QuotationLine) -> Decimal | None:
         if parsed['tier_id'] is None or parsed['supplier_id'] is None:
             return None
         raw = line.price if line.price is not None else parsed.get('price')
-        return _parse_amount(raw)
+        amount = _parse_amount(raw)
+        if amount is not None:
+            return amount
+        from .supplier_line import package_for_supplier_booking_line
+
+        package = package_for_supplier_booking_line(line)
+        if package is not None:
+            return package.total_price
+        return None
 
     if line.field_type == 'checkbox':
         if line.value != 'true':

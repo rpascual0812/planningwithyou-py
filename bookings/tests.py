@@ -206,6 +206,18 @@ class BookingSupplierLineStorageTests(TestCase):
         self.assertEqual(fv['value'], '')
         self.assertEqual(fv['price'], '75.00')
 
+    def test_prepare_supplier_field_dict_resolves_price_from_package(self):
+        fv = {
+            'field_type': 'supplier',
+            'label': 'Venue',
+            'value': (
+                f'{{"tier_id": {self.tier.id}, "supplier_id": {self.supplier.id}}}'
+            ),
+            'price': None,
+        }
+        prepare_supplier_field_dict(fv, tenant_account_id=self.account.id)
+        self.assertEqual(fv['price'], Decimal('100.00'))
+
     def test_package_query_when_package_version_id_is_package_pk(self):
         """Some rows may store ``packages.id`` in ``package_version_id``."""
         pkg = _package_query_for_supplier_line(
