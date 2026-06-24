@@ -253,14 +253,23 @@ class PackageSerializer(serializers.ModelSerializer):
         )
 
     @staticmethod
-    def _deactivate_other_active_packages(package):
-        Package.objects.filter(
-            company_id=package.company_id,
-            tier_id=package.tier_id,
-            package_version_id=package.package_version_id,
+    def _deactivate_other_active_packages(
+        *,
+        company_id,
+        tier_id,
+        package_version_id,
+        exclude_pk=None,
+    ):
+        qs = Package.objects.filter(
+            company_id=company_id,
+            tier_id=tier_id,
+            package_version_id=package_version_id,
             deleted_at__isnull=True,
             is_active=True,
-        ).exclude(pk=package.pk).update(is_active=False)
+        )
+        if exclude_pk is not None:
+            qs = qs.exclude(pk=exclude_pk)
+        qs.update(is_active=False)
 
     def _create_item_tree(self, package, items_data, parent=None, created_by=None):
         for sort_order, item_data in enumerate(items_data):
@@ -309,9 +318,14 @@ class PackageSerializer(serializers.ModelSerializer):
         )
         if not siblings.exists():
             validated_data['is_active'] = True
+        will_be_active = validated_data.get('is_active', True)
+        if will_be_active:
+            self._deactivate_other_active_packages(
+                company_id=validated_data['company'].pk,
+                tier_id=validated_data['tier'].pk,
+                package_version_id=validated_data['package_version'].pk,
+            )
         package = super().create(validated_data)
-        if package.is_active:
-            self._deactivate_other_active_packages(package)
         if items_data:
             created_by = request.user if request and request.user.is_authenticated else None
             self._create_item_tree(package, items_data, parent=None, created_by=created_by)
@@ -320,9 +334,17 @@ class PackageSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)
+        tier = validated_data.get('tier', instance.tier)
+        tier_id = tier.pk if hasattr(tier, 'pk') else tier
+        is_active = validated_data.get('is_active', instance.is_active)
+        if is_active:
+            self._deactivate_other_active_packages(
+                company_id=instance.company_id,
+                tier_id=tier_id,
+                package_version_id=instance.package_version_id,
+                exclude_pk=instance.pk,
+            )
         package = super().update(instance, validated_data)
-        if package.is_active:
-            self._deactivate_other_active_packages(package)
         if items_data is not None:
             self._replace_items(package, items_data)
         return package
