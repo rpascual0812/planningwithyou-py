@@ -59,22 +59,18 @@ class PackageViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
+        from users.company_access import effective_company_id
+
         account_id = self.request.user.account_id
         qs = Package.objects.filter(
             account_id=account_id,
             deleted_at__isnull=True,
         )
-        company_id = self.request.query_params.get('company_id', '').strip()
-        if company_id:
-            if not Company.objects.filter(
-                pk=company_id,
-                account_id=account_id,
-                deleted_at__isnull=True,
-            ).exists():
-                return qs.none()
+        raw = self.request.query_params.get('company_id', '').strip()
+        requested = int(raw) if raw.isdigit() else None
+        company_id = effective_company_id(self.request.user, requested)
+        if company_id is not None:
             qs = qs.filter(company_id=company_id)
-        else:
-            qs = qs.filter(company_id=self.request.user.company_id)
         active_only = self.request.query_params.get('active_only', '').lower()
         if active_only in ('1', 'true', 'yes'):
             qs = qs.filter(is_active=True)

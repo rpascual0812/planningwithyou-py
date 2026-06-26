@@ -159,6 +159,50 @@ class User(AbstractBaseUser):
         return self.is_staff
 
 
+class ImpersonationLog(models.Model):
+    """Audit record when a platform admin views the app as another user."""
+
+    admin_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='impersonations_started',
+        db_column='admin_user_id',
+    )
+    target_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='impersonations_received',
+        db_column='target_user_id',
+    )
+    account = models.ForeignKey(
+        Account,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='account_id',
+        related_name='+',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='company_id',
+        related_name='+',
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, default='')
+    started_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'impersonation_logs'
+        ordering = ['-started_at', '-id']
+
+    def __str__(self):
+        return f'admin={self.admin_user_id} → user={self.target_user_id}'
+
+
 class EmailVerificationToken(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

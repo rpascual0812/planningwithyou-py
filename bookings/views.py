@@ -64,19 +64,12 @@ class TagViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'head', 'options']
 
     def get_queryset(self):
-        from companies.scope import company_belongs_to_account
+        from users.company_access import effective_company_id
 
         account_id = self.request.user.account_id
         raw = self.request.query_params.get('company_id', '').strip()
-        if raw:
-            try:
-                company_id = int(raw)
-            except ValueError:
-                return Tag.objects.none()
-            if not company_belongs_to_account(company_id, account_id):
-                return Tag.objects.none()
-        else:
-            company_id = getattr(self.request.user, 'company_id', None)
+        requested = int(raw) if raw.isdigit() else None
+        company_id = effective_company_id(self.request.user, requested)
         qs = Tag.objects.filter(account_id=account_id)
         if company_id is not None:
             qs = qs.filter(company_id=company_id)

@@ -3,7 +3,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from companies.scope import company_belongs_to_account
 from config.models import Config
 from config.views import (
     ACTIVE_PROJECTS_SCOPE,
@@ -26,34 +25,30 @@ class DashboardSummaryView(APIView):
     feature_key = 'dashboard'
 
     def get(self, request):
+        from users.company_access import can_change_company
+
+        user_company_id = getattr(request.user, 'company_id', None)
+        limit_to_company_id = None
+        if not can_change_company(request.user):
+            limit_to_company_id = user_company_id
         return Response(
             build_dashboard_for_account(
                 request.user.account_id,
-                user_company_id=getattr(request.user, 'company_id', None),
+                user_company_id=user_company_id,
+                limit_to_company_id=limit_to_company_id,
             ),
         )
 
 
 def _company_id_from_dashboard_request(request):
+    from users.company_access import effective_company_id
+
     raw = request.query_params.get('company_id', '').strip()
-    if raw:
-        try:
-            company_id = int(raw)
-        except ValueError:
-            return None, Response(
-                {'company_id': ['Invalid company id.']},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-    else:
-        company_id = getattr(request.user, 'company_id', None)
+    requested = int(raw) if raw.isdigit() else None
+    company_id = effective_company_id(request.user, requested)
     if company_id is None:
         return None, Response(
             {'company_id': ['Company is required.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    if not company_belongs_to_account(company_id, request.user.account_id):
-        return None, Response(
-            {'company_id': ['Company not found.']},
             status=status.HTTP_400_BAD_REQUEST,
         )
     return company_id, None

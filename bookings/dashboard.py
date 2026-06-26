@@ -407,16 +407,18 @@ def build_dashboard_for_account(
     account_id: int,
     *,
     user_company_id: int | None = None,
+    limit_to_company_id: int | None = None,
 ) -> dict:
     now = timezone.now()
     week_end = now + timedelta(days=7)
-    companies = list(
-        Company.objects.filter(
-            account_id=account_id,
-            deleted_at__isnull=True,
-            is_active=True,
-        ).order_by('-is_main', 'sort_order', 'name')
+    companies_qs = Company.objects.filter(
+        account_id=account_id,
+        deleted_at__isnull=True,
+        is_active=True,
     )
+    if limit_to_company_id is not None:
+        companies_qs = companies_qs.filter(pk=limit_to_company_id)
+    companies = list(companies_qs.order_by('-is_main', 'sort_order', 'name'))
     company_payloads = []
     for company in companies:
         owned_qs = Quotation.objects.filter(

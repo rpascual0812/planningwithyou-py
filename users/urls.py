@@ -6,6 +6,8 @@ from rest_framework_simplejwt.views import (
 )
 
 from .admin_account_views import AdminAccountViewSet
+from .admin_impersonation_views import AdminImpersonationUserViewSet
+from .impersonation_views import ImpersonateEndView, ImpersonateStartView
 from .views import (
     AccountViewSet,
     EmailTokenObtainPairView,
@@ -19,6 +21,11 @@ from .views import (
 router = DefaultRouter()
 router.register('accounts', AccountViewSet, basename='account')
 router.register('admin/accounts', AdminAccountViewSet, basename='admin-account')
+router.register(
+    'admin/impersonation-users',
+    AdminImpersonationUserViewSet,
+    basename='admin-impersonation-user',
+)
 router.register('roles', RoleViewSet, basename='role')
 router.register('users', UserViewSet, basename='user')
 
@@ -36,6 +43,12 @@ urlpatterns = [
         'reset-password/confirm/',
         PasswordResetConfirmView.as_view(),
         name='password_reset_confirm',
+    ),
+    path('admin/impersonate/', ImpersonateStartView.as_view(), name='admin_impersonate'),
+    path(
+        'admin/impersonate/end/',
+        ImpersonateEndView.as_view(),
+        name='admin_impersonate_end',
     ),
     path('', include(router.urls)),
 ]

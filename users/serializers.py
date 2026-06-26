@@ -170,6 +170,7 @@ class UserSerializer(serializers.ModelSerializer):
     company_logo_url = serializers.SerializerMethodField()
     photo_url = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    impersonating = serializers.SerializerMethodField()
     role_name = serializers.CharField(source='role.name', read_only=True, default='')
     photo_upload = serializers.FileField(write_only=True, required=False, allow_null=True)
     role = serializers.PrimaryKeyRelatedField(
@@ -199,6 +200,7 @@ class UserSerializer(serializers.ModelSerializer):
             'role',
             'role_name',
             'permissions',
+            'impersonating',
             'subscription_plan',
             'tour_completed_at',
             'last_login',
@@ -273,6 +275,14 @@ class UserSerializer(serializers.ModelSerializer):
         from .roles import effective_feature_permissions
 
         return effective_feature_permissions(obj)
+
+    def get_impersonating(self, obj: User) -> bool:
+        request = self.context.get('request')
+        if request is None:
+            return False
+        from .jwt import is_impersonation_request
+
+        return is_impersonation_request(request)
 
     def get_photo_url(self, obj: User) -> str:
         return user_photo_public_url(

@@ -91,6 +91,12 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
 
         if not self._is_supplier_directory():
             qs = qs.filter(account_id=self.request.user.account_id)
+            from users.company_access import can_change_company
+
+            if not can_change_company(self.request.user):
+                user_company_id = getattr(self.request.user, 'company_id', None)
+                if user_company_id is not None:
+                    qs = qs.filter(pk=user_company_id)
 
         supplier_type = self.request.query_params.get('supplier_type', '').strip()
         if supplier_type:

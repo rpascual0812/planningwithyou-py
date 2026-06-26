@@ -25,7 +25,11 @@ class IsAdmin(permissions.BasePermission):
     message = 'Admin access required.'
 
     def has_permission(self, request, view):
+        from users.jwt import is_impersonation_request
         from users.roles import is_platform_admin
+
+        if is_impersonation_request(request):
+            return False
 
         user = request.user
         return bool(user.is_authenticated and is_platform_admin(user))
@@ -72,10 +76,16 @@ class FeatureAccess(permissions.BasePermission):
             # If a view didn't declare a feature, do not block by default.
             return True
 
+        from users.jwt import is_impersonation_request
         from users.roles import (
+            ADMIN_FEATURE_KEYS,
             effective_feature_permissions,
             feature_access_level_for_request,
         )
+
+        if is_impersonation_request(request) and feature_key in ADMIN_FEATURE_KEYS:
+            self.message = 'Admin access is unavailable while impersonating a user.'
+            return False
 
         access = getattr(user, '_effective_feature_access', None)
         if access is None:

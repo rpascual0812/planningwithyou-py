@@ -8,6 +8,11 @@ from users.roles import feature_access_level, has_feature_read
 CHANGE_COMPANY_KEY = 'change_company'
 
 
+def is_company_context_locked(user) -> bool:
+    """True when the user must not switch company (e.g. admin impersonation)."""
+    return bool(getattr(user, '_impersonation_locked', False))
+
+
 def can_change_company(user) -> bool:
     """
     True when the user may select another company in the account.
@@ -16,6 +21,8 @@ def can_change_company(user) -> bool:
     switching company context; only ``write`` is required for mutating company
     records on endpoints that use this feature directly.
     """
+    if is_company_context_locked(user):
+        return False
     return has_feature_read(user, CHANGE_COMPANY_KEY)
 
 

@@ -3,7 +3,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from companies.scope import company_belongs_to_account
 from planningwithyou.permissions import FeatureAccess, HasAccount
 
 from .models import Config
@@ -23,25 +22,22 @@ DASHBOARD_TAG_CONFIG_NAME = 'tag'
 
 
 def _dashboard_metric_company_id(request):
+    from users.company_access import effective_company_id
+
     raw = request.query_params.get('company_id') or request.data.get('company_id')
-    if raw is None or str(raw).strip() == '':
-        company_id = getattr(request.user, 'company_id', None)
-    else:
+    requested = None
+    if raw is not None and str(raw).strip() != '':
         try:
-            company_id = int(raw)
+            requested = int(raw)
         except (TypeError, ValueError):
             return None, Response(
                 {'company_id': ['Invalid company id.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+    company_id = effective_company_id(request.user, requested)
     if company_id is None:
         return None, Response(
             {'company_id': ['Company is required.']},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    if not company_belongs_to_account(company_id, request.user.account_id):
-        return None, Response(
-            {'company_id': ['Company not found.']},
             status=status.HTTP_400_BAD_REQUEST,
         )
     return company_id, None
