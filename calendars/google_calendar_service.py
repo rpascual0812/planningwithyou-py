@@ -20,6 +20,7 @@ import requests
 from django.conf import settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.utils import timezone
+from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -34,6 +35,11 @@ PWY_EVENT_ID_KEY = 'pwy_event_id'
 INITIAL_SYNC_LOOKBACK_DAYS = 730
 OAUTH_STATE_MAX_AGE = 600
 STATE_SIGNER = TimestampSigner(salt='google-calendar-oauth')
+
+RECONNECT_MESSAGE = (
+    'Google Calendar access has expired or was revoked. '
+    'Reconnect Google Calendar in Calendar Settings.'
+)
 
 skip_google_sync: contextvars.ContextVar[bool] = contextvars.ContextVar(
     'skip_google_sync',
@@ -221,6 +227,31 @@ def _store_credentials_on_integration(
     return integration
 
 
+def _invalidate_integration_oauth(integration: GoogleCalendarIntegration) -> None:
+    """Drop stored tokens after refresh failure so the app shows disconnected."""
+    integration.access_token_encrypted = ''
+    integration.refresh_token_encrypted = ''
+    integration.token_expiry = None
+    integration.watch_channel_id = ''
+    integration.watch_resource_id = ''
+    integration.watch_channel_token = ''
+    integration.watch_expiration = None
+    integration.google_sync_token = ''
+    integration.save(
+        update_fields=[
+            'access_token_encrypted',
+            'refresh_token_encrypted',
+            'token_expiry',
+            'watch_channel_id',
+            'watch_resource_id',
+            'watch_channel_token',
+            'watch_expiration',
+            'google_sync_token',
+            'updated_at',
+        ],
+    )
+
+
 def _credentials_from_integration(
     integration: GoogleCalendarIntegration,
 ) -> Credentials | None:
@@ -240,7 +271,17 @@ def _credentials_from_integration(
     if not creds.valid and creds.refresh_token:
         from google.auth.transport.requests import Request
 
-        creds.refresh(Request())
+        try:
+            creds.refresh(Request())
+        except RefreshError as exc:
+            logger.warning(
+                'Google Calendar OAuth refresh failed integration_id=%s company_id=%s: %s',
+                integration.pk,
+                integration.company_id,
+                exc,
+            )
+            _invalidate_integration_oauth(integration)
+            return None
         _store_credentials_on_integration(integration, creds)
     return creds
 
@@ -248,7 +289,7 @@ def _credentials_from_integration(
 def _calendar_service(integration: GoogleCalendarIntegration):
     creds = _credentials_from_integration(integration)
     if creds is None:
-        raise GoogleCalendarOAuthError('Google Calendar is not connected.')
+        raise GoogleCalendarOAuthError(RECONNECT_MESSAGE)
     return build('calendar', 'v3', credentials=creds, cache_discovery=False)
 
 
@@ -453,6 +494,12 @@ def push_event_to_google(calendar_event: Calendar | int) -> None:
                 calendar_event.google_event_id = new_id
         integration.last_synced_at = timezone.now()
         integration.save(update_fields=['last_synced_at', 'updated_at'])
+    except GoogleCalendarOAuthError as exc:
+        logger.warning(
+            'Google Calendar push skipped event_id=%s: %s',
+            calendar_event.pk,
+            exc,
+        )
     except HttpError as exc:
         _log_google_http_error('push', calendar_event, exc)
     except Exception:
@@ -478,6 +525,12 @@ def delete_event_from_google(calendar_event: Calendar) -> None:
         service = _calendar_service(integration)
         cal_id = integration.google_calendar_id or 'primary'
         service.events().delete(calendarId=cal_id, eventId=google_id).execute()
+    except GoogleCalendarOAuthError as exc:
+        logger.warning(
+            'Google Calendar delete skipped event_id=%s: %s',
+            calendar_event.pk,
+            exc,
+        )
     except HttpError as exc:
         if exc.resp is None or exc.resp.status != 404:
             _log_google_http_error('delete', calendar_event, exc)
@@ -649,6 +702,12 @@ def sync_events_from_google(integration: GoogleCalendarIntegration) -> None:
 
         integration.last_synced_at = timezone.now()
         integration.save(update_fields=['last_synced_at', 'updated_at'])
+    except GoogleCalendarOAuthError as exc:
+        logger.warning(
+            'Google Calendar inbound sync skipped integration_id=%s: %s',
+            integration.pk,
+            exc,
+        )
     except HttpError as exc:
         if exc.resp is not None and exc.resp.status == 410:
             integration.google_sync_token = ''
@@ -723,6 +782,12 @@ def register_watch_channel(integration: GoogleCalendarIntegration) -> None:
                 'watch_expiration',
                 'updated_at',
             ],
+        )
+    except GoogleCalendarOAuthError as exc:
+        logger.warning(
+            'Google Calendar watch registration skipped integration_id=%s: %s',
+            integration.pk,
+            exc,
         )
     except Exception:
         logger.exception('Failed to register Google Calendar watch channel')

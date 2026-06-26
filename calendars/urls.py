@@ -7,11 +7,22 @@ from .google_calendar_views import (
     GoogleCalendarSyncView,
     GoogleCalendarWebhookView,
 )
-from .views import CalendarStatusViewSet, CalendarViewSet
+from .views import (
+    AppointmentReminderViewSet,
+    CalendarStatusViewSet,
+    CalendarViewSet,
+    ScheduledAppointmentReminderViewSet,
+)
 
 router = DefaultRouter()
 router.register('calendar-statuses', CalendarStatusViewSet, basename='calendar-status')
 router.register('calendar-events', CalendarViewSet, basename='calendar-event')
+router.register('appointment-reminders', AppointmentReminderViewSet, basename='appointment-reminder')
+router.register(
+    'scheduled-reminder-emails',
+    ScheduledAppointmentReminderViewSet,
+    basename='scheduled-reminder-email',
+)
 
 urlpatterns = [
     path(

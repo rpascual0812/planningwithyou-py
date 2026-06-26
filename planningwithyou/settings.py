@@ -407,6 +407,13 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
+CELERY_BEAT_SCHEDULE = {
+    'dispatch-due-appointment-reminders': {
+        'task': 'calendars.tasks.dispatch_due_appointment_reminders_task',
+        'schedule': 60.0,
+    },
+}
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(
         minutes=int(os.environ.get('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', 60)),

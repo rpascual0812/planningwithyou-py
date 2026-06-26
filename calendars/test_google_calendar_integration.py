@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -5,9 +7,12 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.utils import timezone
 
+from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 
 from calendars.google_calendar_service import (
+    RECONNECT_MESSAGE,
+    _credentials_from_integration,
     _expiry_for_google_auth,
     _format_google_datetime,
     integration_status_payload,
@@ -69,3 +74,41 @@ class GoogleCalendarStatusPayloadTests(TestCase):
         self.assertTrue(data['connected'])
         self.assertTrue(data['two_way_sync'])
         self.assertEqual(data['google_email'], 'user@example.com')
+
+
+class GoogleCalendarRefreshTokenTests(TestCase):
+    @override_settings(
+        GOOGLE_CALENDAR_OAUTH_CLIENT_ID='id',
+        GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET='secret',
+    )
+    @patch('calendars.google_calendar_service._invalidate_integration_oauth')
+    @patch('calendars.google_calendar_service.decrypt_token', return_value='refresh-token')
+    @patch('calendars.google_calendar_service.Credentials')
+    def test_invalid_grant_clears_tokens(
+        self,
+        mock_credentials_cls,
+        _mock_decrypt,
+        mock_invalidate,
+    ):
+        creds = mock_credentials_cls.return_value
+        creds.valid = False
+        creds.refresh_token = 'refresh-token'
+        creds.refresh.side_effect = RefreshError(
+            'invalid_grant: Token has been expired or revoked.',
+        )
+
+        integration = GoogleCalendarIntegration(
+            pk=5,
+            company_id=2,
+            refresh_token_encrypted='enc-refresh',
+            access_token_encrypted='enc-access',
+            google_email='user@example.com',
+        )
+
+        result = _credentials_from_integration(integration)
+
+        self.assertIsNone(result)
+        mock_invalidate.assert_called_once_with(integration)
+
+    def test_reconnect_message_is_actionable(self):
+        self.assertIn('Reconnect', RECONNECT_MESSAGE)

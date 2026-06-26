@@ -193,3 +193,195 @@ class GoogleCalendarIntegration(models.Model):
 
     def __str__(self):
         return f'Google Calendar {self.google_email or "—"} company={self.company_id}'
+
+
+class AppointmentReminderQuerySet(models.QuerySet):
+    def alive(self):
+        return self.filter(deleted_at__isnull=True)
+
+
+class AppointmentReminderManager(models.Manager.from_queryset(AppointmentReminderQuerySet)):
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
+class AppointmentReminderAllManager(models.Manager.from_queryset(AppointmentReminderQuerySet)):
+    pass
+
+
+class AppointmentReminder(models.Model):
+    class ReminderType(models.TextChoices):
+        EMAIL = 'email', 'Email'
+        SMS = 'sms', 'SMS'
+
+    class OffsetUnit(models.TextChoices):
+        MINUTE = 'minute', 'Minute'
+        MINUTES = 'minutes', 'Minutes'
+        HOUR = 'hour', 'Hour'
+        HOURS = 'hours', 'Hours'
+        DAY = 'day', 'Day'
+        DAYS = 'days', 'Days'
+        WEEK = 'week', 'Week'
+        WEEKS = 'weeks', 'Weeks'
+
+    class CalendarAnchor(models.TextChoices):
+        START = 'start', 'Before event start'
+        END = 'end', 'Before event end'
+
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='appointment_reminders',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        db_column='company_id',
+        related_name='appointment_reminders',
+    )
+    calendar_statuses = models.ManyToManyField(
+        CalendarStatus,
+        related_name='appointment_reminders',
+        blank=True,
+    )
+    calendar = models.CharField(
+        max_length=16,
+        choices=CalendarAnchor.choices,
+        default=CalendarAnchor.START,
+        help_text='Which calendar event time the offset is measured from.',
+    )
+    frequency = models.PositiveIntegerField(default=1)
+    unit = models.CharField(max_length=16, choices=OffsetUnit.choices, default=OffsetUnit.HOURS)
+    reminder_type = models.CharField(
+        max_length=8,
+        choices=ReminderType.choices,
+        default=ReminderType.EMAIL,
+        db_column='type',
+    )
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='appointment_reminders_created',
+        db_column='created_by',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = AppointmentReminderManager()
+    all_objects = AppointmentReminderAllManager()
+
+    class Meta:
+        db_table = 'appointment_reminders'
+        ordering = ['id']
+
+    def __str__(self):
+        return f'Reminder {self.frequency} {self.unit} ({self.reminder_type})'
+
+
+class ScheduledAppointmentReminderQuerySet(models.QuerySet):
+    def alive(self):
+        return self.filter(deleted_at__isnull=True)
+
+
+class ScheduledAppointmentReminderManager(
+    models.Manager.from_queryset(ScheduledAppointmentReminderQuerySet),
+):
+    def get_queryset(self):
+        return super().get_queryset()
+
+
+class ScheduledAppointmentReminderAllManager(
+    models.Manager.from_queryset(ScheduledAppointmentReminderQuerySet),
+):
+    pass
+
+
+class ScheduledAppointmentReminder(models.Model):
+    """A single scheduled reminder email for a calendar event recipient."""
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        SENT = 'sent', 'Sent'
+        FAILED = 'failed', 'Failed'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    class RecipientRole(models.TextChoices):
+        CONTACT = 'contact', 'Contact'
+        AUTHOR = 'author', 'Author'
+
+    account = models.ForeignKey(
+        'users.Account',
+        on_delete=models.CASCADE,
+        db_column='account_id',
+        related_name='scheduled_appointment_reminders',
+    )
+    company = models.ForeignKey(
+        'companies.Company',
+        on_delete=models.CASCADE,
+        db_column='company_id',
+        related_name='scheduled_appointment_reminders',
+    )
+    calendar_event = models.ForeignKey(
+        Calendar,
+        on_delete=models.CASCADE,
+        db_column='calendar_event_id',
+        related_name='scheduled_reminders',
+    )
+    appointment_reminder = models.ForeignKey(
+        AppointmentReminder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='appointment_reminder_id',
+        related_name='scheduled_sends',
+    )
+    recipient_role = models.CharField(
+        max_length=16,
+        choices=RecipientRole.choices,
+    )
+    recipient_email = models.EmailField(max_length=255)
+    recipient_name = models.CharField(max_length=255, blank=True, default='')
+    send_at = models.DateTimeField(db_index=True)
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    email_log = models.ForeignKey(
+        'emails.EmailLog',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='email_log_id',
+        related_name='scheduled_appointment_reminders',
+    )
+    error = models.TextField(blank=True, default='')
+    sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = ScheduledAppointmentReminderManager()
+    all_objects = ScheduledAppointmentReminderAllManager()
+
+    class Meta:
+        db_table = 'scheduled_appointment_reminders'
+        ordering = ['-send_at', 'id']
+        indexes = [
+            models.Index(
+                fields=['status', 'send_at'],
+                name='sched_appt_rem_status_send',
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f'Reminder to {self.recipient_email} at {self.send_at} '
+            f'[{self.status}]'
+        )

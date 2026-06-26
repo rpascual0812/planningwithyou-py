@@ -59,6 +59,7 @@ class EmailCalendarTemplateApiTests(TestCase):
         names = {row['name'] for row in res.data}
         self.assertIn('calendar_event_creation', names)
         self.assertIn('calendar_event_updated', names)
+        self.assertIn('calendar_event_reminder', names)
         self.assertTrue(all(row['type'] == 'calendar' for row in res.data))
 
     def test_create_calendar_template(self):

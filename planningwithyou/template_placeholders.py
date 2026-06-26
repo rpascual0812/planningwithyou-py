@@ -17,6 +17,8 @@ EMAIL_TEMPLATE_UPDATED_QUOTATION = 'updated_quotation'
 EMAIL_TEMPLATE_QUOTATION_STATUS_COMPANY = 'quotation_status_company'
 EMAIL_TEMPLATE_QUOTATION_STATUS_CONTACT = 'quotation_status_contact'
 
+EMAIL_TEMPLATE_CALENDAR_EVENT_REMINDER = 'calendar_event_reminder'
+
 DEFAULT_QUOTATION_STATUS_CONTACT_SUBJECT = (
     '{company_name} – Quotation {quotation_unique_id} is now {status_title}'
 )
