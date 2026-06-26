@@ -281,6 +281,18 @@ def _credentials_from_integration(
                 exc,
             )
             _invalidate_integration_oauth(integration)
+            try:
+                from user_notifications.services import notify_google_calendar_token_revoked
+
+                notify_google_calendar_token_revoked(
+                    user_id=integration.created_by_id,
+                    account_id=integration.account_id,
+                    company_id=integration.company_id,
+                    integration_id=integration.pk,
+                    error_message=str(exc),
+                )
+            except Exception:
+                logger.exception('Failed to create Google Calendar user notification')
             return None
         _store_credentials_on_integration(integration, creds)
     return creds

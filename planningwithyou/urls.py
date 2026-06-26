@@ -45,6 +45,7 @@ urlpatterns = [
     path('', include('payments.urls')),
     path('', include('config.urls')),
     path('', include('system_notifications.urls')),
+    path('', include('user_notifications.urls')),
     path('', include('system_settings.urls')),
     path('', include('support.urls')),
     path('', include('template_studio.urls')),

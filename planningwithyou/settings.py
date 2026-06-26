@@ -128,6 +128,7 @@ INSTALLED_APPS = [
     'packages',
     'payments',
     'system_notifications',
+    'user_notifications',
     'system_settings',
     'support',
     'template_studio',

@@ -21,6 +21,7 @@ os.environ.setdefault('OAUTHLIB_RELAX_TOKEN_SCOPE', '1')
 import requests
 from django.conf import settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -246,6 +247,20 @@ def _store_credentials_on_integration(
     return integration
 
 
+def _invalidate_gmail_integration(integration: GmailIntegration) -> None:
+    integration.access_token_encrypted = ''
+    integration.refresh_token_encrypted = ''
+    integration.token_expiry = None
+    integration.save(
+        update_fields=[
+            'access_token_encrypted',
+            'refresh_token_encrypted',
+            'token_expiry',
+            'updated_at',
+        ],
+    )
+
+
 def _credentials_from_integration(
     integration: GmailIntegration,
 ) -> Credentials | None:
@@ -265,7 +280,29 @@ def _credentials_from_integration(
     if not creds.valid and creds.refresh_token:
         from google.auth.transport.requests import Request
 
-        creds.refresh(Request())
+        try:
+            creds.refresh(Request())
+        except RefreshError as exc:
+            logger.warning(
+                'Gmail OAuth refresh failed integration_id=%s company_id=%s: %s',
+                integration.pk,
+                integration.company_id,
+                exc,
+            )
+            _invalidate_gmail_integration(integration)
+            try:
+                from user_notifications.services import notify_gmail_token_revoked
+
+                notify_gmail_token_revoked(
+                    user_id=integration.created_by_id,
+                    account_id=integration.account_id,
+                    company_id=integration.company_id,
+                    integration_id=integration.pk,
+                    error_message=str(exc),
+                )
+            except Exception:
+                logger.exception('Failed to create Gmail user notification')
+            return None
         _store_credentials_on_integration(integration, creds)
     return creds
 
