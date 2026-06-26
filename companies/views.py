@@ -101,6 +101,13 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
         supplier_type = self.request.query_params.get('supplier_type', '').strip()
         if supplier_type:
             qs = qs.filter(supplier_type_id=supplier_type)
+        elif self._is_supplier_directory():
+            qs = qs.filter(
+                pk__in=SupplierSetting.objects.filter(
+                    account_id=self.request.user.account_id,
+                    is_active=True,
+                ).values('supplier_id'),
+            )
 
         if self._uses_supplier_setting_active():
             qs = qs.filter(is_active=True)
@@ -120,7 +127,9 @@ class CompanyViewSet(HistoryListMixin, viewsets.ModelViewSet):
         supplier_type = self.request.query_params.get('supplier_type', '').strip()
         if self._is_supplier_directory() or supplier_type:
             context['supplier_directory'] = True
-        if self.action == 'list' and supplier_type:
+        if self.action == 'list' and (
+            supplier_type or self._is_supplier_directory()
+        ):
             user = self.request.user
             qs = self.filter_queryset(self.get_queryset())
             company_ids = list(qs.values_list('id', flat=True))
